@@ -15,7 +15,7 @@ lifecycle: active
 | `packages/agent/src/instructions/commands/args.ts` | `parseCommandArgs`、`substituteArgs`、`parseCommandInvocation` |
 | `packages/agent/src/instructions/commands/loader.ts` | `createCommandTemplateLoader`：发现模板、解析 frontmatter、诊断（按 mtime 缓存） |
 | `packages/agent/src/instructions/commands/registry.ts` | `createCommandRegistry`：同名取舍、遮蔽诊断、启停 |
-| `packages/agent/src/instructions/commands/builtin.ts` | 内置命令列表（目前为空） |
+| `packages/agent/src/instructions/commands/builtin.ts` | 内置命令列表（`/compact`、`/plan`、`/goal`、`/handoff`） |
 | `packages/protocol/src/commands.ts` | `CommandInfo`、`CommandListResponse`、`commandPaths`；条目 payload `CommandPayload` 在 `context-entries.ts` |
 | `apps/server/src/application/context/commands.ts` | 命令贡献：命令目录与 `expandInput`；Skill 与 MCP 提示模板经 `commandSources` 登记的 `SourcedCommand`（类型在 `context/types.ts`） |
 | `apps/server/src/http/routes/commands.ts` | `GET /api/commands` |
@@ -27,7 +27,7 @@ lifecycle: active
 
 | 来源 | 位置 | 说明 |
 | --- | --- | --- |
-| 内置 | `BUILTIN_COMMANDS` | 展开为动作（`actions[name]`），只在该动作已由某个上下文贡献接入时列出；目前没有内置命令（`/compact` 随压缩接入） |
+| 内置 | `BUILTIN_COMMANDS` | 展开为动作（`actions[name]`），只在该动作已由某个上下文贡献接入时列出：`/compact`（[上下文管理](context.md)）、`/plan`（见下文）、`/goal`（[Goal](goal.md)）、`/handoff`（[交接](handoff.md)） |
 | 项目 | `<Workspace>/.coko/commands/**/*.md` | 提示模板 |
 | 用户 | `COKO_HOME/commands/**/*.md`（缺省 `~/.coko`） | 提示模板 |
 | Skill、MCP | 对应上下文贡献的 `commandSources` | 由来源展开；Skill 见 [Skills](skills.md#索引与调用) |
@@ -74,6 +74,7 @@ frontmatter 只认两个键，其余键（`model`、`allowed-tools` 等）忽略
 - 提交的文本（以及 Run 进行中的追加指令）先经上下文装配展开，命令排在 File Reference 之前。只有第一个字符是 `/`、名字之后是空白或结尾时才识别为调用；`/usr/bin` 这类路径、未知名字与停用的命令原样作为普通消息，不产生 command 条目。
 - 模板与来源命令：先提交 `command { name, args, source }`，再提交展开后的 user message，二者都在 `run_start` 之后、同一 Run 中；追加指令时 command 条目紧接在其 user message 之前。发给模型的只有展开后的文本。
 - 内置命令：展开为动作，SessionService 调用 `actions[name]`；Run 进行中提交时 409 `run-in-progress`，作为追加指令时 400 `bad-request`。
+- `/plan [消息]` 进入规划（执行中先放弃当前计划，再进入新一轮规划），有消息时随后作为普通提交；`/plan off`（不区分大小写）退出规划，执行中即放弃计划。都不改变 Permission Mode，契约见 [Plan Mode](plan-mode.md#进入退出与判定)。
 - 来源命令的展开函数抛出的 AppError 原样作为提交的错误响应（例如缺少必填参数时 400）。
 
 ## 开关

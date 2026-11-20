@@ -1,4 +1,4 @@
-import { effectiveEntries } from '@coko/agent/entries'
+import { effectiveEntries, planPhaseOf } from '@coko/agent/entries'
 import {
   planMarkdownProblem,
   planTitle,
@@ -8,14 +8,15 @@ import {
   type SessionEntry,
   type StandardPermissionMode,
 } from '@coko/protocol'
-import { Button, cn, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Textarea } from '@coko/ui'
-import { IconChevronDown, IconLayoutSidebarRightExpand } from '@tabler/icons-react'
+import { Button, cn, Textarea, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
+import { IconLayoutSidebarRightExpand } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { Markdown } from './markdown.tsx'
+import { ModePicker } from './mode-picker.tsx'
 
 // Plan Mode 的界面状态（ADR 0005）：计划修订由 plan 条目派生；审阅中的编辑草稿在 renderer 内存（不入记录），右栏编辑、审阅卡批准共用。
 
@@ -25,6 +26,19 @@ export interface PlanRevision extends PlanPayload {
 }
 
 /** 有效条目（回退区间除外）中的计划：按 planId 分组，组内按条目顺序；组按首次出现的顺序。 */
+/**
+ * 计划卡与 Plan 页显示的状态：approved 的计划在计划阶段为执行中且 planId 相同时为 executing（ADR 0028），历史上已批准、没有执行阶段的仍为
+ * approved；其余按条目。
+ */
+export function displayedPlanStatus(
+  plan: { planId: string; status: PlanPayload['status'] },
+  entries: readonly SessionEntry[],
+): PlanPayload['status'] | 'executing' {
+  if (plan.status !== 'approved') return plan.status
+  const phase = planPhaseOf(entries)
+  return phase.phase === 'executing' && phase.planId === plan.planId ? 'executing' : 'approved'
+}
+
 export function planHistory(entries: readonly SessionEntry[]): Map<string, PlanRevision[]> {
   const plans = new Map<string, PlanRevision[]>()
   for (const entry of effectiveEntries(entries)) {
@@ -34,16 +48,6 @@ export function planHistory(entries: readonly SessionEntry[]): Map<string, PlanR
     plans.set(entry.payload.planId, list)
   }
   return plans
-}
-
-/** 批准后恢复的模式：当前在 plan 时为进入前的模式（没有记录时 default），否则为当前模式。 */
-export function restoredMode(entries: readonly SessionEntry[]): PermissionMode {
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const entry = entries[i]!
-    if (entry.kind !== 'permission_mode') continue
-    return entry.payload.mode === 'plan' ? (entry.payload.prior ?? 'default') : entry.payload.mode
-  }
-  return 'default'
 }
 
 const draftKey = (sessionId: string, planId: string, revision: number) => `${sessionId}:${planId}:${revision}`
@@ -86,10 +90,18 @@ export function PlanMarkdown({ text, className }: { text: string; className?: st
   )
 }
 
-/** 模式的显示名（plan 另在 plan 领域）。 */
-export function useModeLabel(): (mode: PermissionMode) => string {
+/** 完成报告（静态 Markdown，标题 plan.report）：右栏 Plan 页与时间线计划卡（无右栏的内联展开）共用。 */
+export function PlanReport({ report, className }: { report: string; className?: string }) {
   const { t } = useI18n()
-  return (mode) => (mode === 'plan' ? t('plan.mode') : t(`permissions.modes.${mode as StandardPermissionMode}`))
+  const titleId = React.useId()
+  return (
+    <section data-slot="plan-report" aria-labelledby={titleId} className={cn('border-b-hairline border-border pb-4', className)}>
+      <h3 id={titleId} className="pb-1 text-ui-small font-medium text-muted-foreground">
+        {t('plan.report')}
+      </h3>
+      <PlanMarkdown text={report} className="text-ui-body" />
+    </section>
+  )
 }
 
 /** 新提交的计划只自动打开右栏一次（按请求）。 */
@@ -102,17 +114,31 @@ export interface PlanReviewPanelProps {
   answer: (answer: AnswerApprovalRequest) => Promise<boolean>
   /** 打开右栏的 Plan tab（右栏关闭时先打开）。 */
   onOpenPanel?: (() => void) | undefined
+  /** 批准后执行所用的 Permission Mode（会话当前的，含待确认的切换）；与 onPermissionModeChange 同时给出时卡上显示"执行权限"与模式菜单。 */
+  permissionMode?: PermissionMode | undefined
+  onPermissionModeChange?: ((mode: StandardPermissionMode) => void) | undefined
   autoFocus?: boolean
   className?: string
 }
 
 /**
- * 计划审阅接管输入区：主按钮"批准并执行"（标出将恢复的模式）、下拉"批准并允许编辑"、"继续规划"（反馈）与"在右栏查看"。
+ * 计划审阅接管输入区：主按钮"批准并执行"、"继续规划"（反馈）与"在右栏查看"。批准结束规划、计划进入执行中，按 Session 当前的 Permission Mode 执行
+ * （ADR 0028）。卡上标出执行权限并放入输入区同一个模式菜单：审阅等待期间切换照常提交 permission_mode，批准后按切换后的模式执行。
  * 右栏中的编辑随批准一起提交（editedPlan）。新计划出现时自动打开右栏一次。
  */
-export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPanel, autoFocus, className }: PlanReviewPanelProps) {
+export function PlanReviewPanel({
+  sessionId,
+  request,
+  entries,
+  answer,
+  onOpenPanel,
+  permissionMode,
+  onPermissionModeChange,
+  autoFocus,
+  className,
+}: PlanReviewPanelProps) {
   const { t } = useI18n()
-  const modeLabel = useModeLabel()
+  const permissionLabel = React.useId()
   const planId = request.planId
   const revision = request.revision
   const proposed = React.useMemo(
@@ -125,9 +151,6 @@ export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPan
   const draft = usePlanDraft(sessionId, planId, revision)
   const edited = draft !== undefined && proposed !== undefined && draft !== proposed.markdown
   const invalid = edited && planMarkdownProblem(draft) !== undefined
-  const restores = restoredMode(entries)
-  // 批准时只能选比进入前更窄的模式（不借批准放宽设置）：只有进入前为 full-access 时才给出 accept-edits。
-  const narrower = restores === 'full-access'
   const [answered, setAnswered] = React.useState(false)
   const [feedbackOpen, setFeedbackOpen] = React.useState(false)
   const [feedback, setFeedback] = React.useState('')
@@ -149,7 +172,7 @@ export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPan
     if (!ok) setAnswered(false)
     else if (planId && revision) setPlanDraft(sessionId, planId, revision, undefined)
   }
-  const approve = (mode?: 'accept-edits') => void send({ decision: 'allow', ...(edited && !invalid ? { editedPlan: draft } : {}), ...(mode ? { mode } : {}) })
+  const approve = () => void send({ decision: 'allow', ...(edited && !invalid ? { editedPlan: draft } : {}) })
   const keepPlanning = () => {
     const text = feedback.trim()
     if (text === '') return
@@ -206,62 +229,52 @@ export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPan
         </div>
       )}
       <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-3">
-        {onOpenPanel && (
-          <Button type="button" variant="ghost" size="sm" data-action="open-plan" onClick={onOpenPanel}>
-            <IconLayoutSidebarRightExpand aria-hidden />
-            {t('plan.review.openPanel')}
-          </Button>
+        {permissionMode && onPermissionModeChange && (
+          <div role="group" aria-labelledby={permissionLabel} data-slot="plan-review-permission" className="mr-auto flex min-w-0 items-center gap-1">
+            <span id={permissionLabel} className="shrink-0 text-ui-small text-muted-foreground">
+              {t('plan.review.permission')}
+            </span>
+            <ModePicker value={permissionMode} disabled={answered} onChange={onPermissionModeChange} />
+          </div>
         )}
-        {feedbackOpen ? (
-          <>
-            <Button type="button" variant="ghost" size="sm" disabled={answered} onClick={() => setFeedbackOpen(false)}>
-              {t('plan.review.cancel')}
-            </Button>
-            <Button type="button" variant="outline" size="sm" data-action="send-feedback" disabled={answered || feedback.trim() === ''} onClick={keepPlanning}>
-              {t('plan.review.sendFeedback')}
-            </Button>
-          </>
-        ) : (
-          <Button type="button" variant="outline" size="sm" data-action="keep-planning" disabled={answered} onClick={() => setFeedbackOpen(true)}>
-            {t('plan.review.continue')}
-          </Button>
-        )}
-        <div className="flex items-center">
-          <Button
-            type="button"
-            size="sm"
-            data-action="approve"
-            data-restores={restores}
-            disabled={answered || invalid}
-            className={narrower ? 'rounded-e-none' : undefined}
-            title={t('plan.review.restores', { mode: modeLabel(restores) })}
-            onClick={() => approve()}
-          >
-            {t('plan.review.approve')}
-            <span className="text-ui-small opacity-80">· {modeLabel(restores)}</span>
-          </Button>
-          {/* 非模态：批准后按钮即禁用，模态菜单关闭时的焦点归还与对其余节点的隐藏不再适用。 */}
-          {narrower && (
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  data-action="approve-more"
-                  disabled={answered || invalid}
-                  aria-label={t('plan.review.more')}
-                  className="rounded-s-none border-s-hairline border-primary-foreground/30"
-                >
-                  <IconChevronDown aria-hidden />
+        {/* 按钮成组换行：主区放不下时执行权限独占一行，"批准并执行"不与同组按钮分开。 */}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          {onOpenPanel && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="button" variant="ghost" size="sm" data-action="open-plan" aria-label={t('plan.review.openPanel')} onClick={onOpenPanel}>
+                  <IconLayoutSidebarRightExpand aria-hidden />
+                  {/* 窄主区中只显示图标（名称在 aria-label 与 Tooltip 中），三个按钮留在同一行。 */}
+                  <span className="@max-[560px]/main:hidden">{t('plan.review.openPanel')}</span>
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="end">
-                <DropdownMenuItem data-action="approve-accept-edits" onSelect={() => approve('accept-edits')}>
-                  {t('plan.review.approveAcceptEdits')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </TooltipTrigger>
+              <TooltipContent side="top">{t('plan.review.openPanel')}</TooltipContent>
+            </Tooltip>
           )}
+          {feedbackOpen ? (
+            <>
+              <Button type="button" variant="ghost" size="sm" disabled={answered} onClick={() => setFeedbackOpen(false)}>
+                {t('plan.review.cancel')}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                data-action="send-feedback"
+                disabled={answered || feedback.trim() === ''}
+                onClick={keepPlanning}
+              >
+                {t('plan.review.sendFeedback')}
+              </Button>
+            </>
+          ) : (
+            <Button type="button" variant="outline" size="sm" data-action="keep-planning" disabled={answered} onClick={() => setFeedbackOpen(true)}>
+              {t('plan.review.continue')}
+            </Button>
+          )}
+          <Button type="button" size="sm" data-action="approve" disabled={answered || invalid} onClick={approve}>
+            {t('plan.review.approve')}
+          </Button>
         </div>
       </div>
       {invalid && (

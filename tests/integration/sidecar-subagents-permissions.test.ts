@@ -1,6 +1,7 @@
 // 子代理的有效权限（ADR 0014）与审批（对手用例）：子级审批在子 Session 等待并经其 approvals 回答；"本会话总是允许"写入根 Session；PermissionRequest
 // Hook 可代答；定义 full-access 不放宽根的 default；根中途切到 read-only 后子级下一次写入被询问、bash 在 read-only 沙箱中；子级没有 agent / create_goal /
-// schedule_create / job_output（requestLog 中的工具表）且 bash run_in_background 为参数错误；Agent(general) 拒绝规则在 full-access 下生效。
+// schedule_create / job_output（requestLog 中的工具表）且 bash run_in_background 为参数错误；Agent(general) 拒绝规则在 full-access 下生效；根在规划中时子级的
+// 工具表没有 exit_plan_mode 与 complete_plan。
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -115,6 +116,56 @@ describe('子代理：审批与有效权限', { timeout: 120_000 }, () => {
     // 子 Session 不能直接切换模式。
     const set = await env.api.put(permissionPaths.sessionPermissionMode(child), { mode: 'full-access' })
     expect([set.status, set.body.error.code]).toEqual([409, 'child-session'])
+  })
+
+  it('根 Session 规划中派发的子代理（ADR 0028）：有效模式为根的 full-access（不压成 read-only，命令不询问）；写入直接拒绝（无审批）、命令在只读沙箱、system 中是子 Session 的 <plan_mode>（不提提交计划）', async () => {
+    const env = await bootAgents([
+      { match: 'PARENT-P', content: [call('agent', 'a1', { description: 'probe', prompt: 'CHILD-P probe', subagent_type: 'general' })] },
+      {
+        match: 'CHILD-P',
+        content: [call('write', 'w1', { path: 'child.txt', content: 'x' }), call('bash', 'b1', { command: 'echo hi > child-cmd.txt' })],
+      },
+      { match: 'CHILD-P', content: 'reported' },
+      { match: 'PARENT-P', content: 'ok' },
+    ])
+    // ADR 0028 起规划不改变模式：根为 full-access 并在规划中，子级有效模式为 full-access（定义没有上限），命令不询问；规划约束照常。
+    const parent = await env.open('full-access', true)
+    await env.submit(parent, 'PARENT-P go')
+    await env.stream.waitFor(() => runEnds(env.stream, parent).length >= 1, 30_000)
+    const child = starts(env.stream, parent)[0]!.agentId
+    const entries = await entriesOf(env, child)
+    expect(entries.filter((e) => e.kind === 'approval_request')).toEqual([])
+    const results = entries
+      .filter((e) => e.kind === 'message' && e.payload.role === 'toolResult')
+      .map((e) => ({ toolName: e.payload.toolName, text: (e.payload.content as { text?: string }[]).map((b) => b.text ?? '').join('') }))
+    expect(results[0]).toEqual({
+      toolName: 'write',
+      text: 'Refused: plan mode is active, so file writes are blocked until the user approves a plan. Do not retry or work around this; describe the intended change in the plan (or in your report to the parent agent) instead.',
+    })
+    // darwin：Seatbelt 以只读档位拒绝写入；其他平台没有 sandbox-exec，受限档位的命令 fail-closed。
+    expect(results[1]!.text).toContain(
+      process.platform === 'darwin'
+        ? '[sandbox: file access denied under read-only mode]\n[sandbox: escalation is not available in plan mode]'
+        : 'sandbox-unavailable',
+    )
+    expect(existsSync(join(env.wsPath, 'child.txt'))).toBe(false)
+    expect(existsSync(join(env.wsPath, 'child-cmd.txt'))).toBe(false)
+    const logged = byUser(await env.requests(), 'CHILD-P probe') as Logged[]
+    expect(logged.length).toBeGreaterThan(0)
+    // 根 Session 在规划中注册 exit_plan_mode 与 complete_plan；子 Session 的工具表没有这两个（不能提交计划或完成报告）。
+    const advertised = (requests: Logged[]) => requests.flatMap((r) => r.flatMap((m) => m.toolsAdded ?? []).map((t) => t.name))
+    expect(advertised(byUser(await env.requests(), 'PARENT-P go') as Logged[])).toEqual(expect.arrayContaining(['exit_plan_mode', 'complete_plan']))
+    expect(advertised(logged)).not.toEqual(expect.arrayContaining(['exit_plan_mode']))
+    expect(advertised(logged)).not.toEqual(expect.arrayContaining(['complete_plan']))
+    expect(advertised(logged)).toContain('read')
+    for (const request of logged)
+      expect(request.find((m) => m.role === 'system')?.sections?.plan_mode).toBe(
+        [
+          '<plan_mode>',
+          'The parent session is in plan mode, so this task must not change the Workspace. File writes (write, edit) are refused and commands run in a read-only sandbox that cannot be escalated. Research, then report your findings and the changes you would make to the parent agent.',
+          '</plan_mode>',
+        ].join('\n'),
+      )
   })
 
   it('对手用例：子级的工具表没有 agent、create_goal、schedule_create、job_output；调用它们失败；bash run_in_background 为参数错误', async () => {

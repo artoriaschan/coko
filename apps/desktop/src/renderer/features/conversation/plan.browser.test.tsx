@@ -1,21 +1,25 @@
-// Plan Mode 的界面：审阅卡（批准并执行、只在更窄时给出"批准并允许编辑"、继续规划、右栏中的编辑随批准提交、新计划自动打开一次）、右栏 Plan tab
-// （修订、状态、编辑）、Plan chip（plan 模式时显示，点击回到进入前的模式）与三项权限快捷菜单。多个含 Radix 菜单的界面在同一文件中依次渲染：
-// 每个用例等菜单关闭后才结束，共用 setup 断言没有遗留的 aria-hidden 与 pointer-events（testing/browser-setup.ts）。
+// Plan Mode 的界面（ADR 0028：规划是计划阶段，不是 Permission Mode）：审阅卡（只有"批准并执行"、继续规划、右栏中的编辑随批准提交、新计划自动
+// 打开一次；卡上的执行权限即输入区同一个模式菜单，切换、风险确认与失败保留）、右栏 Plan tab（修订、状态、编辑）、Plan chip（计划阶段为规划中时显示，点击调用退出动作，失败时保留）与三项权限快捷菜单。多个含
+// Radix 菜单的界面在同一文件中依次渲染：每个用例等菜单关闭后才结束，共用 setup 断言没有遗留的 aria-hidden 与 pointer-events（testing/browser-setup.ts）。
 import '../../styles.css'
-import type { AnswerApprovalRequest, ApprovalRequestPayload, SessionEntry } from '@coko/protocol'
+import type { AnswerApprovalRequest, ApprovalRequestPayload, PlanActionRequest, PlanPayload, SessionEntry } from '@coko/protocol'
 import { TooltipProvider } from '@coko/ui'
 import type * as React from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
-import { ChatStoreProvider } from '../../app/chat.tsx'
+import { ChatStoreProvider, useChat } from '../../app/chat.tsx'
+import { ApiError } from '../../client/api.ts'
 import { I18nProvider } from '../../app/i18n.tsx'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
 import { PlanTab } from '../right-panel/plan-tab.tsx'
 import { RIGHT_PANEL_TABS } from '../right-panel/tabs.ts'
+import { ApprovalPanel } from './approval-panel.tsx'
 import { ModePicker } from './mode-picker.tsx'
+import { PlanCard } from './plan-card.tsx'
 import { PlanChip } from './plan-chip.tsx'
-import { planDraftStore, PlanReviewPanel, restoredMode, setPlanDraft } from './plan-review-panel.tsx'
+import { planDraftStore, PlanReviewPanel, setPlanDraft } from './plan-review-panel.tsx'
+import { TimelineSessionContext } from './timeline-session.tsx'
 
 afterEach(() => planDraftStore.setState({ drafts: {} }))
 
@@ -43,10 +47,11 @@ describe('plan-review', () => {
     planId: 'p1',
     revision: 1,
   }
-  function planEntries(prior = 'accept-edits'): SessionEntry[] {
+  function planEntries(mode = 'accept-edits'): SessionEntry[] {
     seq = 100
     return [
-      entry('permission_mode', { mode: 'plan', prior }, null),
+      entry('permission_mode', { mode }, null),
+      entry('plan_phase', { phase: 'planning' }, null),
       entry('run_start', { trigger: 'submit' }),
       entry('plan', { planId: 'p1', revision: 1, markdown: PLAN, status: 'proposed' }, null),
       entry('approval_request', request),
@@ -77,15 +82,57 @@ describe('plan-review', () => {
       />
     )
 
-    it('标出将恢复的模式；"批准并执行"不带 mode（缺省 prior）；新计划自动打开右栏一次', async () => {
+    it('390px 主区：执行权限放不下时独占一行，三个按钮同一行，"在侧边栏查看"只显示图标并保留名称；720px 时全部在一行', async () => {
+      const rows = async (width: number) => {
+        const screen = await wrap(
+          <div className="@container/main" style={{ width }}>
+            <PlanReviewPanel
+              sessionId="s-1"
+              request={{ ...request, requestId: `layout-${width}` }}
+              entries={planEntries()}
+              answer={async () => true}
+              onOpenPanel={() => {}}
+              permissionMode="accept-edits"
+              onPermissionModeChange={() => {}}
+            />
+          </div>,
+        )
+        const open = screen.getByRole('button', { name: 'View in sidebar' })
+        await expect.element(open).toBeVisible()
+        const top = (el: Element) => Math.round(el.getBoundingClientRect().top)
+        const buttons = [open, screen.getByRole('button', { name: 'Keep planning' }), screen.getByRole('button', { name: 'Approve and run' })].map((b) =>
+          top(b.element()),
+        )
+        const result = {
+          group: top(screen.getByRole('group', { name: 'Runs with' }).element()),
+          buttons,
+          labelShown: [...open.element().querySelectorAll('span')].some((el) => el.textContent === 'View in sidebar' && el.checkVisibility()),
+        }
+        await screen.unmount()
+        return result
+      }
+      const narrow = await rows(390)
+      expect(new Set(narrow.buttons).size).toBe(1)
+      expect(narrow.group).toBeLessThan(narrow.buttons[0]!)
+      expect(narrow.labelShown).toBe(false)
+      const wide = await rows(720)
+      expect(new Set(wide.buttons).size).toBe(1)
+      expect(Math.abs(wide.group - wide.buttons[0]!)).toBeLessThan(8)
+      expect(wide.labelShown).toBe(true)
+    })
+
+    it('主按钮只有"批准并执行"：不带 mode，不标出恢复的模式，没有更多批准方式；新计划自动打开右栏一次', async () => {
       const answers: AnswerApprovalRequest[] = []
       const opened: string[] = []
       const screen = await wrap(panel(answers, opened))
       await expect.element(screen.getByRole('region', { name: 'Review plan' })).toBeVisible()
-      await expect.element(screen.getByRole('button', { name: /Approve and run/ })).toHaveAttribute('data-restores', 'accept-edits')
-      expect(screen.container.textContent).toContain('Accept edits')
+      const approve = screen.getByRole('button', { name: 'Approve and run', exact: true })
+      await expect.element(approve).toBeVisible()
+      expect(approve.element().hasAttribute('data-restores')).toBe(false)
+      expect(screen.container.textContent).not.toContain('Accept edits')
+      expect(screen.getByRole('button', { name: 'More approval options' }).query()).toBeNull()
       expect(opened).toEqual(['plan'])
-      await userEvent.click(screen.getByRole('button', { name: /Approve and run/ }))
+      await userEvent.click(approve)
       expect(answers).toEqual([{ decision: 'allow' }])
       // 重新挂载同一请求：不再自动打开。unmount 是异步的（act），等它完成再渲染，否则之后的用例渲染为空。
       await screen.unmount()
@@ -109,16 +156,10 @@ describe('plan-review', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Send feedback' }))
       expect(answers).toEqual([{ decision: 'deny', feedback: 'add tests first' }])
     })
-
-    it('restoredMode：plan 时为 prior（没有时 default），否则为当前模式', () => {
-      expect(restoredMode(planEntries('read-only'))).toBe('read-only')
-      expect(restoredMode([entry('permission_mode', { mode: 'plan' })])).toBe('default')
-      expect(restoredMode([entry('permission_mode', { mode: 'full-access' })])).toBe('full-access')
-    })
   })
 })
 
-describe('plan-approve-menu', () => {
+describe('plan-approve-edited', () => {
   const PLAN = '# Fix the parser\n\n1. Read the code\n2. Add a test'
   let seq = 0
   /** 协议形状的条目（测试数据，按 kind 的 payload 由调用处保证）。 */
@@ -142,19 +183,15 @@ describe('plan-approve-menu', () => {
     planId: 'p1',
     revision: 1,
   }
-  function planEntries(prior = 'accept-edits'): SessionEntry[] {
+  function planEntries(mode = 'accept-edits'): SessionEntry[] {
     seq = 100
     return [
-      entry('permission_mode', { mode: 'plan', prior }, null),
+      entry('permission_mode', { mode }, null),
+      entry('plan_phase', { phase: 'planning' }, null),
       entry('run_start', { trigger: 'submit' }),
       entry('plan', { planId: 'p1', revision: 1, markdown: PLAN, status: 'proposed' }, null),
       entry('approval_request', request),
     ]
-  }
-
-  /** 菜单关闭后才结束用例（关闭中卸载会留下 Radix 对其余节点的 aria-hidden）。 */
-  async function menuClosed() {
-    await expect.poll(() => document.querySelector('[role="menu"]')).toBeNull()
   }
 
   function wrap(node: React.ReactNode, chat = createFixtureChat().chat) {
@@ -167,8 +204,8 @@ describe('plan-approve-menu', () => {
     )
   }
 
-  describe('审阅卡：下拉批准', () => {
-    const panel = (answers: AnswerApprovalRequest[], opened: string[], entries = planEntries()) => (
+  describe('审阅卡：编辑后批准', () => {
+    const panel = (answers: AnswerApprovalRequest[], entries: SessionEntry[]) => (
       <PlanReviewPanel
         sessionId="s-1"
         request={request}
@@ -177,26 +214,23 @@ describe('plan-approve-menu', () => {
           answers.push(a)
           return true
         }}
-        onOpenPanel={() => opened.push('plan')}
       />
     )
 
-    it('批准并允许编辑（进入前为 full-access，accept-edits 更窄）：mode accept-edits；右栏中的编辑随批准提交（editedPlan）', async () => {
-      const answers: AnswerApprovalRequest[] = []
-      setPlanDraft('s-1', 'p1', 1, '# Fix the parser\n\nTests first')
-      const screen = await wrap(panel(answers, [], planEntries('full-access')))
-      await expect.element(screen.getByText('Edited')).toBeVisible()
-      await userEvent.click(screen.getByRole('button', { name: 'More approval options' }))
-      await userEvent.click(page.getByRole('menuitem', { name: 'Approve and allow edits' }))
-      await menuClosed()
-      expect(answers).toEqual([{ decision: 'allow', editedPlan: '# Fix the parser\n\nTests first', mode: 'accept-edits' }])
-    })
-
-    it.each(['read-only', 'default', 'accept-edits'])('进入前为 %s：不给出更宽的"批准并允许编辑"', async (prior) => {
-      const screen = await wrap(panel([], [], planEntries(prior)))
-      await expect.element(screen.getByRole('button', { name: /Approve/ })).toBeVisible()
-      expect(screen.getByRole('button', { name: 'More approval options' }).query()).toBeNull()
-    })
+    // ADR 0028 起批准不改变模式：原先“进入前为 full-access 时给出批准并允许编辑（mode accept-edits）”的用例改为断言任何模式下都没有该入口。
+    it.each(['read-only', 'default', 'accept-edits', 'full-access'])(
+      '%s 下：右栏中的编辑随批准提交（editedPlan），不带 mode；没有"批准并允许编辑"',
+      async (mode) => {
+        const answers: AnswerApprovalRequest[] = []
+        setPlanDraft('s-1', 'p1', 1, '# Fix the parser\n\nTests first')
+        const screen = await wrap(panel(answers, planEntries(mode)))
+        await expect.element(screen.getByText('Edited')).toBeVisible()
+        expect(screen.getByRole('button', { name: 'More approval options' }).query()).toBeNull()
+        expect(screen.container.textContent).not.toContain('Approve and allow edits')
+        await userEvent.click(screen.getByRole('button', { name: 'Approve and run', exact: true }))
+        expect(answers).toEqual([{ decision: 'allow', editedPlan: '# Fix the parser\n\nTests first' }])
+      },
+    )
   })
 })
 
@@ -251,7 +285,7 @@ describe('plan-tab', () => {
       await expect.element(screen.getByText('No plan yet', { exact: false })).toBeVisible()
       seq = 0
       const rows = [
-        entry('permission_mode', { mode: 'plan', prior: 'default' }, null),
+        entry('plan_phase', { phase: 'planning' }, null),
         entry('run_start', { trigger: 'submit' }),
         entry('plan', { planId: 'p1', revision: 1, markdown: '# First idea', status: 'proposed' }, null),
         entry('plan', { planId: 'p1', revision: 1, markdown: '# First idea', status: 'rejected', feedback: 'too vague' }, null),
@@ -346,11 +380,16 @@ describe('plan-chip', () => {
       // 指针点选关闭也归还焦点，但不留下键盘焦点环。
       expect(element.matches(':focus-visible')).toBe(false)
     })
-    it('plan 模式时显示 chip，点击回到 prior；其他模式不显示', async () => {
+    it('计划阶段为规划中时显示 chip（与 Permission Mode 无关），× 调用退出动作且不改变模式；退出条目到达后消失', async () => {
       seq = 0
-      const { chat } = createFixtureChat({
-        entries: { 's-1': [entry('permission_mode', { mode: 'accept-edits' }, null), entry('permission_mode', { mode: 'plan', prior: 'accept-edits' }, null)] },
+      const { chat, api, sendServer } = createFixtureChat({
+        entries: { 's-1': [entry('permission_mode', { mode: 'accept-edits' }, null), entry('plan_phase', { phase: 'planning' }, null)] },
       })
+      const calls: string[] = []
+      api.planAction = async (id: string, action: PlanActionRequest['action']) => {
+        calls.push(`${id}:${action}`)
+        return { phase: 'none' as const, plan: null }
+      }
       await expect.poll(() => chat.getState().conversations['s-1']?.status).toBe('ready')
       const screen = await wrap(<PlanChip sessionId="s-1" />, chat)
       const chip = screen.getByRole('button', { name: /Exit planning/ })
@@ -365,22 +404,263 @@ describe('plan-chip', () => {
       expect(label.getBoundingClientRect().x).toBe(labelBefore.x)
       expect(getComputedStyle(chip.element().querySelector('.tabler-icon-circle-x')!).display).not.toBe('none')
       await userEvent.click(chip)
-      await expect.poll(() => chat.getState().conversations['s-1']?.pendingMode).toBe('accept-edits')
+      await expect.poll(() => calls).toEqual(['s-1:exit'])
+      // 不乐观移除：chip 由条目派生，退出条目到达后才消失；模式不变。
+      expect(screen.container.querySelector('[data-slot="plan-chip"]')).not.toBeNull()
+      expect(chat.getState().conversations['s-1']?.pendingMode).toBeUndefined()
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('plan_phase', { phase: 'none' }, null) })
       await expect.poll(() => screen.container.querySelector('[data-slot="plan-chip"]')).toBeNull()
     })
 
-    it('plan 按钮显示 prior，菜单只有三个选项且无勾选，选择可直接退出 plan', async () => {
-      const picked: string[] = []
-      const screen = await wrap(<ModePicker value="plan" prior="accept-edits" onChange={(m) => picked.push(m)} />)
-      const button = screen.getByRole('button', { name: /Accept edits/ })
-      await expect.element(button).toBeVisible()
-      expect(button.element().querySelector('.tabler-icon-chevron-down')).toBeNull()
-      await userEvent.click(button)
-      expect(document.querySelectorAll('[role="menuitemradio"]')).toHaveLength(3)
-      expect(document.querySelectorAll('[role="menuitemradio"][aria-checked="true"]')).toHaveLength(0)
-      await userEvent.click(page.getByRole('menuitemradio', { name: /Ask for approval/ }))
-      await menuClosed()
-      expect(picked).toEqual(['default'])
+    it('执行中：chip 显示“执行中”且几何与规划中相同，× 为放弃计划；计划卡与 Plan 页显示执行中，历史上已批准（没有执行阶段）的仍为已批准；放弃后 chip 消失、计划卡与 Plan 页显示已放弃；重新规划后 chip 显示“计划”', async () => {
+      seq = 0
+      const approved = (planId: string, markdown: string) => entry('plan', { planId, revision: 1, markdown, status: 'approved' }, null)
+      const rows = [
+        entry('permission_mode', { mode: 'default' }, null),
+        approved('old', '# Old plan'),
+        entry('plan_phase', { phase: 'planning' }, null),
+        entry('plan', { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'proposed' }, null),
+        approved('p1', '# Fix it'),
+        entry('plan_phase', { phase: 'executing', planId: 'p1' }, null),
+      ]
+      const { chat, api, sendServer } = createFixtureChat({ entries: { 's-1': rows } })
+      const calls: string[] = []
+      api.planAction = async (id: string, action: PlanActionRequest['action']) => {
+        calls.push(`${id}:${action}`)
+        return { phase: 'none' as const, plan: null }
+      }
+      await expect.poll(() => chat.getState().conversations['s-1']?.status).toBe('ready')
+      function Cards() {
+        const entries = useChat((s) => s.conversations['s-1']?.entries ?? [])
+        return (
+          <TimelineSessionContext.Provider value={{ sessionId: 's-1', entries, actionsDisabled: false, openPlan: () => {} }}>
+            {entries
+              .filter((row) => row.kind === 'plan' && (row.payload as PlanPayload).status !== 'proposed')
+              .map((row) => (
+                <PlanCard key={row.seq} item={{ kind: 'plan', key: String(row.seq), plan: row.payload as PlanPayload }} />
+              ))}
+          </TimelineSessionContext.Provider>
+        )
+      }
+      const screen = await wrap(
+        <>
+          <PlanChip sessionId="s-1" />
+          <PlanTab sessionId="s-1" />
+          <Cards />
+        </>,
+        chat,
+      )
+      const chip = screen.getByRole('button', { name: /Abandon plan/ })
+      await expect.element(chip).toHaveTextContent('Executing')
+      expect(chip.element().getBoundingClientRect().height).toBe(28)
+      const card = (planId: string) => screen.container.querySelector(`[data-slot="plan-card"][data-plan-id="${planId}"]`)!
+      const tab = () => screen.container.querySelector('[data-slot="plan-tab"]')!
+      expect([card('p1').getAttribute('data-status'), card('p1').querySelector('[data-slot="plan-status"]')!.textContent]).toEqual(['executing', 'In progress'])
+      expect([card('old').getAttribute('data-status'), card('old').querySelector('[data-slot="plan-status"]')!.textContent]).toEqual(['approved', 'Approved'])
+      expect([tab().getAttribute('data-plan-id'), tab().getAttribute('data-status')]).toEqual(['p1', 'executing'])
+      await expect.element(screen.getByText('In progress', { exact: true }).first()).toBeVisible()
+
+      // 放弃不弹确认：点击即调用退出动作；chip 在条目到达后才消失。
+      await userEvent.click(chip)
+      await expect.poll(() => calls).toEqual(['s-1:exit'])
+      expect(document.querySelector('[role="alertdialog"], [role="dialog"]')).toBeNull()
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('plan', { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'abandoned' }, null) })
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('plan_phase', { phase: 'none' }, null) })
+      await expect.poll(() => screen.container.querySelector('[data-slot="plan-chip"]')).toBeNull()
+      const abandoned = () => screen.container.querySelector('[data-slot="plan-card"][data-status="abandoned"]')
+      await expect.poll(() => abandoned()?.querySelector('[data-slot="plan-status"]')?.textContent).toBe('Abandoned')
+      expect(abandoned()!.getAttribute('data-plan-id')).toBe('p1')
+      expect([card('p1').getAttribute('data-status'), tab().getAttribute('data-status')]).toEqual(['approved', 'abandoned'])
+      expect(tab().textContent).toContain('Abandoned')
+
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('plan_phase', { phase: 'planning' }, null) })
+      const planning = screen.getByRole('button', { name: /Exit planning/ })
+      await expect.element(planning).toHaveTextContent('Planning')
+    })
+
+    it('放弃失败：chip 保留“执行中”与放弃按钮，可再次点击', async () => {
+      seq = 0
+      const { chat, api } = createFixtureChat({
+        entries: {
+          's-1': [
+            entry('plan', { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'approved' }, null),
+            entry('plan_phase', { phase: 'executing', planId: 'p1' }, null),
+          ],
+        },
+      })
+      let attempts = 0
+      api.planAction = async () => {
+        attempts++
+        throw new ApiError('network', 'down', 0)
+      }
+      await expect.poll(() => chat.getState().conversations['s-1']?.status).toBe('ready')
+      const screen = await wrap(<PlanChip sessionId="s-1" />, chat)
+      const chip = screen.getByRole('button', { name: /Abandon plan/ })
+      await userEvent.click(chip)
+      await expect.poll(() => attempts).toBe(1)
+      await expect.element(chip).toBeEnabled()
+      await expect.element(chip).toHaveTextContent('Executing')
+      await userEvent.click(chip)
+      await expect.poll(() => attempts).toBe(2)
+    })
+
+    it('完成：chip 消失，计划卡与 Plan 页显示“已完成”，Plan 页显示完成报告；回退到完成之前回到执行中、报告不再显示', async () => {
+      seq = 0
+      const user = (text: string) => entry('message', { role: 'user', content: [{ type: 'text', text }], timestamp: 0 }, null)
+      const rows = [
+        entry('permission_mode', { mode: 'default' }, null),
+        entry('plan_phase', { phase: 'planning' }, null),
+        entry('plan', { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'proposed' }, null),
+        entry('plan', { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'approved' }, null),
+        entry('plan_phase', { phase: 'executing', planId: 'p1' }, null),
+        user('continue'),
+      ]
+      const { chat, sendServer } = createFixtureChat({ entries: { 's-1': rows } })
+      await expect.poll(() => chat.getState().conversations['s-1']?.status).toBe('ready')
+      const completed = entry(
+        'plan',
+        { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'completed', report: '## Done\n\nVerified by **unit tests**.' },
+        null,
+      )
+      function Card() {
+        const entries = useChat((s) => s.conversations['s-1']?.entries ?? [])
+        return (
+          <TimelineSessionContext.Provider value={{ sessionId: 's-1', entries, actionsDisabled: false, openPlan: () => {} }}>
+            <PlanCard item={{ kind: 'plan', key: String(completed.seq), plan: completed.payload as PlanPayload }} />
+          </TimelineSessionContext.Provider>
+        )
+      }
+      const screen = await wrap(
+        <>
+          <PlanChip sessionId="s-1" />
+          <PlanTab sessionId="s-1" />
+          <Card />
+        </>,
+        chat,
+      )
+      const chip = () => screen.container.querySelector('[data-slot="plan-chip"]')
+      const tab = () => screen.container.querySelector('[data-slot="plan-tab"]')!
+      const report = () => screen.container.querySelector('[data-slot="plan-report"]')
+      await expect.poll(() => tab().getAttribute('data-status')).toBe('executing')
+      expect([chip() !== null, report()]).toEqual([true, null])
+
+      sendServer({ type: 'entry', sessionId: 's-1', entry: completed })
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('plan_phase', { phase: 'none' }, null) })
+      await expect.poll(() => chip()).toBeNull()
+      await expect.poll(() => tab().getAttribute('data-status')).toBe('completed')
+      const card = screen.container.querySelector('[data-slot="plan-card"]')!
+      expect([card.getAttribute('data-status'), card.querySelector('[data-slot="plan-status"]')!.textContent]).toEqual(['completed', 'Completed'])
+      await expect.element(screen.getByRole('heading', { name: 'Completion report' })).toBeVisible()
+      await expect.poll(() => report()?.textContent).toContain('Verified by unit tests.')
+      // 计划正文仍在。
+      expect(tab().textContent).toContain('Fix it')
+
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('rewind', { targetSeq: rows[5]!.seq }, null) })
+      await expect.poll(() => tab().getAttribute('data-status')).toBe('executing')
+      expect([chip() !== null, report()]).toEqual([true, null])
+    })
+
+    it('完成：没有右栏可开（只读、历史）时，已完成的计划卡展开后在正文前显示完成报告', async () => {
+      seq = 0
+      const completed = entry(
+        'plan',
+        { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'completed', report: '## Done\n\nVerified by **unit tests**.' },
+        null,
+      )
+      const rows = [
+        entry('plan_phase', { phase: 'planning' }, null),
+        entry('plan', { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'approved' }, null),
+        entry('plan_phase', { phase: 'executing', planId: 'p1' }, null),
+        completed,
+        entry('plan_phase', { phase: 'none' }, null),
+      ]
+      const { chat } = createFixtureChat({ entries: { 's-1': rows } })
+      await expect.poll(() => chat.getState().conversations['s-1']?.status).toBe('ready')
+      const screen = await wrap(
+        <TimelineSessionContext.Provider value={{ sessionId: 's-1', entries: rows, actionsDisabled: true, readOnly: true }}>
+          <PlanCard item={{ kind: 'plan', key: String(completed.seq), plan: completed.payload as PlanPayload }} />
+        </TimelineSessionContext.Provider>,
+        chat,
+      )
+      const card = screen.container.querySelector('[data-slot="plan-card"]')!
+      const report = () => card.querySelector('[data-slot="plan-report"]')
+      expect([card.getAttribute('data-status'), report()]).toEqual(['completed', null])
+
+      await screen.getByRole('button', { name: 'Fix it' }).click()
+      await expect.element(screen.getByRole('heading', { name: 'Completion report' })).toBeVisible()
+      expect(report()!.textContent).toContain('Verified by unit tests.')
+      // 报告在计划正文之前，与 Plan 页相同。
+      const markdowns = [...card.querySelectorAll('[data-slot="plan-markdown"]')].map((node) => node.textContent)
+      expect(markdowns).toEqual([expect.stringContaining('Verified by unit tests.'), expect.stringContaining('Fix it')])
+    })
+
+    // ADR 0028：renderer 与服务端同用 planPhaseOf（有效条目），回退条目到达后 chip 与 Plan 页随之变化，与协议读回一致。
+    it('回退后按有效条目派生：回退到批准之前 chip 重新出现、被回退的已批准修订不再显示；回退到进入规划之前 chip 消失、没有计划', async () => {
+      seq = 0
+      const user = (text: string) => entry('message', { role: 'user', content: [{ type: 'text', text }], timestamp: 0 }, null)
+      const rows = [
+        entry('permission_mode', { mode: 'default' }, null),
+        user('first'),
+        entry('plan_phase', { phase: 'planning' }, null),
+        user('research'),
+        entry('plan', { planId: 'p1', revision: 1, markdown: '# First idea', status: 'proposed' }, null),
+        entry('plan', { planId: 'p1', revision: 1, markdown: '# First idea', status: 'rejected', feedback: 'too vague' }, null),
+        user('submit'),
+        entry('plan', { planId: 'p1', revision: 2, markdown: '# Second idea', status: 'proposed' }, null),
+        entry('plan', { planId: 'p1', revision: 2, markdown: '# Second idea', status: 'approved' }, null),
+        entry('plan_phase', { phase: 'none' }, null),
+      ]
+      const { chat, sendServer } = createFixtureChat({ entries: { 's-1': rows } })
+      await expect.poll(() => chat.getState().conversations['s-1']?.status).toBe('ready')
+      const screen = await wrap(
+        <>
+          <PlanChip sessionId="s-1" />
+          <PlanTab sessionId="s-1" />
+        </>,
+        chat,
+      )
+      const chip = () => screen.container.querySelector('[data-slot="plan-chip"]')
+      const tab = () => screen.container.querySelector('[data-slot="plan-tab"]')
+      await expect.poll(() => [tab()?.getAttribute('data-revision'), tab()?.getAttribute('data-status')]).toEqual(['2', 'approved'])
+      expect(chip()).toBeNull()
+
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('rewind', { targetSeq: rows[6]!.seq }, null) })
+      await expect.poll(() => chip()).not.toBeNull()
+      await expect.poll(() => [tab()?.getAttribute('data-revision'), tab()?.getAttribute('data-status')]).toEqual(['1', 'rejected'])
+
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('rewind', { targetSeq: rows[1]!.seq }, null) })
+      await expect.poll(() => chip()).toBeNull()
+      await expect.element(screen.getByText('No plan yet', { exact: false })).toBeVisible()
+    })
+
+    it('退出失败：chip 保留且可再次点击；旧数据（plan 模式已读为 prior，没有阶段条目）与草稿都不显示 chip', async () => {
+      seq = 0
+      const { chat, api } = createFixtureChat({
+        entries: {
+          's-1': [entry('plan_phase', { phase: 'planning' }, null)],
+          // 服务端读取时已把 permission_mode v2 的 plan 迁移为 prior（v3）。
+          's-3': [entry('permission_mode', { mode: 'default' }, null)],
+        },
+      })
+      let attempts = 0
+      api.planAction = async () => {
+        attempts++
+        throw new ApiError('network', 'down', 0)
+      }
+      await expect.poll(() => chat.getState().conversations['s-1']?.status).toBe('ready')
+      const screen = await wrap(
+        <>
+          <PlanChip sessionId="s-1" />
+          <PlanChip sessionId="s-3" />
+          <PlanChip sessionId={null} />
+        </>,
+        chat,
+      )
+      const chip = screen.getByRole('button', { name: /Exit planning/ })
+      await userEvent.click(chip)
+      await expect.poll(() => attempts).toBe(1)
+      await expect.element(chip).toBeEnabled()
+      expect(screen.container.querySelectorAll('[data-slot="plan-chip"]')).toHaveLength(1)
     })
 
     it('选择完全访问权限先显示风险提示，取消不改变，确认后才生效', async () => {
@@ -401,5 +681,126 @@ describe('plan-chip', () => {
       await userEvent.click(dialog.getByRole('button', { name: 'Turn on anyway' }))
       await expect.poll(() => picked).toEqual(['full-access'])
     })
+  })
+})
+
+describe('plan-review-permission', () => {
+  const PLAN = '# Fix the parser\n\n1. Read the code\n2. Add a test'
+  let seq = 0
+  /** 协议形状的条目（测试数据，按 kind 的 payload 由调用处保证）。 */
+  const entry = (kind: string, payload: unknown, runId: string | null = 'run-1') =>
+    ({
+      sessionId: 's-1',
+      seq: ++seq,
+      kind,
+      payloadVersion: 1,
+      payload,
+      runId,
+      createdAt: seq,
+    }) as unknown as SessionEntry
+  const request: ApprovalRequestPayload = {
+    requestId: 'r1',
+    toolCallId: 'e1',
+    toolName: 'exit_plan_mode',
+    kind: 'plan',
+    subject: 'Fix the parser',
+    suggestions: [],
+    planId: 'p1',
+    revision: 1,
+  }
+  /** 菜单关闭后才结束用例（关闭中卸载会留下 Radix 对其余节点的 aria-hidden）。 */
+  async function menuClosed() {
+    await expect.poll(() => document.querySelector('[role="menu"]')).toBeNull()
+  }
+
+  /** 当前会话 s-1 等待计划审阅（accept-edits）；审阅卡经 ApprovalPanel 读取会话的模式与切换动作。 */
+  async function reviewing() {
+    seq = 100
+    const fixture = createFixtureChat({
+      entries: {
+        's-1': [
+          entry('permission_mode', { mode: 'accept-edits' }, null),
+          entry('plan_phase', { phase: 'planning' }, null),
+          entry('run_start', { trigger: 'submit' }),
+          entry('plan', { planId: 'p1', revision: 1, markdown: PLAN, status: 'proposed' }, null),
+          entry('approval_request', request),
+        ],
+      },
+    })
+    const modes: string[] = []
+    const answers: AnswerApprovalRequest[] = []
+    fixture.api.setPermissionMode = async (id, mode) => {
+      modes.push(`${id}:${mode}`)
+      return { mode, rules: [] }
+    }
+    fixture.api.answerApproval = async (_id, _requestId, answer) => {
+      answers.push(answer)
+    }
+    fixture.chat.getState().openSession('s-1')
+    await expect.poll(() => fixture.chat.getState().conversations['s-1']?.status).toBe('ready')
+    const screen = await render(
+      <I18nProvider locale="en">
+        <ChatStoreProvider store={fixture.chat}>
+          <TooltipProvider>
+            <ApprovalPanel request={request} call={undefined} onAllow={async () => true} onReject={async () => true} />
+          </TooltipProvider>
+        </ChatStoreProvider>
+      </I18nProvider>,
+    )
+    const card = screen.getByRole('region', { name: 'Review plan' })
+    return { ...fixture, screen, card, modes, answers }
+  }
+
+  it('标出执行权限（当前 Permission Mode）；切换后显示新模式，模式条目到达后审阅仍在等待，批准不带 mode', async () => {
+    const { card, modes, answers, sendServer } = await reviewing()
+    const runsWith = card.getByRole('group', { name: 'Runs with' })
+    await expect.element(runsWith).toBeVisible()
+    const picker = runsWith.getByRole('button', { name: 'Permission mode: Accept edits' })
+    await expect.element(picker).toBeVisible()
+    await userEvent.click(picker)
+    await expect.element(page.getByRole('menuitemradio', { name: /Accept edits/ })).toHaveAttribute('aria-checked', 'true')
+    await userEvent.click(page.getByRole('menuitemradio', { name: /Ask for approval/ }))
+    await menuClosed()
+    await expect.poll(() => modes).toEqual(['s-1:default'])
+    await expect.element(runsWith.getByRole('button', { name: 'Permission mode: Ask for approval' })).toBeVisible()
+    sendServer({ type: 'entry', sessionId: 's-1', entry: entry('permission_mode', { mode: 'default' }, null) })
+    await expect.element(runsWith.getByRole('button', { name: 'Permission mode: Ask for approval' })).toBeVisible()
+    await userEvent.click(card.getByRole('button', { name: 'Approve and run', exact: true }))
+    await expect.poll(() => answers).toEqual([{ decision: 'allow' }])
+  })
+
+  it('选择完全访问权限先确认风险：取消不切换，确认后才切换', async () => {
+    const { card, modes } = await reviewing()
+    const picker = card.getByRole('button', { name: 'Permission mode: Accept edits' })
+    await userEvent.click(picker)
+    await userEvent.click(page.getByRole('menuitemradio', { name: /Full access/ }))
+    const dialog = page.getByRole('alertdialog', { name: /Turn on full access/ })
+    await expect.element(dialog).toBeVisible()
+    await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+    await expect.element(dialog).not.toBeInTheDocument()
+    expect(modes).toEqual([])
+    await expect.element(card.getByRole('button', { name: 'Permission mode: Accept edits' })).toBeVisible()
+    await userEvent.click(picker)
+    await userEvent.click(page.getByRole('menuitemradio', { name: /Full access/ }))
+    await userEvent.click(dialog.getByRole('button', { name: 'Turn on anyway' }))
+    await expect.element(dialog).not.toBeInTheDocument()
+    await expect.poll(() => modes).toEqual(['s-1:full-access'])
+    await expect.element(card.getByRole('button', { name: 'Permission mode: Full access' })).toBeVisible()
+  })
+
+  it('切换失败：保留原显示，审批请求仍可回答', async () => {
+    const { card, api, answers } = await reviewing()
+    let attempts = 0
+    api.setPermissionMode = async () => {
+      attempts++
+      throw new ApiError('network', 'down', 0)
+    }
+    await userEvent.click(card.getByRole('button', { name: 'Permission mode: Accept edits' }))
+    await userEvent.click(page.getByRole('menuitemradio', { name: /Ask for approval/ }))
+    await menuClosed()
+    await expect.poll(() => attempts).toBe(1)
+    await expect.element(card.getByRole('button', { name: 'Permission mode: Accept edits' })).toBeVisible()
+    await userEvent.click(card.getByRole('button', { name: 'Approve and run', exact: true }))
+    await expect.poll(() => answers).toEqual([{ decision: 'allow' }])
   })
 })

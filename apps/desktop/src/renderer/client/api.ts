@@ -28,6 +28,7 @@ import {
   DeleteSessionResponse,
   SessionDeletePreview,
   SessionPermissionsResponse,
+  SessionPlanResponse,
   Setting,
   SettingsResponse,
   SubmitMessageResponse,
@@ -40,12 +41,14 @@ import {
   type CreateProjectRequest,
   type FirstSendRequest,
   type ErrorCode,
-  type PermissionMode,
   type PermissionRule,
+  type PlanActionRequest,
   type RewindRequest,
   type SessionModel,
+  type StandardPermissionMode,
   type ThinkingLevel,
   type UpdatePermissionsRequest,
+  planPaths,
 } from '@coko/protocol'
 import { Type, type TSchema, type Static } from 'typebox'
 import { Value } from 'typebox/value'
@@ -162,8 +165,11 @@ export function createApiClient(fetchImpl: Fetch = defaultFetch) {
     /** thinkingLevel 缺省时 Sidecar 保留当前档位（新模型不能选它时回到 off）。 */
     setSessionModel: (id: string, model: SessionModel, thinkingLevel?: ThinkingLevel) =>
       call(Session, 'PUT', apiPaths.sessionModel(id), { model, ...(thinkingLevel === undefined ? {} : { thinkingLevel }) }),
-    /** 切换 Session 的 Permission Mode；返回当前模式与 Session 规则。 */
-    setPermissionMode: (id: string, mode: PermissionMode) => call(SessionPermissionsResponse, 'PUT', permissionPaths.sessionPermissionMode(id), { mode }),
+    /** 切换 Session 的 Permission Mode；返回当前模式与 Session 规则。不改变计划阶段。 */
+    setPermissionMode: (id: string, mode: StandardPermissionMode) =>
+      call(SessionPermissionsResponse, 'PUT', permissionPaths.sessionPermissionMode(id), { mode }),
+    /** 进入或退出规划（不改变 Permission Mode）；返回之后的计划阶段与活动的 Plan。 */
+    planAction: (id: string, action: PlanActionRequest['action']) => call(SessionPlanResponse, 'POST', planPaths.sessionPlan(id), { action }),
     removeSessionRule: (id: string, rule: PermissionRule) => call(SessionPermissionsResponse, 'DELETE', permissionPaths.sessionPermissionRules(id), { rule }),
     /** 默认模式与全局规则；给出 workspaceId 时另带该 Workspace 的规则。 */
     getPermissions: (workspaceId?: string) =>

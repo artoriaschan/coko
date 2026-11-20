@@ -1,4 +1,4 @@
-// isolation worktree（ADR 0014、0016，git 夹具）：default 下询问、plan 下为错误结果；子代理不改文件时 worktree 与分支被移除；有提交时保留且结果给出路径与
+// isolation worktree（ADR 0014、0016，git 夹具）：default 下询问、规划中为错误结果；子代理不改文件时 worktree 与分支被移除；有提交时保留且结果给出路径与
 // 分支；父 Session 读取该 worktree 的文件须审批（它在 Workspace 的 .coko-worktrees/ 之内）。Coko 的 worktree 只在临时仓库中创建。
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -41,7 +41,7 @@ describe('子代理：isolation worktree', { timeout: 120_000 }, () => {
     expect(JSON.stringify(result?.payload.content)).toContain(worktree.path)
   })
 
-  it('default 下询问；不改文件时 worktree 与分支被移除；plan 下为错误结果', async () => {
+  it('default 下询问；不改文件时 worktree 与分支被移除；规划中为错误结果', async () => {
     const fixture = await repo()
     const env = await bootAgents(
       [
@@ -85,8 +85,8 @@ describe('子代理：isolation worktree', { timeout: 120_000 }, () => {
     expect((await fixture.git('branch', '--list')).trim()).toBe('* main')
     expect(await fixture.git('worktree', 'list')).not.toContain('.coko-worktrees')
 
-    // plan：gate 直接以错误结果拒绝（不先询问一个注定失败的调用），不创建 worktree 与子 Session。
-    const planned = await env.open('plan')
+    // 规划中：gate 直接以错误结果拒绝（不先询问一个注定失败的调用），不创建 worktree 与子 Session。ADR 0028 起规划不改变模式：full-access 下规划同样拒绝。
+    const planned = await env.open('full-access', true)
     await env.submit(planned, 'PARENT-PLAN go')
     await env.stream.waitFor(() => runEnds(env.stream, planned).length >= 1, 30_000)
     expect(of(env.stream, planned, 'approval_request')).toHaveLength(0)

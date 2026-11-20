@@ -1,5 +1,5 @@
 // 权限判定（ADR 0005）：纯函数，输入一次调用与当时的模式、规则、Workspace 与可写根，输出 allow / deny / ask。
-// 顺序固定：拒绝规则 → 询问规则 → 受保护路径 → 越出可写根的文件写入 → （plan-exit 总询问）→ 模式放行 → 允许规则 → 询问。
+// 顺序固定：拒绝规则 → 规划中拒绝写入（ADR 0028）→ 询问规则 → 受保护路径 → 越出可写根的文件写入 → （plan-exit 总询问）→ 模式放行 → 允许规则 → 询问。
 import { homedir } from 'node:os'
 import { relative, sep } from 'node:path'
 import type { PermissionMode, PermissionRule } from '../session-entries/index.ts'
@@ -10,7 +10,7 @@ export { pathContains } from './rules.ts'
 /**
  * 权限类（M3 起，扩展 ADR 0005 的模式表）：宿主注册工具时给出（RegisterToolOptions.permissionClass），工具对象自身不能声明。
  * read / edit / bash 是内置工具的类；context-read（skill、memory_list、MCP 资源）所有模式放行；memory-write（规则组名 Memory）所有模式
- * 放行（ADR 0027，含 read-only 与 plan；拒绝、询问规则与 Hook 仍先于模式生效）；external（mcp__*）只在 full-access 放行。session-state（只改 Session 自身的状态：Todo、Goal、
+ * 放行（ADR 0027，含 read-only 与规划中；拒绝、询问规则与 Hook 仍先于模式生效）；external（mcp__*）只在 full-access 放行。session-state（只改 Session 自身的状态：Todo、Goal、
  * 停止后台任务）所有模式放行；plan-exit（提交计划）任何模式都询问，允许规则不能免掉，拒绝规则照常生效。M5：agent（派发子代理，
  * 规则组名 Agent，内容为子代理类型）所有模式放行，带 isolation 时只有 full-access 放行；automation（创建或修改定时任务，规则组名
  * Schedule）只在 full-access 放行。M6：lsp（语言服务器查询，规则组名 Lsp）按 file_path 与 read 同样判定（Read 的路径规则同样适用）；
@@ -147,8 +147,10 @@ export interface PermissionContext {
   rules: readonly PermissionRule[]
   /** Workspace 的真实路径。 */
   workspace: string
-  /** 文件写入与命令沙箱共用的可写根（真实路径）；read-only 与 plan 下为空，full-access 下为根目录。 */
+  /** 文件写入与命令沙箱共用的可写根（真实路径）；read-only 与规划中为空，full-access 下为根目录。 */
   writableRoots: readonly string[]
+  /** Session 在规划中（计划阶段，ADR 0028）：write 类直接拒绝，紧随拒绝规则之后；缺省不在规划中。 */
+  planning?: boolean
   /** 额外读取根（真实路径，例如 Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理。 */
   readRoots?: readonly string[]
   /** `~/` 规则的主目录；缺省为 os.homedir()。 */
@@ -170,15 +172,17 @@ export type AskReason =
 export type PermissionDecision =
   | { behavior: 'allow' }
   | { behavior: 'deny'; rule: PermissionRule }
+  /** 规划中的文件写入（ADR 0028）：不是用户规则，允许规则与 Hook 的 allow 都不能免掉。 */
+  | { behavior: 'deny'; reason: 'planning' }
   /** suggestions：可保存为"总是允许"的规则；受保护路径、越界写入、询问规则与无法拆分的命令为空。 */
   | { behavior: 'ask'; reason: AskReason; suggestions: PermissionRule[] }
 
 /**
- * 给出判定的步骤（按判定顺序）：deny-rule、ask-rule、protected（受保护路径）、outside-writable（越出可写根或没有目标的写入）、
+ * 给出判定的步骤（按判定顺序）：deny-rule、planning（规划中拒绝写入）、ask-rule、protected（受保护路径）、outside-writable（越出可写根或没有目标的写入）、
  * mode（模式放行；plan-exit 的总询问也在这一步，它不能被 Hook 或规则免掉）、allow-rule、default（模式与规则都没有放行的询问）。
  * 外部 Hook 的组合按它区分：第 2–4 步的询问不能被 Hook 的 allow 免掉（ADR 0013）。
  */
-export type DecisionStep = 'deny-rule' | 'ask-rule' | 'protected' | 'outside-writable' | 'mode' | 'allow-rule' | 'default'
+export type DecisionStep = 'deny-rule' | 'planning' | 'ask-rule' | 'protected' | 'outside-writable' | 'mode' | 'allow-rule' | 'default'
 
 export interface SteppedDecision {
   decision: PermissionDecision
@@ -261,9 +265,7 @@ function modeAllows(facts: Facts): boolean {
   const target = call.target
   const readInside = readsPath(category) && target !== undefined && readable(target.real, context)
   switch (context.mode) {
-    // plan（Plan Mode）的模式放行与 read-only 相同：只调研，写入、命令与 MCP 照常询问。
     case 'read-only':
-    case 'plan':
     case 'default':
       return readInside
     case 'accept-edits':
@@ -337,6 +339,7 @@ export function decideWithStep(call: PermissionCall, context: PermissionContext)
 
   const deny = restrictive('deny')
   if (deny) return at('deny-rule', { behavior: 'deny', rule: deny })
+  if (context.planning && category === 'write') return at('planning', { behavior: 'deny', reason: 'planning' })
   if (restrictive('ask')) return at('ask-rule', { behavior: 'ask', reason: 'ask-rule', suggestions: [] })
 
   const target = call.target

@@ -61,6 +61,23 @@ describe('State Update planning', () => {
     expect(planStateUpdates({ todo_list: null }, [])).toBeUndefined()
     expect(planStateUpdates({ todo_list: null }, [{ ...marker(), payload: { name: 'todo_list', value: null } }, message()])).toBeUndefined()
   })
+  it('renders the executing plan reminder (ADR 0028) after the other names; clearing uses the generic text', () => {
+    const plan = { planId: 'p1', revision: 2, title: 'Fix the parser' }
+    const delivered = planStateUpdates({ plan, todo_list: value }, [])!
+    expect(delivered.entries.map((e) => e.payload.name)).toEqual(['todo_list', 'plan'])
+    expect(delivered.blocks[1]).toEqual({
+      type: 'text',
+      text: '<state_update name="plan">\nAn approved plan is still in progress: "Fix the parser" (revision 2). Keep carrying it out; when the work is done and verified, call complete_plan with a report against the plan.\n</state_update>',
+    })
+    const prior: EntryLike[] = [
+      { seq: 1, kind: 'state_update', runId: 'r', payload: { name: 'plan', value: plan } },
+      { ...message('plan'), seq: 2 },
+    ]
+    expect(planStateUpdates({ plan }, prior)).toBeUndefined()
+    expect(planStateUpdates({ plan: null }, prior)?.blocks[0]?.text).toBe(
+      '<state_update name="plan">\nThis item currently has no content. Previous updates with this name no longer apply.\n</state_update>',
+    )
+  })
   it('compares normalized objects and orders names', () => {
     expect(planStateUpdates({ todo_list: { items: [{ status: 'pending', content: 'read spec', id: 't1' }] } }, [marker(), message()])).toBeUndefined()
     expect(planStateUpdates({ team: 't', todo_list: value, goal: 'g', date: 'd' }, [])?.entries.map((e) => e.payload.name)).toEqual([

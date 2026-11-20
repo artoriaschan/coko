@@ -148,7 +148,7 @@ Run 状态和耗时读取真实开始/结束记录；缺失起点或可信终点
 
 [新对话 store](../../apps/desktop/src/renderer/stores/new-chat-store.ts) 独立保存草稿身份、归属与 Git 配置、模型、档位、权限与图片引用；`ChatStore` 的既有选择动作转交此 store，不复制另一份状态。配置存为 `coko.new-chat.v1`，文字与 File Reference 的 EditorState 存为 `coko.draft.new-chat`。切换会话、内容页或重启后恢复；旧的 `coko.draft.workspace.*` 键不再读取，初始化时清除。已有会话草稿仍按 Session 保存。新草稿模型显示第一个供应商目录中的第一个模型，档位关闭。
 
-`POST /api/chats/first-send` 接收草稿身份、文字、图片、权限模式、模型与档位，以及可选的 `projectId`。选择项目时使用发送当时项目的主要 Workspace 并保存归属，不创建专属目录；项目不存在时拒绝。独立发送时，服务端在用户可见目录根（默认 `<Documents>/Coko`（desktop main 解析系统 Documents），可用绝对路径环境变量 `COKO_CHATS_ROOT` 覆盖）下按本地日期创建 `<yyyy-MM-dd>/chat-<sessionId 前 12 位>` 会话根与 `work/`、`outputs/`。短名冲突时回退完整 sessionId，已占用的完整名也不会覆盖。登记的 Workspace 是根，名称固定为“独立对话 · yyyy-MM-dd”；Session 保存 `directory` 与 `cwd=directory/work`，然后提交第一条消息。此路径不会自动创建项目。首条消息标题取去空白后的首行，按 Unicode 字符最多 20 个；只有 File Reference 或图片时用“附件：”加文件名，多个文件名用“、”连接。
+`POST /api/chats/first-send` 接收草稿身份、文字、图片、权限模式、模型与档位，以及可选的 `projectId`。选择项目时使用发送当时项目的主要 Workspace 并保存归属，不创建专属目录；项目不存在时拒绝。独立发送时，服务端在用户可见目录根（默认 `<Documents>/Coko`（desktop main 解析系统 Documents），可用绝对路径环境变量 `COKO_CHATS_ROOT` 覆盖）下按本地日期创建 `<yyyy-MM-dd>/chat-<sessionId 前 12 位>` 会话根与 `work/`、`outputs/`。短名冲突时回退完整 sessionId，已占用的完整名也不会覆盖。登记的 Workspace 是根，名称固定为“独立对话 · yyyy-MM-dd”；Session 保存 `directory` 与 `cwd=directory/work`，然后提交第一条消息。权限模式只接受四档（`plan` 为 400；草稿中升级前残留的 `plan` 由 renderer 按未设置处理，不随首次发送带出）。第一条消息为 `/plan 消息` 时以规划开始并提交该消息（见 [Plan Mode](plan-mode.md#进入退出与判定)）；其他动作命令不能作为首次发送。此路径不会自动创建项目。首条消息标题取去空白后的首行，按 Unicode 字符最多 20 个；只有 File Reference 或图片时用“附件：”加文件名，多个文件名用“、”连接。
 
 [首次发送服务](../../apps/server/src/application/first-send.ts) 对同一草稿共享进行中的请求，以草稿身份的 SHA-256 派生内部会话键；已经持久化的首条用户消息与 Run 身份是重启后重试的结果凭证，不新增草稿映射表；v12 的 `sessions.directory/cwd` 记录实际分配目录与固定工作目录。HTTP 成功返回之前等待运行时已提交的用户消息事件，而不是同步 `run_start` 进度。重复提交不再启动 Run。目录、模型校验、Hook 拒绝或接受前失败时，删除本次新建会话、未被引用的 Workspace 与专属目录；首条消息接受后发生模型错误保留会话。清理不操作其他源目录。
 
@@ -194,9 +194,9 @@ renderer 提交期间禁止重复首次发送，失败时保留文字与配置�
 
 `apps/desktop/src/renderer/features/conversation/composer.tsx` 组合共享 Lexical `ComposerEditor` 与底部工具栏。欢迎页的输入区基准最大宽 768px；已有会话继续沿用消息列与输入列的原有宽度轴。主输入框基准高 120px、内边距 12px、R28 与 soft elevation；编辑区独立滚动，底部工具栏高 32px。压缩进度与图片缩略图各占一行，显示时输入框允许增高。
 
-工具栏依次为附件、权限、仅计划模式出现的计划状态组、弹性间距、上下文环、模型与档位、发送。权限和模型分别有独立插槽；上下文环与模型选择保持其原接口。窄窗口中权限可仅显示图标，名称仍由 Tooltip 与可访问名称提供。
+工具栏依次为附件、权限、仅在规划中或执行中出现的计划状态组（由计划阶段条目派生，与权限模式无关；规划中显示“计划”，执行中显示“执行中”，计划完成后不再显示；其 × 在规划中退出规划，在执行中放弃计划且不弹确认）、弹性间距、上下文环、模型与档位、发送。权限和模型分别有独立插槽；上下文环与模型选择保持其原接口。窄窗口中权限可仅显示图标，名称仍由 Tooltip 与可访问名称提供。
 
-Run 中停止取代主发送位置，仍可暂停；有文字时另显示追加指令按钮，Enter 也提交追加指令。输入法组合期间不提交，Shift+Enter 换行。审批、确认、计划审阅接管时输入框保持挂载，草稿和选区保留。
+Run 中停止取代主发送位置，仍可暂停；有文字时另显示追加指令按钮，Enter 也提交追加指令。输入法组合期间不提交，Shift+Enter 换行。审批、确认、计划审阅接管时输入框保持挂载，草稿和选区保留。计划审阅卡在按钮行左侧标出“执行权限”并放入与输入区相同的权限菜单，批准前可在卡上切换批准后执行所用的 Permission Mode（见 [Plan Mode](plan-mode.md#界面)）。
 
 ### 会话状态栏与 Token 用量
 
@@ -296,7 +296,7 @@ Artifact 以 `directory/outputs/` 的磁盘内容为唯一事实源，不写 Ses
 - [模型选择 Electron E2E](../../apps/desktop/e2e/model-picker.e2e.test.ts)：更换供应商和档位后读回 Sidecar。
 - [输入区 Browser Mode](../../apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx)：布局、文件选择/粘贴/拖入、运行控制与草稿。
 - [文件与草稿 Electron E2E](../../apps/desktop/e2e/references-drafts.e2e.test.ts)：原生文件选择到持久化引用与模型请求。
-- [权限判定与审批](permissions.md#界面)、[计划模式](plan-mode.md#界面)：权限选择与计划胶囊。
+- [权限判定与审批](permissions.md#界面)、[计划模式](plan-mode.md#界面)：权限选择、计划胶囊、计划卡与右栏 Plan 页（含已完成计划的完成报告；没有右栏可开时计划卡展开后显示）。
 - [上下文管理](context.md)、[会话模型协议](../../packages/protocol/src/http.ts)：上下文统计与模型选择接口。
 
 - [跨功能 Electron 验证](../../apps/desktop/e2e/conversation-workbench-closeout.e2e.test.ts)：创建项目到首次发送与模型标题、只发图片到提示词估算、归档到搜索排除、全部来源最终五项菜单、两主题窄窗口与已有会话的计划和自动压缩。

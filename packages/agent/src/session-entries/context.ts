@@ -5,14 +5,19 @@ import { definePayloads, type EntryJson } from './define.ts'
 const strict = { additionalProperties: false } as const
 const Count = Type.Integer({ minimum: 0 })
 
-/** state_update v1 records the structured state delivered in the next user message. */
-export const stateUpdatePayloadSchema = Type.Object(
-  {
-    name: Type.Union([Type.Literal('date'), Type.Literal('goal'), Type.Literal('todo_list'), Type.Literal('team'), Type.Literal('on_demand_tools')]),
-    value: Type.Unknown(),
-  },
-  strict,
-)
+const stateUpdateV1Names = [
+  Type.Literal('date'),
+  Type.Literal('goal'),
+  Type.Literal('todo_list'),
+  Type.Literal('team'),
+  Type.Literal('on_demand_tools'),
+] as const
+
+/** state_update v1：name 为 date、goal、todo_list、team 或 on_demand_tools。 */
+const stateUpdateV1Schema = Type.Object({ name: Type.Union([...stateUpdateV1Names]), value: Type.Unknown() }, strict)
+
+/** state_update v2 records the structured state delivered in the next user message; v2 adds name plan (the executing plan, ADR 0028), v1 migrates unchanged. */
+export const stateUpdatePayloadSchema = Type.Object({ name: Type.Union([...stateUpdateV1Names, Type.Literal('plan')]), value: Type.Unknown() }, strict)
 export type StateUpdatePayload = Static<typeof stateUpdatePayloadSchema>
 
 export const commandSourceSchema = Type.Union([
@@ -89,7 +94,7 @@ export interface ContextEntryPayloads {
 }
 
 export const contextEntryPayloads = definePayloads({
-  state_update: [{ schema: stateUpdatePayloadSchema }],
+  state_update: [{ schema: stateUpdateV1Schema }, { schema: stateUpdatePayloadSchema, migrate: (previous: EntryJson) => previous }],
   command: [{ schema: commandPayloadSchema }],
   compaction: [{ schema: compactionV1Schema }, { schema: compactionPayloadSchema, migrate: (previous: EntryJson) => previous }],
 } satisfies Record<keyof ContextEntryPayloads, unknown>)

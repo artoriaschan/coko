@@ -30,7 +30,7 @@ import {
   type PermissionTarget,
 } from './decide.ts'
 import { realLocation, resolveTarget, writableRootsFor } from './paths.ts'
-import { checkEscalation, escalationRejectedText, isWiderSandbox, sandboxModeFor } from './sandbox.ts'
+import { checkEscalation, escalationRejectedText, isWiderSandbox, PLANNING_ESCALATION_TEXT, sandboxModeFor } from './sandbox.ts'
 
 /** 模型可见的拒绝文本（契约）。 */
 export const REJECTED_TEXT = 'The user rejected this tool call. Stop and wait for the user to tell you how to proceed.'
@@ -43,11 +43,26 @@ export const RECORD_FAILED_TEXT = 'Run stopped: the record could not be saved'
 export const ESCALATION_NOT_DENIED_TEXT =
   'invalid escalation: sandbox_permissions only retries a command the sandbox denied in this run; run the command without it first'
 export const rejectedWithFeedback = (feedback: string) => `The user rejected this tool call and said:\n${feedback}`
-/** 调用的效果固定在比当前模式更宽的沙箱中执行，而当前模式（plan、read-only）不允许提权。 */
+/** 调用的效果固定在比当前模式更宽的沙箱中执行，而当前模式（read-only）不允许提权。 */
 export const fixedSandboxRefusedText = (what: string, fixed: SandboxMode, mode: PermissionMode) =>
   `Not sent: ${what} was started under the ${fixed} sandbox, wider than ${mode} mode allows; input to it would run with that access. ` +
   'Start a new terminal job under the current mode instead.'
 export const deniedByRule = (rule: PermissionRule) => `Permission denied by rule ${rule.tool}${rule.content === undefined ? '' : `(${rule.content})`}.`
+/** 规划中的文件写入（ADR 0028）：不询问，交给模型的文本说明把改动写进计划。 */
+export const PLANNING_WRITE_REFUSED_TEXT =
+  'Refused: plan mode is active, so file writes are blocked until the user approves a plan. Do not retry or work around this; describe the intended change in the plan (or in your report to the parent agent) instead.'
+/** 规划中向较宽档位启动的终端输入（ADR 0028）。 */
+export const planningFixedSandboxRefusedText = (what: string, fixed: SandboxMode) =>
+  `Not sent: ${what} was started under the ${fixed} sandbox, but plan mode only allows the read-only sandbox; input to it would run with that access. Start a new terminal job instead.`
+/**
+ * 带 isolation worktree 的子代理派发在规划中（ADR 0028）与 read-only 模式下不可用：返回模型可见的错误文本，可用时 undefined。
+ * 权限 hook 与宿主的派发处共用这一判断。
+ */
+export const worktreeIsolationRefusedText = (mode: PermissionMode, planning: boolean): string | undefined =>
+  planning || mode === 'read-only' ? `isolation: worktree is not available in ${planning ? 'plan' : mode} mode` : undefined
+/** 判定为 deny 时模型看到的文本：规划中的写入或命中的拒绝规则。 */
+export const deniedText = (decision: Extract<PermissionDecision, { behavior: 'deny' }>) =>
+  'rule' in decision ? deniedByRule(decision.rule) : PLANNING_WRITE_REFUSED_TEXT
 
 /**
  * 外部 Hook 在权限判定中的端口（ADR 0013）：PreToolUse 在 decide 之前运行（每次调用），PermissionRequest 在第 7 步（default）的询问出卡片之前
@@ -73,6 +88,8 @@ export interface PermissionGateOptions {
   writeRoots?: () => readonly string[] | undefined
   broker: ApprovalBroker
   mode: () => PermissionMode
+  /** Session 在规划中（ADR 0028）；每次判定现取，缺省不在规划中。 */
+  planning?: () => boolean
   rules: () => readonly PermissionRule[]
   /** 当前 Run 已有无反馈的拒绝：同批其余调用直接跳过，Run 在本批结束后以 aborted 结束。 */
   rejected: () => boolean
@@ -94,7 +111,7 @@ export interface PermissionGate {
   /** beforeToolCall：判定、提权与审批。 */
   beforeToolCall(context: BeforeToolCallContext, signal?: AbortSignal): Promise<ToolBlockResult | undefined>
   /**
-   * 执行前复核（取得执行槽之后、执行记录之前）：文件写入的真实目标与判定时不同时按当前模式与规则重新判定，deny 与用户拒绝时
+   * 执行前复核（取得执行槽之后、执行记录之前）：文件写入的真实目标与判定时不同、或判定之后进入了规划时按当前模式与规则重新判定，deny 与用户拒绝时
    * 以 Error 拒绝（调用不执行），ask 时再次审批。其余调用直接返回。
    */
   recheck(toolCallId: string, toolName: string, args: unknown, signal?: AbortSignal): Promise<void>
@@ -131,7 +148,7 @@ function hookAskAgain(
   asked: Extract<PermissionDecision, { behavior: 'ask' }>,
 ): Reasked {
   const combined: CombinedDecision = combinePreToolUse(verdict, next)
-  if (combined.behavior === 'deny') return { behavior: 'deny', reason: combined.by === 'rule' ? deniedByRule(combined.decision.rule) : combined.reason }
+  if (combined.behavior === 'deny') return { behavior: 'deny', reason: combined.by === 'rule' ? deniedText(combined.decision) : combined.reason }
   if (combined.behavior === 'allow') return { behavior: 'allow' }
   return combined.by === 'hook' ? asked : combined.decision
 }
@@ -145,6 +162,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
   /** 本 Run 中被沙箱拒绝过的命令（规范空白后）。 */
   const sandboxDenied = new Set<string>()
 
+  const planning = () => options.planning?.() ?? false
   const subjectOf = (name: string, args: unknown) => options.tool(name)?.permissionSubject?.(args as never)
   const classOf = (name: string) => options.permissionClass?.(name)
   const categoryOf = (name: string) => toolCategory(name, classOf(name))
@@ -160,6 +178,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     isolation = false,
   ): Promise<{ decision: PermissionDecision; step: DecisionStep; target?: PermissionTarget; matchesRule: (condition: HookCondition) => boolean }> => {
     const mode = options.mode()
+    const inPlanning = planning()
     const root = options.workspaceRoots?.()[0] ?? (await realWorkspace())
     const permissionClass = classOf(name)
     const call: PermissionCall = {
@@ -176,8 +195,9 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       mode,
       rules: options.rules(),
       workspace: root,
-      writableRoots: await writableRootsFor(mode, workspaceRoots, options.writeRoots?.()),
+      writableRoots: await writableRootsFor(mode, workspaceRoots, options.writeRoots?.(), inPlanning),
       ...(readRoots.length > 0 ? { readRoots } : {}),
+      ...(inPlanning ? { planning: true } : {}),
     }
     const { decision, step } = decideWithStep(call, context)
     // Hook 的 if：与一条拒绝规则相同的匹配（命令的任一子命令、路径的解析前或真实路径），不看模式与其他规则。
@@ -233,7 +253,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
             const next: Reasked = combine
               ? combine(evaluated)
               : evaluated.decision.behavior === 'deny'
-                ? { behavior: 'deny', reason: deniedByRule(evaluated.decision.rule) }
+                ? { behavior: 'deny', reason: deniedText(evaluated.decision) }
                 : evaluated.decision
             if (next.behavior === 'allow') return { behavior: 'allow' }
             if (next.behavior === 'deny') return { behavior: 'deny', reason: next.reason }
@@ -357,32 +377,33 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       }
       const verdict = options.hooks ? await options.hooks.preToolUse(hookCall, signal) : {}
       if (verdict.decision === 'deny') return hookBlock(blockedByHookText(verdict.reason), verdict)
-      if (decision.behavior === 'deny') return { block: true, reason: deniedByRule(decision.rule) }
-      // isolation worktree 在 plan / read-only 下不可用：直接为错误结果，不先询问一个批准之后也会失败的调用（Hook 与规则的拒绝之后）。
-      const isolationMode = options.mode()
-      if (isolation && (isolationMode === 'plan' || isolationMode === 'read-only'))
-        return { block: true, reason: `isolation: worktree is not available in ${isolationMode} mode` }
+      if (decision.behavior === 'deny') return { block: true, reason: deniedText(decision) }
+      // isolation worktree 在规划中与 read-only 模式下不可用：直接为错误结果，不先询问一个批准之后也会失败的调用（Hook 与规则的拒绝之后）。
+      const isolationRefused = isolation ? worktreeIsolationRefusedText(options.mode(), planning()) : undefined
+      if (isolationRefused) return { block: true, reason: isolationRefused }
       const remember = (latest: PermissionTarget | undefined) => {
         const real = (latest ?? target)?.real
         if (real !== undefined && categoryOf(name) === 'write') prepared.set(context.toolCall.id, real)
       }
 
-      // 效果固定在更宽档位中执行的调用（向较宽档位启动的终端输入）：plan 与 read-only 下拒绝，其余模式按一次提权询问（与 sandbox_permissions
-      // 相同，允许规则与模式放行都不能免掉它）。
+      // 效果固定在更宽档位中执行的调用（向较宽档位启动的终端输入）：规划中与 read-only 模式下拒绝，其余模式按一次提权询问（与
+      // sandbox_permissions 相同，允许规则与模式放行都不能免掉它）。
       const fixed = tool?.fixedSandbox?.(context.args as never)
       const mode = options.mode()
-      if (fixed && isWiderSandbox(fixed.mode, sandboxModeFor(mode))) {
-        if (mode === 'plan' || mode === 'read-only') return { block: true, reason: fixedSandboxRefusedText(fixed.what, fixed.mode, mode) }
+      if (fixed && isWiderSandbox(fixed.mode, sandboxModeFor(mode, planning()))) {
+        if (planning()) return { block: true, reason: planningFixedSandboxRefusedText(fixed.what, fixed.mode) }
+        if (mode === 'read-only') return { block: true, reason: fixedSandboxRefusedText(fixed.what, fixed.mode, mode) }
         return escalate(context, signal, subject ?? '', fixed.mode, `${fixed.what} runs with ${fixed.mode} access, wider than the current ${mode} mode`)
       }
 
       // 提权在拒绝规则之后检查；严格更宽的档位总要用户批准一次（允许规则与模式放行都不能免掉它），替代该次调用的普通审批，
-      // 并且只用于重试本 Run 中被沙箱拒绝过的同一命令（ADR 0005）。参数错误时不询问也不执行。
+      // 并且只用于重试本 Run 中被沙箱拒绝过的同一命令（ADR 0005）。参数错误时不询问也不执行。规划中不能提权（ADR 0028）：直接为错误结果。
       const asked = tool?.sandboxRequest?.(context.args as never)
       if (asked) {
-        const check = checkEscalation(asked, sandboxModeFor(options.mode()))
+        const check = checkEscalation(asked, sandboxModeFor(options.mode(), planning()))
         if (check.kind === 'invalid') return { block: true, reason: check.message }
         if (check.kind === 'escalate') {
+          if (planning()) return { block: true, reason: PLANNING_ESCALATION_TEXT }
           if (!sandboxDenied.has(commandKey(subject ?? ''))) return { block: true, reason: ESCALATION_NOT_DENIED_TEXT }
           return escalate(context, signal, subject ?? '', check.targetMode, check.justification)
         }
@@ -394,7 +415,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
         remember(undefined)
         return undefined
       }
-      if (combined.behavior === 'deny') return { block: true, reason: combined.by === 'hook' ? combined.reason : deniedByRule(combined.decision.rule) }
+      if (combined.behavior === 'deny') return { block: true, reason: combined.by === 'hook' ? combined.reason : deniedText(combined.decision) }
       const review = forced ? planReviewOf(tool) : undefined
       if (review) return reviewPlan(context, review, signal)
       // PermissionRequest：只在最终为第 7 步的询问时、出卡片之前运行；deny 拒绝，allow 以 approval_decision { by: hook } 结束，其余出卡片。
@@ -436,8 +457,9 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       if (before === undefined) return
       const subject = subjectOf(toolName, args)
       const { decision, target } = await evaluate(toolName, subject)
-      if (target?.real === before) return
-      if (decision.behavior === 'deny') throw new ToolCallBlockedError(deniedByRule(decision.rule))
+      // 判定之后进入规划（ADR 0028）时即使目标不变也重新判定：已放行的写入在执行前按规划拒绝。
+      if (target?.real === before && !planning()) return
+      if (decision.behavior === 'deny') throw new ToolCallBlockedError(deniedText(decision))
       if (decision.behavior === 'allow') return
       const reason = await askTool(toolCallId, toolName, subject, decision, signal, () => undefined)
       if (reason !== undefined) throw new ToolCallBlockedError(reason)

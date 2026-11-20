@@ -10,6 +10,7 @@ const KIND_KEYS = {
   model: 'errors.modelSwitchFailed',
   approval: 'errors.approvalFailed',
   permissions: 'errors.permissionsFailed',
+  plan: 'errors.planFailed',
   steer: 'errors.steerFailed',
   pause: 'errors.pauseFailed',
   continue: 'errors.continueFailed',

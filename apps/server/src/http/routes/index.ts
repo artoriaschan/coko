@@ -11,6 +11,7 @@ import { hooksRoutes } from './hooks.ts'
 import { jobsRoutes } from './jobs.ts'
 import { lspRoutes } from './lsp.ts'
 import { mcpRoutes } from './mcp.ts'
+import { plansRoutes } from './plans.ts'
 import { pluginsRoutes } from './plugins.ts'
 import { schedulesRoutes } from './schedules.ts'
 import { memoriesRoutes } from './memories.ts'
@@ -32,6 +33,7 @@ export const DOMAIN_ROUTES: readonly DomainRoutes[] = [
   memoriesRoutes,
   contextRoutes,
   goalsRoutes,
+  plansRoutes,
   jobsRoutes,
   hooksRoutes,
   agentsRoutes,

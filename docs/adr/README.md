@@ -14,7 +14,7 @@ ADR 的状态、实施字段与替代规则见 [文档体系](../DOCUMENTATION_S
 | [0002](0002-local-service-access-auth.md) | 本地服务访问认证 | accepted | implemented |
 | [0003](0003-settings-and-sessions-in-sqlite.md) | 设置与会话存储在 SQLite | accepted | implemented |
 | [0004](0004-model-credentials-safe-storage.md) | 模型凭据由 main 用 safeStorage 加密 | accepted | implemented |
-| [0005](0005-permission-mode-and-sandbox.md) | 权限模式同时决定审批范围与沙箱档位 | accepted | implemented |
+| [0005](0005-permission-mode-and-sandbox.md) | 权限模式同时决定审批范围与沙箱档位（plan 作为模式取值的部分由 0028 替代） | accepted | implemented |
 | [0006](0006-file-checkpoints-and-rewind.md) | Checkpoint 只追踪文件工具，回退以追加记录实现 | superseded | implemented |
 | [0007](0007-secrets-from-registered-entries.md) | Secret 只来自登记条目，项目文件不能引用 | accepted | implemented |
 | [0008](0008-project-files-only-tighten.md) | 项目文件只能收紧，不能授予 | accepted | implemented |
@@ -37,3 +37,4 @@ ADR 的状态、实施字段与替代规则见 [文档体系](../DOCUMENTATION_S
 | [0025](0025-system-data-root.md) | 主数据根独立于 Electron userData，跨平台统一 COKO_HOME | accepted | implemented |
 | [0026](0026-standalone-session-write-roots.md) | 托管独立会话分离读取根、写根与 cwd | accepted | implemented |
 | [0027](0027-memory-follows-project-writes-without-approval.md) | 记忆跟随项目归属，写入不经审批，局部替代 ADR 0020 的记忆条款 | accepted | implemented |
+| [0028](0028-plan-phase-not-permission-mode.md) | 计划是独立的 Session 状态，不是 Permission Mode；局部替代 ADR 0005 的 plan 取值 | accepted | implemented |

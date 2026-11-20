@@ -3,7 +3,7 @@ import { planTitle } from '@coko/protocol'
 import { IconClipboardList } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
-import { PlanMarkdown, planHistory } from './plan-review-panel.tsx'
+import { displayedPlanStatus, PlanMarkdown, PlanReport, planHistory } from './plan-review-panel.tsx'
 import { useTimelineSession } from './timeline-session.tsx'
 import type { TimelineItem } from './timeline.ts'
 
@@ -14,7 +14,7 @@ export function planCardSuppressed(item: Extract<TimelineItem, { kind: 'plan' }>
 
 /**
  * 时间线的计划卡（plan 条目）：标题、修订与状态，被拒绝时带反馈。proposed 的条目在同一计划有后续条目（批准、拒绝或新修订）后不再显示，
- * 时间线只留结论。点击切到右栏的 Plan tab。
+ * 时间线只留结论。点击切到右栏的 Plan tab；没有右栏可开（历史、只读）时在卡内展开正文，已完成的计划在正文前带完成报告（与 Plan 页相同）。
  */
 export function PlanCard({ item, rootAttributes }: { item: Extract<TimelineItem, { kind: 'plan' }>; rootAttributes?: TimelineRootAttributes }) {
   const { t } = useI18n()
@@ -24,6 +24,7 @@ export function PlanCard({ item, rootAttributes }: { item: Extract<TimelineItem,
   const inline = historical || readOnly || openPlan === undefined
   const [expanded, setExpanded] = React.useState(false)
   const title = React.useMemo(() => planTitle(plan.markdown), [plan.markdown])
+  const status = displayedPlanStatus(plan, entries)
   if (superseded) return null
   return (
     <section
@@ -31,7 +32,7 @@ export function PlanCard({ item, rootAttributes }: { item: Extract<TimelineItem,
       data-slot="plan-card"
       data-plan-id={plan.planId}
       data-revision={plan.revision}
-      data-status={plan.status}
+      data-status={status}
       aria-label={t('plan.card.label')}
       className="conversation-business-card conversation-business-row"
     >
@@ -49,7 +50,7 @@ export function PlanCard({ item, rootAttributes }: { item: Extract<TimelineItem,
         </button>
         <span className="shrink-0 text-ui-small text-muted-foreground">{t('plan.revision', { n: String(plan.revision) })}</span>
         <span data-slot="plan-status" className="shrink-0 rounded-sm bg-accent px-1.5 py-0.5 text-ui-small text-muted-foreground">
-          {t(`plan.status.${plan.status}`)}
+          {t(`plan.status.${status}`)}
         </span>
       </div>
       {plan.feedback !== undefined && (
@@ -57,7 +58,12 @@ export function PlanCard({ item, rootAttributes }: { item: Extract<TimelineItem,
           {t('plan.feedback')}：<span data-user-content>{plan.feedback}</span>
         </p>
       )}
-      {inline && expanded && <PlanMarkdown text={plan.markdown} className="conversation-plan-snapshot" />}
+      {inline && expanded && (
+        <div className="conversation-plan-snapshot">
+          {plan.report !== undefined && <PlanReport report={plan.report} className="mb-2" />}
+          <PlanMarkdown text={plan.markdown} />
+        </div>
+      )}
     </section>
   )
 }

@@ -2,7 +2,7 @@ import { Type, type Static } from 'typebox'
 import { SessionEntryRecord } from './entries.ts'
 import { SessionActivity } from './runs.ts'
 import { SessionWorktree } from './worktrees.ts'
-import { PermissionMode } from './permissions.ts'
+import { StandardPermissionMode } from './permissions.ts'
 
 // HTTP 请求与响应 DTO。时间戳为毫秒；id 为不透明字符串。
 
@@ -176,7 +176,7 @@ export const FirstSendRequest = Type.Object(
     files: Type.Optional(Type.Array(FileAttachment)),
     model: Type.Optional(SessionModel),
     thinkingLevel: Type.Optional(ThinkingLevel),
-    permissionMode: Type.Optional(PermissionMode),
+    permissionMode: Type.Optional(StandardPermissionMode),
   },
   strict,
 )

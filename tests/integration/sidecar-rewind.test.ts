@@ -5,7 +5,7 @@ import { mkdir, readFile, realpath, rename, stat, symlink, writeFile } from 'nod
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DATE_TEST_BLOCK as dateBlock, DATE_TEST_ENV } from './date-state-fixture.ts'
-import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, type SessionEntryRecord } from '@coko/protocol'
+import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, planPaths, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval, type SidecarDirs, type Stream } from './sidecar-harness.ts'
 
 async function boot(options: { mode?: string; responses: unknown[]; requestLog?: string; env?: Record<string, string>; dirs?: SidecarDirs; root?: string }) {
@@ -76,27 +76,45 @@ describe('回退与分叉', () => {
     expect((await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: final.seq, boundary: 'assistant-inclusive' })).status).toBe(201)
   })
 
-  it('从早期助手分支仍继承源当前 plan 权限，不能绕过后续收紧', async () => {
+  // ADR 0028 起计划阶段取分叉边界处（原先断言助手边界继承源当前的规划阶段）；“不能绕过后续收紧”由 Permission Mode 承担：
+  // 助手边界仍继承源当前的权限状态。
+  it('助手边界分支继承源当前的 Permission Mode，不能绕过后续收紧；计划阶段取边界处：边界在进入规划之前不带，在规划中的带', async () => {
     const { api, sessionId, stream, root } = await boot({
       mode: 'accept-edits',
-      responses: [{ content: 'old answer' }, { content: [write('restricted-write', 'blocked.txt', 'must not write')] }, { content: 'write denied' }],
+      responses: [
+        { content: 'old answer' },
+        { content: 'planned answer' },
+        { content: [write('restricted-write', 'blocked.txt', 'must not write')] },
+        { content: 'write denied' },
+      ],
     })
     await send(api, stream, sessionId, 'first', 1)
-    const target = (await entriesOf(api, sessionId)).find((e) => e.kind === 'message' && textOf(e.payload) === 'old answer')!
-    expect((await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'plan' })).status).toBe(200)
-    const fork = await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: target.seq, boundary: 'assistant-inclusive' })
-    expect(fork.status).toBe(201)
-    const id = fork.body.sessionId as string
+    expect((await api.post(planPaths.sessionPlan(sessionId), { action: 'enter' })).status).toBe(200)
+    await send(api, stream, sessionId, 'research', 2)
+    expect((await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'default' })).status).toBe(200)
+    const source = await entriesOf(api, sessionId)
+    const reply = (text: string) => source.find((e) => e.kind === 'message' && textOf(e.payload) === text)!
+    const fork = async (text: string) => {
+      const forked = await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: reply(text).seq, boundary: 'assistant-inclusive' })
+      expect(forked.status).toBe(201)
+      return forked.body.sessionId as string
+    }
+    const planning = await fork('planned answer')
+    expect((await api.get(planPaths.sessionPlan(planning))).body).toEqual({ phase: 'planning', plan: null })
+
+    const id = await fork('old answer')
+    expect((await api.get(planPaths.sessionPlan(id))).body).toEqual({ phase: 'none', plan: null })
+    expect((await entriesOf(api, id)).filter((e) => e.kind === 'plan_phase')).toEqual([])
+    expect((await api.get(permissionPaths.sessionPermissionRules(id))).body).toEqual({ mode: 'default', rules: [] })
     stream.send({ type: 'subscribe', sessionId: id, afterSeq: 0 })
     await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === id)
     expect((await api.post(apiPaths.sessionMessages(id), { text: 'try writing' })).status).toBe(202)
+    // 不在规划中：写入按继承的 default 询问（不是规划中的直接拒绝）；拒绝后文件不存在。
     const approval = await waitApproval(stream, id)
-    expect(await absent(join(root, 'blocked.txt'))).toBe(true)
+    expect(approval).toMatchObject({ kind: 'tool', toolName: 'write' })
     expect((await api.post(apiPaths.sessionApproval(id, approval.requestId), { decision: 'deny' })).status).toBe(204)
     await runEnds(stream, id, 1)
     expect(await absent(join(root, 'blocked.txt'))).toBe(true)
-    const result = (await entriesOf(api, id)).find((e) => e.kind === 'message' && (e.payload as { toolCallId?: string }).toolCallId === 'restricted-write')
-    expect(result?.payload).toMatchObject({ role: 'toolResult', isError: true })
   })
 
   it('从较早成功助手回复包含边界分支；下一请求保留工具上下文且排除之后内容，原记录与文件不变', async () => {

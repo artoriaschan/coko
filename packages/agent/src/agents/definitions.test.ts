@@ -113,6 +113,7 @@ describe('subagentTools', () => {
     'memory_write',
     'memory_read',
     'exit_plan_mode',
+    'complete_plan',
     'mcp__x__y',
   ]
   it.each([
@@ -129,8 +130,6 @@ describe('effectiveSubagentMode', () => {
     ['default', 'full-access', 'default'],
     ['full-access', 'read-only', 'read-only'],
     ['accept-edits', undefined, 'accept-edits'],
-    ['plan', undefined, 'read-only'],
-    ['plan', 'full-access', 'read-only'],
     ['read-only', 'default', 'read-only'],
     ['full-access', 'accept-edits', 'accept-edits'],
   ] as const)('根 %s、定义 %s → %s', (root, cap, expected) => {

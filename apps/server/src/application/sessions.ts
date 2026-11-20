@@ -1,6 +1,6 @@
 import type { ForkBoundary } from '@coko/protocol'
 import type { FileAttachment, ImageAttachment } from '@coko/protocol'
-import type { ModelRegistry, PermissionMode, PermissionRule, RewindFiles, RewindMode, SecretProvider, ToolRegistry } from '@coko/agent'
+import type { ModelRegistry, PermissionRule, StandardPermissionMode, RewindFiles, RewindMode, SecretProvider, ToolRegistry } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import type {
   AnswerApprovalRequest,
@@ -13,6 +13,8 @@ import type {
   SessionDetailResponse,
   SessionModel,
   SessionPermissionsResponse,
+  SessionPlanResponse,
+  PlanActionRequest,
   ThinkingLevel,
   UpdatePermissionsRequest,
 } from '@coko/protocol'
@@ -147,6 +149,7 @@ export class SessionService {
       store,
       runtimes: this.#runtimes,
       recovery: this.#recovery,
+      permissions: this.#permissions,
       ...(options.checkpoints ? { files: options.checkpoints } : {}),
       ...(options.cwd ? { cwd: options.cwd } : {}),
     })
@@ -471,8 +474,21 @@ export class SessionService {
     return this.#permissions.sessionPermissions(sessionId)
   }
 
-  setPermissionMode(sessionId: string, mode: PermissionMode): Promise<SessionPermissionsResponse> {
+  setPermissionMode(sessionId: string, mode: StandardPermissionMode): Promise<SessionPermissionsResponse> {
     return this.#permissions.setMode(sessionId, mode)
+  }
+
+  sessionPlan(sessionId: string): Promise<SessionPlanResponse> {
+    return this.#permissions.sessionPlan(sessionId)
+  }
+
+  /** 计划阶段（根 Session 的阶段），不派生活动的 Plan。 */
+  async planning(sessionId: string): Promise<boolean> {
+    return (await this.#permissions.phase(sessionId)) === 'planning'
+  }
+
+  planAction(sessionId: string, action: PlanActionRequest['action']): Promise<SessionPlanResponse> {
+    return this.#permissions.planAction(sessionId, action)
   }
 
   changeSessionRule(sessionId: string, op: 'add' | 'remove', rule: PermissionRule): Promise<SessionPermissionsResponse> {
@@ -555,7 +571,7 @@ export class SessionService {
     directory?: string
     cwd?: string
     projectId?: string | null
-    permissionMode?: PermissionMode
+    permissionMode?: StandardPermissionMode
     title?: string
     model?: SessionModel
     thinkingLevel?: ThinkingLevel

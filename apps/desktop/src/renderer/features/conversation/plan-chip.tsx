@@ -1,33 +1,32 @@
+import { planPhaseOf } from '@coko/agent/entries'
 import { PlanModePill } from '@coko/ui'
 import * as React from 'react'
-import { useNewChat, useChat, useChatActions, useChatStoreApi } from '../../app/chat.tsx'
+import { useChat, useChatActions } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
-import { sessionPermissionMode } from '../../stores/chat-store.ts'
-import { restoredMode } from './plan-review-panel.tsx'
 
-/** 输入区底栏的 Plan chip：当前会话（或草稿）处于 plan 模式时显示；hover 时变为 ×，点击回到进入前的模式。 */
+/**
+ * 输入区底栏的 Plan chip：会话的计划阶段（由条目派生，ADR 0028）为规划中时显示“计划”，执行中时显示“执行中”（样式相同）；hover 时变为 ×，
+ * 点击调用计划接口的退出动作（不改变 Permission Mode）：规划中为退出规划，执行中为放弃计划（不弹确认）。
+ * 等待响应期间禁用；失败时保留显示并经失败通道提示；成功后 chip 随 plan_phase 条目消失。草稿不显示。
+ */
 export function PlanChip({ sessionId, onExit }: { sessionId: string | null; onExit?: () => void }) {
   const { t } = useI18n()
-  const store = useChatStoreApi()
   const [exiting, setExiting] = React.useState(false)
-  const { setPermissionMode } = useChatActions()
-  const conversation = useChat((s) => (sessionId === null ? undefined : s.conversations[sessionId]))
-  const draftMode = useNewChat((s) => s.permissionMode)
-  const mode = conversation ? (conversation.pendingMode ?? sessionPermissionMode(conversation.entries)) : sessionId === null ? draftMode : undefined
-  if (mode !== 'plan') return null
-  const back = conversation ? restoredMode(conversation.entries) : 'default'
-  const restore = back === 'plan' ? 'default' : back
+  const { exitPlan } = useChatActions()
+  const phase = useChat((s) => {
+    const conversation = sessionId === null ? undefined : s.conversations[sessionId]
+    return conversation === undefined ? 'none' : planPhaseOf(conversation.entries).phase
+  })
+  if (phase === 'none' || sessionId === null) return null
   return (
     <PlanModePill
-      label={t('plan.chip')}
-      closeLabel={t('plan.exit')}
+      label={t(phase === 'executing' ? 'plan.chipExecuting' : 'plan.chip')}
+      closeLabel={t(phase === 'executing' ? 'plan.abandon' : 'plan.exit')}
       disabled={exiting}
       onClose={async () => {
         setExiting(true)
         try {
-          await setPermissionMode(restore)
-          const current = sessionId === null ? undefined : store.getState().conversations[sessionId]
-          if ((current ? (current.pendingMode ?? sessionPermissionMode(current.entries)) : store.newChat.getState().permissionMode) !== 'plan') onExit?.()
+          if (await exitPlan(sessionId)) onExit?.()
         } finally {
           setExiting(false)
         }

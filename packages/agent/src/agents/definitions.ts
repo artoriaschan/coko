@@ -32,18 +32,18 @@ const NAME = /^[a-z0-9-]{1,64}$/
 const MODEL = /^[^/\s]+\/[^\s]+$/
 const THINKING = new Set<string>(THINKING_LEVELS)
 
-/** 模式的宽窄：read-only < default < accept-edits < full-access；plan 按 read-only 计（ADR 0014）。 */
+/** 模式的宽窄：read-only < default < accept-edits < full-access（ADR 0014）。 */
 export const PERMISSION_MODE_ORDER: readonly StandardPermissionMode[] = ['read-only', 'default', 'accept-edits', 'full-access']
 const MODES = new Set<string>(PERMISSION_MODE_ORDER)
-const modeRank = (mode: PermissionMode) => PERMISSION_MODE_ORDER.indexOf(mode === 'plan' ? 'read-only' : mode)
+const modeRank = (mode: PermissionMode) => PERMISSION_MODE_ORDER.indexOf(mode)
 
-/** 模式与上限中较窄者（唯一的宽窄比较）；没有上限或上限不更窄时原样返回 mode（plan 不被同样窄的上限改成其他模式）。 */
-export function narrowerMode<M extends PermissionMode>(mode: M, cap: StandardPermissionMode | undefined): M | StandardPermissionMode {
+/** 模式与上限中较窄者（唯一的宽窄比较）；没有上限或上限不更窄时原样返回 mode。 */
+export function narrowerMode(mode: PermissionMode, cap: StandardPermissionMode | undefined): PermissionMode {
   return cap !== undefined && modeRank(cap) < modeRank(mode) ? cap : mode
 }
 
 /**
- * 子 Session 固定排除的工具：不能再派发子代理（深度 1）、不能读写 Goal、退出规划、定时任务、后台任务与 Memory 的写入。
+ * 子 Session 固定排除的工具：不能再派发子代理（深度 1）、不能读写 Goal、退出规划与完成计划、定时任务、后台任务与 Memory 的写入。
  * schedule_* 按前缀排除（含之后新增的定时任务工具）。
  */
 export const SUBAGENT_EXCLUDED_TOOLS: readonly string[] = [
@@ -54,6 +54,7 @@ export const SUBAGENT_EXCLUDED_TOOLS: readonly string[] = [
   'create_goal',
   'update_goal',
   'exit_plan_mode',
+  'complete_plan',
   'job_output',
   'job_list',
   'job_kill',
@@ -307,9 +308,9 @@ export function subagentTools(parentTools: readonly string[], definition: Pick<A
 }
 
 /**
- * 子 Session 的有效模式：根 Session 当前模式（plan 按 read-only：子级没有 exit_plan_mode）与定义的 permission-mode 中较窄者。
- * 每次判定时调用（根中途收紧，子级的下一次调用即按新模式）。
+ * 子 Session 的有效模式：根 Session 当前模式与定义的 permission-mode 中较窄者（规划中不改变模式，规划约束另由根 Session 的计划阶段施加，
+ * ADR 0028）。每次判定时调用（根中途收紧，子级的下一次调用即按新模式）。
  */
-export function effectiveSubagentMode(rootMode: StandardPermissionMode | 'plan', cap: StandardPermissionMode | undefined): StandardPermissionMode {
-  return narrowerMode(rootMode === 'plan' ? 'read-only' : rootMode, cap)
+export function effectiveSubagentMode(rootMode: PermissionMode, cap: StandardPermissionMode | undefined): PermissionMode {
+  return narrowerMode(rootMode, cap)
 }

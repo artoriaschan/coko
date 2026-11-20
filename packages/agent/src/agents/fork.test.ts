@@ -157,7 +157,7 @@ describe('forkEntries 的工具加载边界', () => {
     const reply = entry('message', { role: 'assistant', content: [{ type: 'text', text: 'boundary answer' }], stopReason: 'stop', timestamp: 0 })
     const end = entry('run_end', { status: 'completed' })
     const b = entry('tool_load', { names: ['mcp__demo__sum'], source: 'optimistic', toolCallId: 'load-b' })
-    const restriction = entry('permission_mode', { mode: 'plan' }, null)
+    const restriction = entry('permission_mode', { mode: 'read-only' }, null)
     const source = [mode, first, a, ...summary, targetUser, reply, end, b, restriction]
     const boundaries = [
       ['user-before', targetUser.seq],
@@ -168,11 +168,86 @@ describe('forkEntries 的工具加载边界', () => {
       expect(forked.entries.filter((item) => item.kind === 'tool_load')).toEqual([{ kind: 'tool_load', payload: a.payload }])
       const copied = forked.entries.map((item, index) => ({ ...item, seq: index + 1, runId: null }))
       expect([...loadedToolNames(copied)]).toEqual(['mcp__demo__echo'])
-      expect(forked.entries.filter((item) => item.kind === 'permission_mode').at(-1)?.payload).toEqual({ mode: index === 0 ? 'full-access' : 'plan' })
+      expect(forked.entries.filter((item) => item.kind === 'permission_mode').at(-1)?.payload).toEqual({ mode: index === 0 ? 'full-access' : 'read-only' })
     }
     const copied = forks[1]!.entries.map((item, index) => ({ ...item, seq: index + 1, runId: null }))
     const copiedReply = copied.find((item) => item.kind === 'message' && (item.payload as { role?: string }).role === 'assistant')!
     const again = forkEntries(copied, 'forked', copiedReply.seq, 'assistant-inclusive')
     expect(again.entries.filter((item) => item.kind === 'tool_load')).toEqual([{ kind: 'tool_load', payload: a.payload }])
+  })
+})
+
+describe('forkEntries 的计划阶段', () => {
+  const planning = () => {
+    seq = 0
+    return [
+      entry('permission_mode', { mode: 'default' }, null),
+      user('one'),
+      entry('permission_mode', { mode: 'read-only' }, null),
+      entry('plan_phase', { phase: 'planning' }, null),
+      entry('plan', { planId: 'p1', revision: 1, markdown: '# P', status: 'proposed' }),
+    ]
+  }
+
+  it('边界前在规划中：复制模式，末尾追加一条 plan_phase planning；plan 与原阶段条目不复制', () => {
+    const entries = planning()
+    const target = user('two')
+    const copied = forkEntries([...entries, target], 's', target.seq).entries.filter((e) => e.kind !== 'fork_origin')
+    expect(copied.map((e) => e.kind)).toEqual(['permission_mode', 'message', 'permission_mode', 'plan_phase'])
+    expect(copied.at(-2)!.payload).toEqual({ mode: 'read-only' })
+    expect(copied.at(-1)!.payload).toEqual({ phase: 'planning' })
+  })
+
+  it('不在规划中（含规划后退出）不追加', () => {
+    const entries = [...planning(), entry('plan_phase', { phase: 'none' }, null), entry('permission_mode', { mode: 'default' }, null)]
+    const target = user('two')
+    expect(forkEntries([...entries, target], 's', target.seq).entries.map((e) => e.kind)).not.toContain('plan_phase')
+  })
+
+  it('边界处执行中：不追加计划阶段，plan 条目不复制（新 Session 没有活动的 Plan）', () => {
+    const entries = [
+      ...planning(),
+      entry('plan', { planId: 'p1', revision: 1, markdown: '# P', status: 'approved' }),
+      entry('plan_phase', { phase: 'executing', planId: 'p1' }, null),
+    ]
+    const target = user('two')
+    const kinds = forkEntries([...entries, target], 's', target.seq).entries.map((e) => e.kind)
+    expect(kinds).not.toContain('plan_phase')
+    expect(kinds).not.toContain('plan')
+  })
+
+  // ADR 0028 起阶段取边界处（原过渡口径：assistant-inclusive 看全部有效条目，使新 Session 的 plan 模式与“规划中”一致）；规划不再改模式，
+  // 权限状态仍按 assistant-inclusive 继承源当前状态，计划阶段只跟边界。
+  it('边界口径：user-before 看边界前、assistant-inclusive 看到边界为止；边界之后才进入或退出规划不影响新 Session', () => {
+    seq = 0
+    const first = user('one')
+    const reply = entry('message', { role: 'assistant', content: [{ type: 'text', text: 'ok' }], stopReason: 'stop', timestamp: 0 })
+    const end = entry('run_end', { status: 'completed' })
+    const later = [entry('permission_mode', { mode: 'accept-edits' }, null), entry('plan_phase', { phase: 'planning' }, null)]
+    const second = user('two')
+    const planningReply = entry('message', { role: 'assistant', content: [{ type: 'text', text: 'planned' }], stopReason: 'stop', timestamp: 0 }, 'r2')
+    const planningEnd = entry('run_end', { status: 'completed' }, 'r2')
+    const exited = entry('plan_phase', { phase: 'none' }, null)
+    const entries = [
+      entry('permission_mode', { mode: 'default' }, null),
+      first,
+      reply,
+      end,
+      ...later,
+      second,
+      planningReply,
+      planningEnd,
+      exited,
+      user('three'),
+    ]
+    expect(forkEntries(entries, 's', first.seq).entries.map((e) => e.kind)).not.toContain('plan_phase')
+    const inclusive = forkEntries(entries, 's', reply.seq, 'assistant-inclusive').entries
+    expect(inclusive.filter((e) => e.kind === 'permission_mode').at(-1)!.payload).toEqual({ mode: 'accept-edits' })
+    expect(inclusive.map((e) => e.kind)).not.toContain('plan_phase')
+    // 源当前仍在规划中（没有之后的退出）时同样不带。
+    expect(forkEntries(entries.slice(0, -2), 's', reply.seq, 'assistant-inclusive').entries.map((e) => e.kind)).not.toContain('plan_phase')
+    // 边界处在规划中、源之后已退出：新 Session 仍以规划中开始。
+    expect(forkEntries(entries, 's', second.seq).entries.at(-1)).toEqual({ kind: 'plan_phase', payload: { phase: 'planning' } })
+    expect(forkEntries(entries, 's', planningReply.seq, 'assistant-inclusive').entries.at(-1)).toEqual({ kind: 'plan_phase', payload: { phase: 'planning' } })
   })
 })

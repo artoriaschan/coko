@@ -8,16 +8,14 @@ import type { PermissionMode, SandboxMode } from '../session-entries/index.ts'
 
 const SANDBOX_MODE: Record<PermissionMode, SandboxMode> = {
   'read-only': 'read-only',
-  // Plan Mode 只调研：命令沙箱只读，可写根为空。
-  plan: 'read-only',
   default: 'workspace-write',
   'accept-edits': 'workspace-write',
   'full-access': 'danger-full-access',
 }
 
-/** Permission Mode 对应的命令沙箱档位。 */
-export function sandboxModeFor(mode: PermissionMode): SandboxMode {
-  return SANDBOX_MODE[mode]
+/** 命令沙箱档位：规划中（计划阶段，ADR 0028）一律 read-only，否则按 Permission Mode。 */
+export function sandboxModeFor(mode: PermissionMode, planning = false): SandboxMode {
+  return planning ? 'read-only' : SANDBOX_MODE[mode]
 }
 
 const RANK: Record<SandboxMode, number> = { 'read-only': 0, 'workspace-write': 1, 'danger-full-access': 2 }
@@ -94,6 +92,15 @@ export function sandboxDenialMarker(mode: SandboxMode): string {
 export function escalationHintMarker(): string {
   return '[sandbox: escalation available — retry this exact command once with sandbox_permissions (the narrowest wider mode that suffices) + justification; the approval prompt asks the user]'
 }
+
+/** 规划中（ADR 0028）替代提权提示的标记：不能提权。 */
+export function planningEscalationMarker(): string {
+  return '[sandbox: escalation is not available in plan mode]'
+}
+
+/** 规划中带提权参数的调用：不询问、不执行（ADR 0028）。 */
+export const PLANNING_ESCALATION_TEXT =
+  'invalid escalation: plan mode is active, so commands run in a read-only sandbox and cannot be escalated. Do not retry; describe the step that needs write access in the plan instead.'
 
 /** 用户拒绝提权时交给模型的文本（沿用 DSH）。 */
 export function escalationRejectedText(mode: SandboxMode): string {

@@ -113,6 +113,11 @@ function run(): void {
   }
 
   const showSidecarError = async (kind: 'startup' | 'crashed', failure: BootFailure): Promise<void> => {
+    // 后台模式不弹原生框（它会抢前台），等同于点“关闭”；窗口内的失败状态照常显示。
+    if (windowMode.background) {
+      log.warn('sidecar error dialog suppressed in e2e background mode', { kind, code: failure.code })
+      return
+    }
     const text = t()
     const { response } = await showMessageBox({
       type: 'error',

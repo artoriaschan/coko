@@ -1,9 +1,12 @@
-// Permission Mode 与 Session 规则的 store 行为：模式由条目派生并乐观显示，失败时撤回；草稿中选的模式在创建 Session 后生效。
+// Permission Mode 与 Session 规则的 store 行为：模式由条目派生并乐观显示，失败时撤回；草稿中选的模式在创建 Session 后生效。规划是计划阶段
+// （ADR 0028）：退出规划经计划接口、不乐观显示，切换模式不影响规划。
 import type { ClientMessage, ServerMessage, Session, SessionEntryRecord } from '@coko/protocol'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError, type ApiClient } from '../client/api.ts'
 import type { StreamClient } from '../client/connection.ts'
+import { planPhaseOf } from '@coko/agent/entries'
 import { createChatStore, sessionPermissionMode, sessionRules, type ChatFailure } from './chat-store.ts'
+import { NEW_CHAT_CONFIG_KEY } from './new-chat-store.ts'
 
 function fakeStream() {
   const listeners = new Set<(message: ServerMessage) => void>()
@@ -64,6 +67,10 @@ async function setup(overrides: Partial<ApiClient> = {}) {
       calls.push(`mode:${id}:${mode}`)
       return { mode, rules: [] }
     }),
+    planAction: vi.fn<ApiClient['planAction']>(async (id, action) => {
+      calls.push(`plan:${id}:${action}`)
+      return { phase: action === 'enter' ? 'planning' : 'none', plan: null }
+    }),
     createSession: vi.fn<ApiClient['createSession']>(async () => session('s-new')),
     firstSend: async (input: Parameters<ApiClient['firstSend']>[0]) => {
       calls.push(`first:${input.permissionMode}`)
@@ -82,26 +89,42 @@ async function setup(overrides: Partial<ApiClient> = {}) {
     const c = store.getState().conversations[id]!
     return c.pendingMode ?? sessionPermissionMode(c.entries)
   }
-  return { store, api, send, failures, calls, mode }
+  const phase = (id = 's1') => planPhaseOf(store.getState().conversations[id]!.entries).phase
+  return { store, api, send, failures, calls, mode, phase }
 }
 
 describe('Permission Mode（store）', () => {
-  it('退出计划在服务端接受前保持 plan，拒绝后也不移除计划状态', async () => {
+  // ADR 0028 起退出规划经计划接口（原先经切换模式回到 prior，断言 plan 模式在接受前保持）。
+  it('退出规划在服务端接受前与拒绝后都保持规划中，失败报告为 plan；不改变模式', async () => {
     let reject!: (error: Error) => void
-    const { store, send, mode, failures } = await setup({
-      setPermissionMode: () =>
+    const { store, send, mode, phase, failures, calls } = await setup({
+      planAction: () =>
         new Promise((_resolve, no) => {
           reject = no
         }),
     })
-    send('s1', 'permission_mode', { mode: 'plan', prior: 'accept-edits' })
-    const changing = store.getState().setPermissionMode('accept-edits')
-    expect(mode()).toBe('plan')
+    send('s1', 'permission_mode', { mode: 'accept-edits' })
+    send('s1', 'plan_phase', { phase: 'planning' })
+    const exiting = store.getState().exitPlan('s1')
+    expect(phase()).toBe('planning')
     await vi.waitFor(() => expect(reject).toBeTypeOf('function'))
-    reject(new Error('offline'))
-    await changing
-    expect(mode()).toBe('plan')
-    expect(failures[0]?.kind).toBe('permissions')
+    reject(new ApiError('network', 'down', 0))
+    expect(await exiting).toBe(false)
+    expect(phase()).toBe('planning')
+    expect(mode()).toBe('accept-edits')
+    expect(failures.map((f) => f.kind)).toEqual(['plan'])
+    expect(calls).toEqual([])
+  })
+
+  it('规划中切换模式（含 Shift+Tab 的下一档）只提交模式，不退出规划', async () => {
+    const { store, send, mode, phase, calls } = await setup()
+    send('s1', 'plan_phase', { phase: 'planning' })
+    await store.getState().setPermissionMode('read-only')
+    send('s1', 'permission_mode', { mode: 'read-only' })
+    expect([mode(), phase()]).toEqual(['read-only', 'planning'])
+    expect(calls).toEqual(['mode:s1:read-only'])
+    expect(await store.getState().exitPlan('s1')).toBe(true)
+    expect(calls).toEqual(['mode:s1:read-only', 'plan:s1:exit'])
   })
   it('模式取最后一条 permission_mode 条目，没有时为 default', async () => {
     const { send, mode } = await setup()
@@ -149,6 +172,26 @@ describe('Permission Mode（store）', () => {
     expect(await store.getState().send('hello')).toBe(true)
     expect(calls).toEqual(['first:accept-edits'])
     expect(store.newChat.getState().permissionMode).toBeNull()
+  })
+
+  it('草稿中残留的 plan（升级前持久化）读取时按未设置处理，首次发送不带它', async () => {
+    const items = new Map([[NEW_CHAT_CONFIG_KEY, JSON.stringify({ draftId: 'd1', model: null, thinkingLevel: 'off', permissionMode: 'plan' })]])
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => items.get(key) ?? null,
+      setItem: (key: string, value: string) => void items.set(key, value),
+      removeItem: (key: string) => void items.delete(key),
+      key: (index: number) => [...items.keys()][index] ?? null,
+      length: 1,
+    })
+    try {
+      const { store, calls } = await setup()
+      expect(store.newChat.getState()).toMatchObject({ draftId: 'd1', permissionMode: null })
+      store.getState().startDraft('w1')
+      expect(await store.getState().send('hello')).toBe(true)
+      expect(calls).toEqual(['first:undefined'])
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('Session 规则按 permission_rule 条目回放', () => {

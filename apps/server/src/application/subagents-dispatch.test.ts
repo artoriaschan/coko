@@ -70,6 +70,7 @@ describe('子代理派发失败', () => {
         deliver: () => false,
         visibleTools: () => ['read'],
         mode: async () => 'default',
+        planning: async () => false,
         resolveModel: () => ({ priced: true }),
         sessionModel: async () => ({ providerId: 'p', modelId: 'm' }),
         scope: async () => ({ cwd: '/tmp/coko-dispatch', config: { agents: { enabled: true } }, plugins: emptyPluginContributions() }) as never,
@@ -92,5 +93,50 @@ describe('子代理派发失败', () => {
     expect(service.runningChildren(parent.id)).toEqual([])
     expect(service.extraRules(parent.id)).toEqual([])
     expect(removed).toEqual([worktree.id])
+  })
+
+  it('根 Session 规划中（ADR 0028）：带 isolation 的派发在派发处被拒（任何模式），不创建 worktree', async () => {
+    const store = createMemoryStore({ payloads: createPayloadRegistry(SESSION_ENTRY_PAYLOADS) })
+    const workspace = await store.sessions.registerWorkspace({ path: '/tmp/coko-dispatch-plan' })
+    const parent = await store.sessions.createSession({ workspaceId: workspace.id, model: null })
+    const created: string[] = []
+    const service = new SubagentService({
+      store,
+      hub: new SessionHub(),
+      entries: { list: (id) => store.sessions.listEntries(id), commit: async () => undefined as never },
+      config: { effective: async () => ({}) } as never,
+      cokoHome: '/tmp/coko-home-unused',
+      loader: { load: async () => ({ definitions: [...BUILTIN_AGENTS], diagnostics: [] }) } as never,
+    })
+    service.bind(
+      {
+        activeRunId: () => 'run-1',
+        isRunning: () => true,
+        startRun: async () => ({ runId: 'child-run' }),
+        abort: async () => true,
+        deliver: () => false,
+        visibleTools: () => ['read'],
+        mode: async () => 'full-access',
+        planning: async () => true,
+        resolveModel: () => ({ priced: true }),
+        sessionModel: async () => ({ providerId: 'p', modelId: 'm' }),
+        scope: async () => ({ cwd: '/tmp/coko-dispatch-plan', config: { agents: { enabled: true } }, plugins: emptyPluginContributions() }) as never,
+        toolNames: () => ['read'],
+        createSession: (input) => store.sessions.createSession(input),
+        refreshTools: async () => undefined,
+      },
+      {
+        createForSubagent: async () => {
+          created.push('worktree')
+          throw new Error('should not be created')
+        },
+        removeIfUnchanged: async () => ({ removed: true as const }),
+      },
+    )
+    const start = service
+      .port(parent.id)
+      .start({ toolCallId: 'c1', description: 'd', prompt: 'p', subagentType: 'general', background: true, isolation: 'worktree' })
+    await expect(start).rejects.toThrow('isolation: worktree is not available in plan mode')
+    expect(created).toEqual([])
   })
 })

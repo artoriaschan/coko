@@ -88,7 +88,7 @@ it.each(['deleted', 'archived'])('remembered %s session falls back to new chat a
   await waitConnected(first.window)
   await first.window.locator(`[data-session-id="${id}"]`).click()
   await first.dispose()
-  // 将已停写的库构造为会话已删除或已归档；本票尚未提供删除/归档 UI。
+  // 将已停写的库构造为会话已删除或已归档；直接改库，不经删除/归档 UI。
   execFileSync(
     process.execPath,
     [

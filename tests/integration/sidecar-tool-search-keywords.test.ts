@@ -2,13 +2,16 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { API_ROUTES, apiPaths, configPaths, hookPaths, mcpPaths, permissionPaths, type SessionEntryRecord } from '@coko/protocol'
-import { client, connect, exchange, fauxScript, hookCommand, isRunEnd, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
+import { API_ROUTES, apiPaths, configPaths, hookPaths, mcpPaths, permissionPaths, planPaths, type SessionEntryRecord } from '@coko/protocol'
+import { client, connect, exchange, fauxScript, hookCommand, isRunEnd, sidecarDirs, startSidecar, tempDir, waitApproval } from './sidecar-harness.ts'
 
 const fixture = fileURLToPath(new URL('../fixtures/tool-search/stdio-server.ts', import.meta.url))
 const call = (id: string, query: string, limit?: number) => ({ content: [{ type: 'toolCall', id, name: 'tool_search', arguments: { query, limit } }] })
 
-async function setup(responses: unknown[], options: { mode?: string; disabled?: boolean; project?: boolean; englishServer?: boolean } = {}) {
+async function setup(
+  responses: unknown[],
+  options: { mode?: string; planning?: boolean; disabled?: boolean; project?: boolean; englishServer?: boolean } = {},
+) {
   const root = await tempDir()
   const catalog = join(root, 'catalog.json')
   const log = join(root, 'calls.jsonl')
@@ -51,6 +54,8 @@ async function setup(responses: unknown[], options: { mode?: string; disabled?: 
   expect((await api.put(mcpPaths.servers, { servers, workspaceId, expectedRevision: 0 })).status).toBe(200)
   const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
   expect((await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: options.mode ?? 'full-access' })).status).toBe(200)
+  const entered = options.planning ? await api.post(planPaths.sessionPlan(sessionId), { action: 'enter' }) : undefined
+  if (entered && entered.status !== 200) throw new Error(`entering planning failed: ${entered.status}`)
   stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
   await stream.waitFor((message) => message.type === 'subscribed' && message.sessionId === sessionId)
   const run = async () => {
@@ -128,9 +133,11 @@ describe('tool search keywords and visibility through Sidecar', () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
+  // Planning keeps the Permission Mode (ADR 0028), so this case plans under default rather than a separate plan mode.
   it('Plan Mode can search while disabled and unapproved tools are unknown', async () => {
     const h = await setup([call('search', 'select:mcp__demo__query_cn,mcp__demo__hidden,mcp__unapproved__echo'), { content: 'done' }], {
-      mode: 'plan',
+      mode: 'default',
+      planning: true,
       disabled: true,
       project: true,
     })
@@ -142,6 +149,40 @@ describe('tool search keywords and visibility through Sidecar', () => {
     })
     expect(entries.some((entry) => entry.kind === 'approval_request')).toBe(false)
     await expect(readFile(h.projectLog, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  /** Planning keeps the Permission Mode (ADR 0028): an MCP call asks exactly as it would outside planning. */
+  const planningEcho = (mode: string) =>
+    setup(
+      [
+        call('select', 'select:mcp__demo__echo'),
+        { content: [{ type: 'toolCall', id: 'echo', name: 'mcp__demo__echo', arguments: { text: 'planning echo' } }] },
+        { content: 'done' },
+      ],
+      { mode, planning: true },
+    )
+
+  it('while planning under full-access, an MCP call runs without asking', async () => {
+    const h = await planningEcho('full-access')
+    const entries = await h.run()
+    expect(entries.filter((entry) => entry.kind === 'approval_request')).toEqual([])
+    expect(result(entries, 'echo').isError).toBe(false)
+    expect((await readFile(h.log, 'utf8')).includes('"event":"call"')).toBe(true)
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('while planning under default, an MCP call asks and runs once allowed', async () => {
+    const h = await planningEcho('default')
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'search tools' })).status).toBe(202)
+    const request = await waitApproval(h.stream, h.sessionId, 1)
+    expect(request).toMatchObject({ kind: 'tool', toolName: 'mcp__demo__echo' })
+    expect((await h.api.post(apiPaths.sessionApproval(h.sessionId, request.requestId), { decision: 'allow' })).status).toBe(204)
+    await h.stream.waitFor(isRunEnd(h.sessionId))
+    const entries = h.stream.entries(h.sessionId)
+    expect(entries.filter((entry) => entry.kind === 'approval_request')).toHaveLength(1)
+    expect(result(entries, 'echo').isError).toBe(false)
+    expect((await readFile(h.log, 'utf8')).includes('"event":"call"')).toBe(true)
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 

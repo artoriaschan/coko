@@ -187,7 +187,7 @@ describe('桌面壳', () => {
     await waitFor(() => !processExists(pid!), 5_000, 'sidecar exit')
   })
 
-  it('Sidecar 启动失败时显示错误对话框（含打开日志文件夹），renderer 显示失败状态与诊断入口，stderr 脱敏后写入 desktop.jsonl', async () => {
+  it('Sidecar 启动失败时 renderer 显示失败状态与诊断入口（打开日志文件夹）；后台模式不弹错误对话框、只记日志；stderr 脱敏后写入 desktop.jsonl', async () => {
     const fixtureGate = join(await import('node:os').then((os) => os.tmpdir()), `coko-gate-${process.pid}-${Date.now()}`)
     const secret = 'sk-stderrSecretValue123456'
     const { mkdtemp, realpath, rm } = await import('node:fs/promises')
@@ -217,18 +217,12 @@ describe('桌面壳', () => {
       app.app.evaluate(() => (globalThis as { __boxes?: { type?: string; message?: string; detail?: string; buttons?: string[] }[] }).__boxes ?? [])
     const opened = () => app.app.evaluate(() => (globalThis as { __opened?: string[] }).__opened ?? [])
     const logsDir = join(await realpath(dir), 'coko-home', 'data', 'logs')
-    await expect.poll(async () => (await boxes()).length, { timeout: 15_000 }).toBe(1)
-    const [box] = await boxes()
-    expect(box?.type).toBe('error')
-    expect(box?.message).toMatch(/Sidecar 启动失败|Sidecar failed to start/)
-    expect(box?.detail).toContain('fixture-fatal')
-    expect(box?.buttons).toEqual(expect.arrayContaining([expect.stringMatching(/^(打开日志文件夹|Open logs folder)$/)]))
-    await expect.poll(opened).toEqual([logsDir])
-
     await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 15_000 }).toBe('failed')
     expect(await app.window.locator('[data-error-code]').getAttribute('data-error-code')).toBe('fixture-fatal')
+    // 后台模式（harness 的 COKO_E2E_BACKGROUND）不弹原生错误框（会抢前台），以日志代替，见下方读回；日志文件夹从窗口内的诊断入口打开。
+    expect(await boxes()).toEqual([])
     await app.window.getByRole('button', { name: /^(打开日志文件夹|Open logs folder)$/ }).click()
-    await expect.poll(opened).toEqual([logsDir, logsDir])
+    await expect.poll(opened).toEqual([logsDir])
 
     const [pid] = await app.sidecarPids()
     await waitFor(() => !processExists(pid!), 5_000, 'sidecar exit')
@@ -237,6 +231,11 @@ describe('桌面壳', () => {
     expect(desktopLog).not.toContain(secret)
     const diagnostic = (await readLogRecords(join(logsDir, 'desktop.jsonl'))).find((r) => r.message === 'sidecar diagnostic')
     expect(diagnostic?.properties.stderrTail).toContain('boot trace with key [REDACTED]')
+    expect(
+      (await readLogRecords(join(logsDir, 'desktop.jsonl')))
+        .filter((r) => r.message === 'sidecar error dialog suppressed in e2e background mode')
+        .map((r) => r.properties),
+    ).toEqual([expect.objectContaining({ kind: 'startup', code: 'fixture-fatal' })])
     await rm(fixtureGate, { force: true })
   })
 
@@ -290,8 +289,12 @@ describe('桌面壳', () => {
     expect(records.map((r) => r.message)).toEqual(expect.arrayContaining(['sidecar exited unexpectedly', 'sidecar restarting', 'sidecar restarted']))
   })
 
-  it('Sidecar 重启连续失败达到上限：renderer 进入 failed 并停止重连，弹出一次错误对话框', async () => {
-    const app = await launch({ COKO_FIXTURE_MODE: 'fatal-after-first' }, { sidecar: 'placeholder' })
+  it('Sidecar 重启连续失败达到上限：renderer 进入 failed 并停止重连；后台模式不弹错误对话框，只记一次日志', async () => {
+    const { mkdtemp, rm } = await import('node:fs/promises')
+    // 测试自己持有目录：dispose 之后还要读取日志。
+    const root = await mkdtemp(join(await import('node:os').then((os) => os.tmpdir()), 'coko-restart-limit-'))
+    onTestFinished(() => rm(root, { recursive: true, force: true }))
+    const app = await launch({ COKO_FIXTURE_MODE: 'fatal-after-first' }, { sidecar: 'placeholder', dir: root })
     await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('connected')
     await app.app.evaluate(({ dialog }) => {
       const g = globalThis as { __boxes?: unknown[] }
@@ -309,17 +312,18 @@ describe('桌面壳', () => {
     await expect.poll(() => app.window.locator('[data-error-code]').getAttribute('data-error-code')).toBe('fixture-fatal')
     await expect.poll(() => app.window.getByText(/^(Sidecar 多次重启失败，已停止|Sidecar kept failing to restart and was stopped)$/).count()).toBe(1)
     await expect.poll(() => app.window.getByRole('button', { name: /^(打开日志文件夹|Open logs folder)$/ }).count()).toBe(1)
-    const boxes = () => app.app.evaluate(() => (globalThis as { __boxes?: { type?: string; message?: string; buttons?: string[] }[] }).__boxes ?? [])
-    await expect.poll(async () => (await boxes()).length).toBe(1)
-    const [box] = await boxes()
-    expect(box).toMatchObject({ type: 'error' })
-    expect(box?.message).toMatch(/^(Sidecar 已意外退出|Sidecar exited unexpectedly)$/)
-    expect(box?.buttons).toHaveLength(3)
     // 初次 1 个 + 默认 3 次重启；之后不再 spawn，所有 sidecar 进程都已退出。
     const spawned = await app.sidecarPids()
     expect(spawned).toHaveLength(4)
     for (const spawnedPid of spawned) await waitFor(() => !processExists(spawnedPid), 5_000, 'sidecar exit')
     expect(await status(app).getAttribute('data-connection')).toBe('failed')
+    // 后台模式（harness 的 COKO_E2E_BACKGROUND）不弹原生错误框（会抢前台），以一条日志代替。
+    expect(await app.app.evaluate(() => (globalThis as { __boxes?: unknown[] }).__boxes ?? [])).toEqual([])
+    await app.dispose()
+    const records = await readLogRecords(join(root, 'coko-home', 'data', 'logs', 'desktop.jsonl'))
+    expect(records.filter((r) => r.message === 'sidecar error dialog suppressed in e2e background mode').map((r) => r.properties)).toEqual([
+      expect.objectContaining({ kind: 'crashed' }),
+    ])
   })
 
   it('目录选择经 preload 返回所选路径，取消时为 null', async () => {

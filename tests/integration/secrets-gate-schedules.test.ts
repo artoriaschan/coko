@@ -75,7 +75,8 @@ describe('秘密不外泄总闸：定时任务', () => {
       ['model [REDACTED:secret]', 'model-prompt use [REDACTED:secret]', 'inactive'],
     ])
     const requests = (await readFile(requestLog, 'utf8')).split('\n').filter(Boolean)
-    const scheduled = requests.filter((line) => line.includes('<scheduled_task'))
+    // 基础提示的 system 文本也列出 <scheduled_task> 标签名：只数带 schedule-id 的输入块。
+    const scheduled = requests.filter((line) => line.includes('<scheduled_task schedule-id='))
     expect(scheduled).toHaveLength(2)
     expect(JSON.parse(scheduled[0]!).at(-1).content[0].text).toMatch(
       /title="http \[REDACTED:secret\]" occurrence="[^"]+">http-prompt use \[REDACTED:secret\]<\/scheduled_task>$/,

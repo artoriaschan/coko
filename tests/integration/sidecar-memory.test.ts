@@ -1,6 +1,6 @@
 // Memory：真实 Sidecar（faux 模型）经协议驱动。没有条目时 <memory> 仍有声明与写入引导（计入上下文用量的 system）；条目带来源标注；
 // memory_write 的条目进入同 Workspace 新 Session 的 <memory> system section，
-// 另一项目的 Session 只看到用户级（项目归属的其余场景见 sidecar-memory-projects）；memory_delete 后不再注入；写入与删除在 default、read-only、plan 下都不经审批（ADR 0027），memory_list 免审批；
+// 另一项目的 Session 只看到用户级（项目归属的其余场景见 sidecar-memory-projects）；memory_delete 后不再注入；写入与删除在 default、read-only 与规划中都不经审批（ADR 0027、ADR 0028），memory_list 免审批；
 // 全局或项目设置中的 Memory 询问规则仍出审批卡、拒绝规则仍拒绝，PreToolUse Hook 的 deny 仍阻止写入；
 // memory.enabled: false 时不注入、工具不在请求中；用户来源的条目模型不能替换或删除，用户经接口编辑后来源变为用户（伪造标注不改变来源）；
 // 正文层预算分两级（项目级在前），放不下的降为摘要行（摘要层见 sidecar-memory-summary），每一级内用户来源在前（含用户编辑过的 Agent 条目），列表仍按更新时间倒序；/api/memories 的增删改查与 Workspace 过滤，Workspace 作用域只能新建在项目的主要 Workspace 上（遗留条目照常可管理）；
@@ -16,6 +16,7 @@ import {
   hookPaths,
   memoryPaths,
   permissionPaths,
+  planPaths,
   type ContextUsageResponse,
   type MemoryEntry,
 } from '@coko/protocol'
@@ -54,11 +55,15 @@ async function boot(dirs: SidecarDirs, root: string, name: string, responses: un
   return { sidecar, api: client(sidecar, cookie), stream: await connect(sidecar, cookie), requests }
 }
 
-async function newSession(api: Api, stream: Stream, workspaceId: string, mode?: string) {
+async function newSession(api: Api, stream: Stream, workspaceId: string, mode?: string, planning = false) {
   const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
   if (mode) {
     const changed = await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode })
     if (changed.status !== 200) throw new Error(`permission mode not set: ${changed.status}`)
+  }
+  if (planning) {
+    const entered = await api.post(planPaths.sessionPlan(sessionId), { action: 'enter' })
+    if (entered.status !== 200) throw new Error(`planning not entered: ${entered.status}`)
   }
   stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
   await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
@@ -178,7 +183,7 @@ describe('Memory', () => {
       expect(stream.entries(b).map((e) => e.kind)).not.toContain('system')
       expect(await first.sidecar.stop()).toEqual({ code: 0, signal: null })
 
-      // 重启：条目仍在；plan 下 memory_delete 也不经审批，之后不再注入；memory.enabled: false 时不注入、工具不在请求中。
+      // 重启：条目仍在；read-only 下规划中 memory_delete 也不经审批，之后不再注入；memory.enabled: false 时不注入、工具不在请求中。
       const second = await boot(dirs, root, 'second', [
         { content: [toolCall('d1', 'memory_delete', { id: workspaceMemory.id })] },
         { content: 'deleted' },
@@ -189,7 +194,7 @@ describe('Memory', () => {
         'The user prefers answers in Chinese',
         'This project uses pnpm',
       ])
-      const d = await newSession(second.api, second.stream, w1, 'plan')
+      const d = await newSession(second.api, second.stream, w1, 'read-only', true)
       await send(second.api, second.stream, d, 'forget the package manager')
       expect(second.stream.entries(d).filter((e) => e.kind === 'approval_request')).toHaveLength(0)
       expect(toolResults(second.stream, d).map((r) => [r.toolName, r.isError, r.content[0]?.text])).toEqual([

@@ -24,6 +24,7 @@ describe('Session Entry payload 定义', () => {
         'approval_request',
         'approval_decision',
         'tool_exec',
+        'tool_load',
         'confirmation_request',
         'confirmation_answer',
         'file_backup',
@@ -36,6 +37,7 @@ describe('Session Entry payload 定义', () => {
         'goal',
         'todo_list',
         'plan',
+        'plan_phase',
         'job_start',
         'job_end',
         'job_notification',
@@ -132,6 +134,36 @@ describe('Session Entry payload 定义', () => {
     expect(versions[3]!.migrate!({ trigger: 'subagent' })).toEqual({ trigger: 'subagent' })
     expect(check('run_start', payload)).toBeUndefined()
     expect(check('run_start', { trigger: 'subagent', subagent: { triggerRunId: '' } })).toEqual(expect.any(String))
+  })
+
+  it('plan v1 → v2（原样）：v2 另接受 completed（带 report）与 abandoned，v1 不接受', () => {
+    const versions = definition('plan').versions
+    expect(versions).toHaveLength(2)
+    const v1 = { planId: 'p1', revision: 1, markdown: '# P', status: 'approved' }
+    expect(versions[0]!.check(v1)).toBeUndefined()
+    expect(versions[0]!.check({ ...v1, status: 'completed' })).toEqual(expect.any(String))
+    expect(versions[1]!.migrate!(v1)).toEqual(v1)
+    expect(check('plan', { ...v1, status: 'completed', report: '# Done' })).toBeUndefined()
+    expect(check('plan', { ...v1, status: 'abandoned' })).toBeUndefined()
+    expect(check('plan', { ...v1, status: 'paused' })).toEqual(expect.any(String))
+  })
+
+  it('state_update v1 → v2（原样）：v2 另接受 name plan，v1 不接受', () => {
+    const versions = definition('state_update').versions
+    expect(versions).toHaveLength(2)
+    const plan = { name: 'plan', value: { planId: 'p1', revision: 1, title: 'P' } }
+    expect(versions[0]!.check({ name: 'goal', value: null })).toBeUndefined()
+    expect(versions[0]!.check(plan)).toEqual(expect.any(String))
+    expect(versions[1]!.migrate!({ name: 'goal', value: null })).toEqual({ name: 'goal', value: null })
+    expect(check('state_update', plan)).toBeUndefined()
+    expect(check('state_update', { name: 'other', value: 1 })).toEqual(expect.any(String))
+  })
+
+  it('plan_phase v1：none、planning 与带 planId 的 executing；其他形状被拒绝', () => {
+    expect(definition('plan_phase').versions).toHaveLength(1)
+    for (const payload of [{ phase: 'none' }, { phase: 'planning' }, { phase: 'executing', planId: 'p1' }]) expect(check('plan_phase', payload)).toBeUndefined()
+    for (const payload of [{ phase: 'executing' }, { phase: 'planning', planId: 'p1' }, { phase: 'paused' }, { phase: 'executing', planId: '' }])
+      expect([payload, check('plan_phase', payload)]).toEqual([payload, expect.any(String)])
   })
 
   it('approval_decision v1 → v2 → v3（原样）；v2 接受 by user / hook，v3 另接受 headless', () => {

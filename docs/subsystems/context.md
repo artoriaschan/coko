@@ -10,11 +10,11 @@ lifecycle: active
 
 ## State Update
 
-当前日期通过对话历史中的状态快照送达；Todo List、Goal 进度与 teammate 的团队状态也从 system section 移到这些 State Update 中。每个带新输入的 Run（submit、goal、schedule、subagent）开始时，运行时读取上下文贡献的 `stateValues`，在替换登记 Secret 与 Credential 明文后，与有效上下文中同名最近一次已送达的值比较。变化才发送；从未存在的空值不发送；已送达的值变为空时发送一次清空。状态或条目读取失败记 warn，本次不发送，Run 继续。
+当前日期通过对话历史中的状态快照送达；Todo List、Goal 进度、teammate 的团队状态与执行中的计划也从 system section 移到这些 State Update 中。每个带新输入的 Run（submit、goal、schedule、subagent）开始时，运行时读取上下文贡献的 `stateValues`，在替换登记 Secret 与 Credential 明文后，与有效上下文中同名最近一次已送达的值比较。变化才发送；从未存在的空值不发送；已送达的值变为空时发送一次清空。状态或条目读取失败记 warn，本次不发送，Run 继续。
 
-同次送达按 `date` → `goal` → `todo_list` → `team` → `on_demand_tools` 排序。`date` 的值为 `{ date: "YYYY-MM-DD", weekday: "Thursday" }`，按 Sidecar 的 ClockPort 与环境 section 相同的 IANA 时区计算本地日期和英文星期。根 Session、子代理与 teammate 的首个 Run 都会收到；同日不重发，跨当地午夜后的下一 Run 才更新。Run 内跨午夜不在中途送达，自动或溢出压缩后的重新判定除外。
+同次送达按 `date` → `goal` → `todo_list` → `team` → `on_demand_tools` → `plan` 排序。`plan` 只对根 Session 给值：计划阶段为执行中时为 `{ planId, revision, title }`，渲染为有未完成的已批准计划、完成后调用 `complete_plan` 的提醒，否则为 null（送达过时清空一次）；批准所在的 Run 不额外送达，见 [Plan Mode](plan-mode.md#注入)。`date` 的值为 `{ date: "YYYY-MM-DD", weekday: "Thursday" }`，按 Sidecar 的 ClockPort 与环境 section 相同的 IANA 时区计算本地日期和英文星期。根 Session、子代理与 teammate 的首个 Run 都会收到；同日不重发，跨当地午夜后的下一 Run 才更新。Run 内跨午夜不在中途送达，自动或溢出压缩后的重新判定除外。
 
-块排在该 Run 的第一条 user message 最前，先于宿主通知与输入。每块按顺序前置 `state_update` v1 `{ name, value }` 条目，值为 null 表示清空。配对只认同一 Run 中条目之后第一条 user message 开头、名称相符的对应块，command 等非消息条目不会打断配对。条目已保存而消息未保存，或压缩切点移除了前置条目时，不算已送达；回退同样让无效配对失效，下次重新发送当前状态。
+块排在该 Run 的第一条 user message 最前，先于宿主通知与输入。每块按顺序前置 `state_update` v2 `{ name, value }` 条目（v2 增加 name `plan`，v1 原样迁移），值为 null 表示清空。配对只认同一 Run 中条目之后第一条 user message 开头、名称相符的对应块，command 等非消息条目不会打断配对。条目已保存而消息未保存，或压缩切点移除了前置条目时，不算已送达；回退同样让无效配对失效，下次重新发送当前状态。
 
 continue 在 Run 开始时同样比较当前状态。有变化时先提交 `state_update` 条目，再以只含这些块的 user message 发起请求；这既适用于暂停前以工具结果结尾，也适用于以 user message 结尾的上下文。没有变化时不新增消息或状态条目，沿用原有 continue 路径。纯状态消息不授予用户权限，也不唤醒 waiting-input 的 Goal；真正的用户输入仍按原有规则处理。
 
@@ -218,7 +218,7 @@ Todo List 不依赖对话消息，当前表始终从最新的 `todo_list` 条目
 
 ### 压缩后的 `<approved_plan>`
 
-最新一条 approved 的 `plan` 条目早于最后一个有效 compaction 的 `firstKeptSeq`（计划已被摘要替代）时，之后每个 Run 注入 system section `<approved_plan>`（正文至多 16 000 字符，超出截断并注明总长度），位于 plan 贡献的位置（环境 → 指令 → Skills → Memory → plan → goal）。计划仍在保留的消息中时不注入。见 [Plan Mode](plan-mode.md#注入)。
+计划阶段为执行中、且被执行计划（该 planId 最新一条 approved 的 `plan` 条目）早于最后一个有效 compaction 的 `firstKeptSeq`（计划已被摘要替代）时，之后每个 Run 注入 system section `<approved_plan>`（正文至多 16 000 字符，超出截断并注明总长度），位于 plan 贡献的位置（环境 → 指令 → Skills → Memory → plan → goal）。计划仍在保留的消息中、不在执行中（含历史上已批准、没有执行阶段的计划）时不注入。见 [Plan Mode](plan-mode.md#注入)。
 
 ## 定时任务的 `<scheduled_task>` 输入
 

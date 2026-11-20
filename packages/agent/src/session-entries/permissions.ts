@@ -5,7 +5,7 @@ import { definePayloads, type EntryJson } from './define.ts'
 const strict = { additionalProperties: false } as const
 const Id = Type.String({ minLength: 1 })
 
-/** 可作为默认模式与 plan 之前模式的四档。 */
+/** Session 的 Permission Mode：四档（ADR 0005；规划是计划阶段而不是模式，ADR 0028）。 */
 export const standardPermissionModeSchema = Type.Union([
   Type.Literal('read-only'),
   Type.Literal('default'),
@@ -14,9 +14,9 @@ export const standardPermissionModeSchema = Type.Union([
 ])
 export type StandardPermissionMode = Static<typeof standardPermissionModeSchema>
 
-/** Session 的 Permission Mode：四档加 plan（判定与 read-only 相同，命令沙箱 read-only；只对一个 Session 生效）。 */
-export const permissionModeSchema = Type.Union([standardPermissionModeSchema, Type.Literal('plan')])
-export type PermissionMode = Static<typeof permissionModeSchema>
+/** 与 standardPermissionModeSchema 相同（Permission Mode 只有四档，ADR 0028；保留旧名，免于改动全部引用）。 */
+export const permissionModeSchema = standardPermissionModeSchema
+export type PermissionMode = StandardPermissionMode
 
 /** Sandbox Mode：命令运行时的写入档位。 */
 export const sandboxModeSchema = Type.Union([Type.Literal('read-only'), Type.Literal('workspace-write'), Type.Literal('danger-full-access')])
@@ -32,8 +32,17 @@ export type PermissionRule = Static<typeof permissionRuleSchema>
 /** permission_mode v1：只有四档。 */
 const permissionModeV1Schema = Type.Object({ mode: standardPermissionModeSchema }, strict)
 
-/** permission_mode v2：增加 plan；进入 plan 时 prior 为进入前的模式（退出与批准计划时回到它）。 */
-export const permissionModePayloadSchema = Type.Object({ mode: permissionModeSchema, prior: Type.Optional(standardPermissionModeSchema) }, strict)
+/** permission_mode v2（旧数据）：增加 plan；进入 plan 时 prior 为进入前的模式。 */
+const permissionModeV2Schema = Type.Object(
+  { mode: Type.Union([standardPermissionModeSchema, Type.Literal('plan')]), prior: Type.Optional(standardPermissionModeSchema) },
+  strict,
+)
+
+/**
+ * permission_mode v3：只有四档，不带 prior（ADR 0028）。v2 的 plan 读为 prior（没有时 default），只在读取时于内存中升级，不改写数据库行；
+ * 旧数据中没有 plan_phase，因此读回后不在规划中。
+ */
+export const permissionModePayloadSchema = Type.Object({ mode: standardPermissionModeSchema }, strict)
 export type PermissionModePayload = Static<typeof permissionModePayloadSchema>
 
 export const permissionRulePayloadSchema = Type.Object({ op: Type.Union([Type.Literal('add'), Type.Literal('remove')]), rule: permissionRuleSchema }, strict)
@@ -101,7 +110,17 @@ export interface PermissionEntryPayloads {
 }
 
 export const permissionEntryPayloads = definePayloads({
-  permission_mode: [{ schema: permissionModeV1Schema }, { schema: permissionModePayloadSchema, migrate: (previous: EntryJson) => previous }],
+  permission_mode: [
+    { schema: permissionModeV1Schema },
+    { schema: permissionModeV2Schema, migrate: (previous: EntryJson) => previous },
+    {
+      schema: permissionModePayloadSchema,
+      migrate: (previous: EntryJson) => {
+        const { mode, prior } = previous as { mode: string; prior?: string }
+        return { mode: mode === 'plan' ? (prior ?? 'default') : mode }
+      },
+    },
+  ],
   permission_rule: [{ schema: permissionRulePayloadSchema }],
   approval_request: [{ schema: approvalRequestPayloadSchema }],
   approval_decision: [

@@ -159,7 +159,7 @@ const ENTER = '\r'
  *
  * 判定对象是 shell 将要执行的整行：上次回车之后已写入的当前行加本次文本（ctrl_c 时当前行先清空），与 bash 命令同一套规则，
  * 拆成几次输入不能绕过拒绝规则。同一批的调用都先判定再执行：执行时当前行与判定时不同（前一段已写入），本次不发送。
- * Job 启动时的沙箱档位比当前模式宽时，plan / read-only 下拒绝，其余模式要求一次提权审批（fixedSandbox）。
+ * Job 启动时的沙箱档位比当前模式宽时，规划中与 read-only 下拒绝，其余模式要求一次提权审批（fixedSandbox）。
  */
 export function createJobInputTool(port: JobsPort): CokoTool<typeof jobInputParameters, undefined> {
   /** 判定时看到的当前行，按参数对象（判定与执行用同一个对象）。 */

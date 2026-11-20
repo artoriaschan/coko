@@ -23,7 +23,6 @@ import { Dock } from './dock/dock.tsx'
 import { isGoalCardCommand, isGoalRunningControl, useGoalStoreApi } from './dock/goal-card.tsx'
 import { visibleHeaderActions, type HeaderActionDefinition, type HeaderActionProps } from './header-actions.ts'
 import { PlanChip } from './plan-chip.tsx'
-import { restoredMode } from './plan-review-panel.tsx'
 import { inspectTrajectory } from '../trajectory/inspect-store.ts'
 import { TrajectoryView } from '../trajectory/trajectory-view.tsx'
 import { conversationViewStore, INITIAL_CONVERSATION_VIEW, selectConversationView } from './view-store.ts'
@@ -529,14 +528,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
                 onSetup={() => settingsPage.open('models')}
                 onCycleMode={canChangeMode ? () => void setPermissionMode(nextCycledMode(permissionMode)) : undefined}
                 planChip={<PlanChip sessionId={activeSessionId} onExit={() => composer.current?.focus()} />}
-                permissionControl={
-                  <ModePicker
-                    value={permissionMode}
-                    prior={conversation ? restoredMode(conversation.entries) : 'default'}
-                    disabled={!canChangeMode}
-                    onChange={(m) => void setPermissionMode(m)}
-                  />
-                }
+                permissionControl={<ModePicker value={permissionMode} disabled={!canChangeMode} onChange={(m) => void setPermissionMode(m)} />}
                 accessory={
                   <ModelPicker models={models} value={model} thinkingLevel={thinkingLevel} disabled={running} onChange={(m, level) => selectModel(m, level)} />
                 }

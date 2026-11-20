@@ -1,4 +1,4 @@
-// 审计派生（docs/subsystems/tracing.md#审计）：授权决定、权限模式与规则变更、Hook 结果、结果确认、定时投递、交接与子代理 / teammate 的生命周期，
+// 审计派生（docs/subsystems/tracing.md#审计）：授权决定、权限模式与规则变更、计划阶段的转换、Hook 结果、结果确认、定时投递、交接与子代理 / teammate 的生命周期，
 // 按提交顺序。只取结构化字段：不带用户输入、模型输出、交接摘要等正文（command 与 Hook message 已在入库时脱敏）。
 import type { TraceEntry } from './trace.ts'
 
@@ -25,7 +25,8 @@ export type AuditEvent = AuditBase &
         by?: string
         scope?: string
       }
-    | { kind: 'permission_mode'; mode: string; prior?: string }
+    | { kind: 'permission_mode'; mode: string }
+    | { kind: 'plan_phase'; phase: string; planId?: string }
     | { kind: 'permission_rule'; op: string; rule: { behavior: string; tool: string; content?: string } }
     | {
         kind: 'hook'
@@ -88,7 +89,10 @@ export function deriveAudit(entries: readonly TraceEntry[]): AuditEvent[] {
         break
       }
       case 'permission_mode':
-        events.push({ ...base(entry), kind: 'permission_mode', mode: String(p.mode), ...optional('prior', str(p.prior)) })
+        events.push({ ...base(entry), kind: 'permission_mode', mode: String(p.mode) })
+        break
+      case 'plan_phase':
+        events.push({ ...base(entry), kind: 'plan_phase', phase: String(p.phase), ...optional('planId', str(p.planId)) })
         break
       case 'permission_rule':
         events.push({ ...base(entry), kind: 'permission_rule', op: String(p.op), rule: p.rule as { behavior: string; tool: string; content?: string } })

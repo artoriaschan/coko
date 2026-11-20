@@ -139,11 +139,11 @@ _Avoid_: quota、limit（泛指时）
 _Avoid_: acceptance、done condition
 
 **Plan Mode**：
-只调研与规划、不改动 Workspace 的 Permission Mode；退出须经用户审阅计划，并回到进入前的模式。
-_Avoid_: planning state、dry run
+Session 的规划阶段：只调研与规划，不改动 Workspace；不是 Permission Mode，进入、退出与批准计划都不改变它。
+_Avoid_: plan 权限模式、dry run
 
 **Plan**：
-Agent 在 Plan Mode 中提交给用户审阅的执行方案，按修订保留。
+Agent 在 Plan Mode 中提交、经用户批准后执行，并以对照方案的完成报告反馈结果的方案，按修订保留；状态为待审阅、已拒绝、执行中、已完成与已放弃，一个 Session 同一时刻至多一份进行中的 Plan。
 _Avoid_: proposal、spec
 
 **Todo List**：

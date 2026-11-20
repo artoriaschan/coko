@@ -45,13 +45,13 @@ describe('handoffTargetEntries', () => {
       entry('permission_mode', { mode: 'default' }, null),
       user('one'),
       assistant('a'),
-      entry('permission_mode', { mode: 'plan' }, 'r1'),
+      entry('permission_mode', { mode: 'read-only' }, 'r1'),
       rule('add', 'Bash'),
     ]
     expect(handoffTargetEntries(entries, 'src', 9)).toEqual([
       { kind: 'handoff_origin', payload: { sessionId: 'src', seq: 9 } },
       { kind: 'permission_mode', payload: { mode: 'default' } },
-      { kind: 'permission_mode', payload: { mode: 'plan' } },
+      { kind: 'permission_mode', payload: { mode: 'read-only' } },
       { kind: 'permission_rule', payload: { op: 'add', rule: { behavior: 'allow', tool: 'Bash' } } },
     ])
   })
@@ -93,6 +93,35 @@ describe('handoffTargetEntries', () => {
   })
 })
 
+describe('handoffTargetEntries 的计划阶段', () => {
+  it('源在规划中：权限条目之后追加 plan_phase planning；不在规划中不追加，原阶段条目不复制', () => {
+    seq = 0
+    const entries = [
+      entry('permission_mode', { mode: 'default' }, null),
+      user('one'),
+      entry('permission_mode', { mode: 'read-only' }, null),
+      entry('plan_phase', { phase: 'planning' }, null),
+      rule('add', 'Bash'),
+    ]
+    const target = handoffTargetEntries(entries, 's', 9)
+    expect(target.map((e) => e.kind)).toEqual(['handoff_origin', 'permission_mode', 'permission_mode', 'permission_rule', 'plan_phase'])
+    expect(target.at(-1)!.payload).toEqual({ phase: 'planning' })
+    entries.push(entry('plan_phase', { phase: 'none' }, null), entry('permission_mode', { mode: 'default' }, null))
+    expect(handoffTargetEntries(entries, 's', 9).map((e) => e.kind)).not.toContain('plan_phase')
+  })
+
+  it('阶段按有效条目：进入规划被回退后不追加；回退掉退出规划后追加', () => {
+    seq = 0
+    const first = user('one')
+    const entered = [entry('plan_phase', { phase: 'planning' }, null), user('two')]
+    const rewound = [...entered, entry('rewind', { targetSeq: entered[0]!.seq }, null)]
+    expect(handoffTargetEntries([first, ...rewound], 's', 9).map((e) => e.kind)).toEqual(['handoff_origin'])
+    const exit = [entry('plan_phase', { phase: 'none' }, null), user('three')]
+    const undone = [first, ...entered, ...exit, entry('rewind', { targetSeq: exit[0]!.seq }, null)]
+    expect(handoffTargetEntries(undone, 's', 9).at(-1)).toEqual({ kind: 'plan_phase', payload: { phase: 'planning' } })
+  })
+})
+
 describe('hasUserMessage', () => {
   it('只有权限条目或 assistant 消息时 false；有用户消息时 true；用户消息全被回退时 false', () => {
     seq = 0
@@ -101,7 +130,7 @@ describe('hasUserMessage', () => {
     seq = 0
     const one = user('one')
     expect(hasUserMessage([one])).toBe(true)
-    expect(hasUserMessage([one, entry('rewind', { targetSeq: one.seq, mode: 'conversation' }, null)])).toBe(false)
+    expect(hasUserMessage([one, entry('rewind', { targetSeq: one.seq }, null)])).toBe(false)
   })
 })
 
