@@ -4,7 +4,7 @@
 import { access, readFile, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, type SessionEntryRecord } from '@coko/protocol'
+import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, planPaths, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval as waitRequest, type Stream } from './sidecar-harness.ts'
 
 const darwin = process.platform === 'darwin'
@@ -235,6 +235,79 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
+  it('计划阶段：每条进入与退出路径提交一条 plan_phase（已在该阶段时不提交），GET …/plan 读回阶段与待审阅的计划；批准的条目顺序；审计；首次发送带 plan', async () => {
+    const h = await boot([exit('e1', PLAN), { content: 'done' }, { content: 'first send reply' }])
+    const phases = (id = h.sessionId) =>
+      h
+        .entries(id)
+        .filter((e) => e.kind === 'plan_phase')
+        .map((e) => (e.payload as { phase: string }).phase)
+    const read = async (id = h.sessionId) => (await h.api.get(planPaths.sessionPlan(id))).body
+    const setMode = (mode: string) => h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode })
+    const slash = (text: string) => h.api.post(apiPaths.sessionMessages(h.sessionId), { text })
+
+    expect(await read()).toEqual({ phase: 'none', plan: null })
+    const missing = await h.api.get(planPaths.sessionPlan('no-such-session'))
+    expect([missing.status, missing.body]).toEqual([404, { error: expect.objectContaining({ code: 'not-found' }) }])
+
+    // 切换接口进入（permission_mode 之后）→ /plan 已在规划中不重复 → /plan off 退出（permission_mode 之前）→ 不在规划中时不提交。
+    expect((await setMode('plan')).status).toBe(200)
+    expect(await read()).toEqual({ phase: 'planning', plan: null })
+    expect((await slash('/plan')).status).toBe(204)
+    expect(phases()).toEqual(['planning'])
+    expect((await slash('/plan off')).status).toBe(204)
+    expect((await slash('/plan off')).status).toBe(204)
+    expect(phases()).toEqual(['planning', 'none'])
+    // 从 plan 选择其他模式即退出；在规划之外切换模式不提交阶段条目。
+    expect((await setMode('plan')).status).toBe(200)
+    expect((await setMode('accept-edits')).status).toBe(200)
+    expect((await setMode('default')).status).toBe(200)
+    expect(phases()).toEqual(['planning', 'none', 'planning', 'none'])
+    const order = h.entries().filter((e) => e.kind === 'plan_phase' || e.kind === 'permission_mode')
+    expect(order.slice(1).map((e) => [e.kind, (e.payload as { mode?: string; phase?: string }).mode ?? (e.payload as { phase: string }).phase])).toEqual([
+      ['permission_mode', 'plan'],
+      ['plan_phase', 'planning'],
+      ['plan_phase', 'none'],
+      ['permission_mode', 'default'],
+      ['permission_mode', 'plan'],
+      ['plan_phase', 'planning'],
+      ['plan_phase', 'none'],
+      ['permission_mode', 'accept-edits'],
+      ['permission_mode', 'default'],
+    ])
+
+    // /plan 带消息：规划中提交的计划经 GET 读回；批准：approved → plan_phase none → permission_mode → 工具结果。
+    expect((await slash('/plan draft it')).status).toBe(202)
+    const review = await waitApproval(h.stream, h.sessionId, 1)
+    const proposed = h.plans()[0]!
+    expect(await read()).toEqual({ phase: 'planning', plan: { planId: review.planId, revision: 1, markdown: PLAN, status: 'proposed' } })
+    expect((await h.answer(review.requestId, { decision: 'allow' })).status).toBe(204)
+    await h.runEnds(1)
+    expect(await read()).toEqual({ phase: 'none', plan: null })
+    const tail = h.entries().filter((e) => ['approval_decision', 'plan', 'plan_phase', 'permission_mode'].includes(e.kind) || kindOf(e) === 'toolResult')
+    expect(tail.slice(-5).map(kindOf)).toEqual(['approval_decision', 'plan', 'plan_phase', 'permission_mode', 'toolResult'])
+    expect(phases().slice(-2)).toEqual(['planning', 'none'])
+    expect(h.plans().at(-1)).toMatchObject({ planId: proposed.planId, status: 'approved' })
+    // 规划中开始的 Run 带 <plan_mode>（exit_plan_mode 已注册：上面的审阅即由它发起）。
+    const logged = await h.requests()
+    expect(h.sections(logged[0]!).map((s) => s.name)).toContain('plan_mode')
+
+    // 审计序列包含每次阶段转换。
+    const audit = (await h.api.get(apiPaths.sessionAudit(h.sessionId))).body as { kind: string; phase?: string }[]
+    expect(audit.filter((e) => e.kind === 'plan_phase').map((e) => e.phase)).toEqual(['planning', 'none', 'planning', 'none', 'planning', 'none'])
+
+    // 首次发送带 plan：新 Session 同时得到 plan 模式与规划中。
+    const sent = await h.api.post(API_ROUTES.firstSend, { draftId: 'plan-first-send', text: 'research first', permissionMode: 'plan' })
+    expect(sent.status).toBe(201)
+    const firstId = sent.body.session.id as string
+    expect(await read(firstId)).toMatchObject({ phase: 'planning' })
+    expect((await h.api.get(permissionPaths.sessionPermissionRules(firstId))).body).toMatchObject({ mode: 'plan' })
+    const firstEntries = (await h.api.get(apiPaths.session(firstId))).body.entries as SessionEntryRecord[]
+    expect(firstEntries.filter((e) => e.kind === 'permission_mode' || e.kind === 'plan_phase').map((e) => e.kind)).toEqual(['permission_mode', 'plan_phase'])
+    expect(h.stream.invalidEntries).toEqual([])
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
   it('压缩把已批准计划摘要掉后注入 <approved_plan>；分叉 plan 模式的 Session：仍为 plan（permission_mode 被复制），没有 plan 条目', async () => {
     // Run 1：提交并批准（两次请求）；Run 2–4 建立历史；/compact 的摘要；Run 6；Run 7 在 plan 中再次提交后停止。
     const h = await boot(
@@ -296,6 +369,9 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(detail.filter((e) => e.kind === 'plan')).toEqual([])
     expect(detail.filter((e) => e.kind === 'permission_mode').at(-1)!.payload).toEqual({ mode: 'plan', prior: 'default' })
     expect((await h.api.get(permissionPaths.sessionPermissionRules(forkId))).body).toEqual({ mode: 'plan', prior: 'default', rules: [] })
+    // 计划阶段与 plan 模式一致：分叉得到“规划中”，待审阅的计划不随分叉复制。
+    expect((await h.api.get(planPaths.sessionPlan(forkId))).body).toEqual({ phase: 'planning', plan: null })
+    expect(detail.filter((e) => e.kind === 'plan_phase').map((e) => e.payload)).toEqual([{ phase: 'planning' }])
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 })

@@ -5,11 +5,11 @@ import { requestUsageSchema } from '../session-entries/context.ts'
 import type { ModelRequestPayload } from '../session-entries/observability.ts'
 import type { ForkBoundary, ForkMessageOrigin, ForkOriginPayload } from '../session-entries/checkpoints.ts'
 import { RewindTargetError, rewindTarget } from '../checkpoints/rewind.ts'
-import { effectiveEntries, pairedStateUpdates } from '../entries/index.ts'
+import { effectiveEntries, pairedStateUpdates, planPhaseOf } from '../entries/index.ts'
 import type { CheckpointEntry } from '../checkpoints/tracker.ts'
 
 /**
- * 分叉时复制的条目种类：模型可见消息与 Session 的权限状态（模式、Session 规则）。Goal、Todo、计划与后台任务的条目属于原 Session，
+ * 分叉时复制的条目种类：模型可见消息与 Session 的权限状态（模式、Session 规则；源在规划中时另追加一条 plan_phase planning）。Goal、Todo、计划与后台任务的条目属于原 Session，
  * 不复制（新 Session 从没有 Goal、Todo 与 Job 开始）。配对的 State Update 随其用户消息复制，保留模型已收到的值；tool_load 只取边界内的加载，压缩不删除加载事实。
  */
 const FORK_KINDS = new Set(['message', 'permission_mode', 'permission_rule', 'tool_load'])
@@ -74,6 +74,9 @@ export function forkEntries(
           : boundary === 'assistant-inclusive' || prefix.includes(entry)),
   )
   const copied = selected.map((entry) => ({ kind: entry.kind, payload: entry.payload }) as RunEntry)
+  // ponytail: 计划阶段与被复制的 permission_mode 取同一范围，使新 Session 的 plan 模式与“规划中”一致；票 06 改为边界口径。
+  if (planPhaseOf(boundary === 'assistant-inclusive' ? effective : prefix).phase === 'planning')
+    copied.push({ kind: 'plan_phase', payload: { phase: 'planning' } })
   const previous = metadata(entries)
   const hasOrigin = entries.some((entry) => entry.kind === 'fork_origin')
   const firstSeq = compaction ? 3 : 2

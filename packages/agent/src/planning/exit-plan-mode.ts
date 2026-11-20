@@ -45,7 +45,7 @@ export interface PlanReview {
   rejected(toolCallId: string, feedback: string | undefined): Promise<void>
   /** 用户批准、本工具执行时：提交 approved 的计划（编辑后为新 revision）与批准后的模式，返回最终计划与模式。 */
   approved(toolCallId: string, markdown: string): Promise<{ markdown: string; mode: PermissionMode }>
-  /** Session 当前是否在 plan 模式；false 时不提交、不询问（工具在 Run 开始时注册，批准后同一 Run 中仍可调用）。 */
+  /** Session 当前是否在规划中（计划阶段为 planning）；false 时不提交、不询问（工具在 Run 开始时注册，批准后同一 Run 中仍可调用）。 */
   active(): Promise<boolean>
 }
 

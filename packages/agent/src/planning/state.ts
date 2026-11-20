@@ -1,12 +1,14 @@
-// Plan Mode 的条目派生（纯函数）：下一次提交的 planId 与 revision、计划修订历史、压缩后需要再注入的已批准计划、进入 plan 之前的模式。
+// Plan Mode 的条目派生（纯函数）：下一次提交的 planId 与 revision、计划修订历史、压缩后需要再注入的已批准计划。计划阶段见 entries/plan-phase.ts。
 // 只依赖条目的最小形状（EntryLike），server 与测试共用。
 import { randomUUID } from 'node:crypto'
 import { effectiveEntries } from '../entries/derive.ts'
 import type { EntryLike } from '../entries/types.ts'
-import type { PlanPayload, PermissionModePayload } from '../session-entries/index.ts'
+import type { PlanPayload } from '../session-entries/index.ts'
 
 const isPlan = (entry: EntryLike): entry is EntryLike & { payload: PlanPayload } => entry.kind === 'plan'
-const isMode = (entry: EntryLike): entry is EntryLike & { payload: PermissionModePayload } => entry.kind === 'permission_mode'
+
+/** 这些状态之后再提交的计划是一份新计划。 */
+const ENDED: ReadonlySet<string> = new Set(['approved', 'completed', 'abandoned'])
 
 /** 一次提交的计划在条目中的位置。 */
 export interface PlanRef {
@@ -15,16 +17,16 @@ export interface PlanRef {
 }
 
 /**
- * 下一次 exit_plan_mode 的 planId 与 revision（有效条目，回退的区间不算）：本次规划（最近一次进入 plan 之后）已有未批准的计划时沿用其
- * planId、revision 加一；否则（还没有计划、上一份已批准、或之后重新进入了 plan）新建 planId，revision 为 1。
+ * 下一次 exit_plan_mode 的 planId 与 revision（有效条目，回退的区间不算）：本次规划（最近一条 plan_phase planning 之后）已有未批准的计划时
+ * 沿用其 planId、revision 加一；否则（还没有计划、上一份已批准 / 完成 / 放弃、或之后重新进入了规划）新建 planId，revision 为 1。
  */
 export function nextPlanRef(entries: readonly EntryLike[], newId: () => string = randomUUID): PlanRef {
   const effective = effectiveEntries(entries)
   for (let i = effective.length - 1; i >= 0; i--) {
     const entry = effective[i]!
     if (isPlan(entry))
-      return entry.payload.status === 'approved' ? { planId: newId(), revision: 1 } : { planId: entry.payload.planId, revision: entry.payload.revision + 1 }
-    if (isMode(entry) && entry.payload.mode === 'plan') break
+      return ENDED.has(entry.payload.status) ? { planId: newId(), revision: 1 } : { planId: entry.payload.planId, revision: entry.payload.revision + 1 }
+    if (entry.kind === 'plan_phase' && (entry.payload as { phase: string }).phase === 'planning') break
   }
   return { planId: newId(), revision: 1 }
 }

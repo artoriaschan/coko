@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createAgentRuntime } from '../engine/runtime.ts'
 import type { RunEntry } from '../engine/types.ts'
+import { activePlanOf, planPhaseOf } from '../entries/index.ts'
 import type { EntryLike } from '../entries/types.ts'
 import type { PermissionMode } from '../session-entries/index.ts'
 import { createFauxModels, fauxAssistantMessage, fauxToolCall } from '../testing/faux.ts'
@@ -24,6 +25,7 @@ let seq = 0
 const entry = (kind: string, payload: unknown): EntryLike => ({ seq: ++seq, kind, payload })
 const plan = (planId: string, revision: number, status: string, markdown = '# P') => entry('plan', { planId, revision, markdown, status })
 const mode = (m: string, prior?: string) => entry('permission_mode', prior ? { mode: m, prior } : { mode: m })
+const phase = (p: string, planId?: string) => entry('plan_phase', planId ? { phase: p, planId } : { phase: p })
 beforeEach(() => {
   seq = 0
 })
@@ -31,23 +33,49 @@ beforeEach(() => {
 describe('nextPlanRef', () => {
   const id = () => 'new'
   it.each<[string, () => EntryLike[], { planId: string; revision: number }]>([
-    ['还没有计划：新 planId，revision 1', () => [mode('default'), mode('plan', 'default')], { planId: 'new', revision: 1 }],
-    ['本次规划已有 proposed：沿用并加一', () => [mode('plan', 'default'), plan('p1', 1, 'proposed')], { planId: 'p1', revision: 2 }],
-    ['被拒绝后再次提交：沿用并加一', () => [mode('plan', 'default'), plan('p1', 1, 'proposed'), plan('p1', 1, 'rejected')], { planId: 'p1', revision: 2 }],
-    ['上一份已批准：新 planId', () => [mode('plan', 'default'), plan('p1', 2, 'approved'), mode('default')], { planId: 'new', revision: 1 }],
+    ['还没有计划：新 planId，revision 1', () => [mode('default'), phase('planning')], { planId: 'new', revision: 1 }],
+    ['本次规划已有 proposed：沿用并加一', () => [phase('planning'), plan('p1', 1, 'proposed')], { planId: 'p1', revision: 2 }],
+    ['被拒绝后再次提交：沿用并加一', () => [phase('planning'), plan('p1', 1, 'proposed'), plan('p1', 1, 'rejected')], { planId: 'p1', revision: 2 }],
+    ['上一份已批准：新 planId', () => [phase('planning'), plan('p1', 2, 'approved'), phase('none')], { planId: 'new', revision: 1 }],
+    ['上一份已完成：新 planId', () => [plan('p1', 2, 'approved'), plan('p1', 2, 'completed')], { planId: 'new', revision: 1 }],
+    ['上一份已放弃：新 planId', () => [plan('p1', 2, 'approved'), plan('p1', 2, 'abandoned')], { planId: 'new', revision: 1 }],
+    ['退出后重新进入规划：新 planId', () => [phase('planning'), plan('p1', 1, 'proposed'), phase('none'), phase('planning')], { planId: 'new', revision: 1 }],
     [
-      '退出后重新进入 plan：新 planId',
-      () => [mode('plan', 'default'), plan('p1', 1, 'proposed'), mode('default'), mode('plan', 'default')],
-      { planId: 'new', revision: 1 },
+      '起点是计划阶段而不是 plan 模式：之后的 permission_mode 不截断',
+      () => [phase('planning'), plan('p1', 1, 'proposed'), mode('plan', 'default')],
+      { planId: 'p1', revision: 2 },
     ],
   ])('%s', (_name, build, expected) => {
     expect(nextPlanRef(build(), id)).toEqual(expected)
   })
 
   it('被回退的区间不算', () => {
-    const entries = [mode('plan', 'default'), plan('p1', 1, 'proposed')]
+    const entries = [phase('planning'), plan('p1', 1, 'proposed')]
     entries.push(entry('rewind', { targetSeq: 2 }))
     expect(nextPlanRef(entries, id)).toEqual({ planId: 'new', revision: 1 })
+  })
+})
+
+describe('planPhaseOf 与 activePlanOf', () => {
+  it('没有阶段条目时为 none（含只有 plan 模式的旧 Session），否则为有效条目中最后一条', () => {
+    expect(planPhaseOf([mode('plan', 'default')])).toEqual({ phase: 'none' })
+    expect(planPhaseOf([phase('planning'), phase('none'), phase('executing', 'p1')])).toEqual({ phase: 'executing', planId: 'p1' })
+    const entries = [phase('planning'), entry('message', {}), phase('none')]
+    entries.push(entry('rewind', { targetSeq: entries[1]!.seq }))
+    expect(planPhaseOf(entries)).toEqual({ phase: 'planning' })
+  })
+
+  it('规划中：本次规划最后一条 plan 为 proposed 时返回它，否则 undefined', () => {
+    expect(activePlanOf([phase('planning'), plan('p1', 1, 'proposed', '# A')])).toEqual({ planId: 'p1', revision: 1, markdown: '# A', status: 'proposed' })
+    expect(activePlanOf([phase('planning'), plan('p1', 1, 'proposed'), plan('p1', 1, 'rejected')])).toBeUndefined()
+    expect(activePlanOf([plan('p1', 1, 'proposed'), phase('planning')])).toBeUndefined()
+    expect(activePlanOf([phase('planning')])).toBeUndefined()
+  })
+
+  it('执行中：阶段 planId 的最后一条 plan；无：undefined', () => {
+    const entries = [phase('planning'), plan('p1', 1, 'proposed'), plan('p1', 2, 'approved', '# B'), plan('p2', 1, 'proposed'), phase('executing', 'p1')]
+    expect(activePlanOf(entries)).toMatchObject({ planId: 'p1', revision: 2, status: 'approved', markdown: '# B' })
+    expect(activePlanOf([phase('planning'), plan('p1', 1, 'proposed'), phase('none')])).toBeUndefined()
   })
 })
 

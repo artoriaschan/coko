@@ -1,7 +1,7 @@
 // 交接（Handoff）：摘要提示、准入判定与目标 Session 的条目推导。摘要请求由运行时的摘要模式发出（trigger handoff：有效上下文加这里的提示，
 // 不注册工具）；目标 Session 只复制权限状态（模式与 Session 规则），权限继承与"从此分叉"相同，工具加载、消息、Goal、Todo、计划、Job、子代理与定时任务不复制。
 import type { RunEntry } from '../engine/types.ts'
-import { effectiveEntries } from '../entries/index.ts'
+import { effectiveEntries, planPhaseOf } from '../entries/index.ts'
 import type { EntryLike } from '../entries/types.ts'
 
 /** 交接摘要的上限（字符；与 @coko/protocol 的 HANDOFF_SUMMARY_MAX 相同）。超出时截断。 */
@@ -40,12 +40,13 @@ export function handoffSummaryText(summary: string): string {
 
 /**
  * 目标 Session 的条目：首条 handoff_origin（指向源 Session 中 handoff 条目的 seq），之后是源 Session 有效条目中的权限条目（去掉 runId，
- * 顺序不变）。
+ * 顺序不变）；源在规划中时末尾追加 plan_phase planning。
  */
 export function handoffTargetEntries(entries: readonly EntryLike[], sourceSessionId: string, handoffSeq: number): RunEntry[] {
   const origin: RunEntry = { kind: 'handoff_origin', payload: { sessionId: sourceSessionId, seq: handoffSeq } }
   const copied = effectiveEntries(entries)
     .filter((entry) => HANDOFF_COPIED_KINDS.has(entry.kind))
     .map((entry) => ({ kind: entry.kind, payload: entry.payload }) as RunEntry)
-  return [origin, ...copied]
+  const planning: RunEntry[] = planPhaseOf(entries).phase === 'planning' ? [{ kind: 'plan_phase', payload: { phase: 'planning' } }] : []
+  return [origin, ...copied, ...planning]
 }

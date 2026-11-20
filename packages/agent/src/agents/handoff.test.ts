@@ -93,6 +93,24 @@ describe('handoffTargetEntries', () => {
   })
 })
 
+describe('handoffTargetEntries 的计划阶段', () => {
+  it('源在规划中：权限条目之后追加 plan_phase planning；不在规划中不追加，原阶段条目不复制', () => {
+    seq = 0
+    const entries = [
+      entry('permission_mode', { mode: 'default' }, null),
+      user('one'),
+      entry('permission_mode', { mode: 'plan', prior: 'default' }, null),
+      entry('plan_phase', { phase: 'planning' }, null),
+      rule('add', 'Bash'),
+    ]
+    const target = handoffTargetEntries(entries, 's', 9)
+    expect(target.map((e) => e.kind)).toEqual(['handoff_origin', 'permission_mode', 'permission_mode', 'permission_rule', 'plan_phase'])
+    expect(target.at(-1)!.payload).toEqual({ phase: 'planning' })
+    entries.push(entry('plan_phase', { phase: 'none' }, null), entry('permission_mode', { mode: 'default' }, null))
+    expect(handoffTargetEntries(entries, 's', 9).map((e) => e.kind)).not.toContain('plan_phase')
+  })
+})
+
 describe('hasUserMessage', () => {
   it('只有权限条目或 assistant 消息时 false；有用户消息时 true；用户消息全被回退时 false', () => {
     seq = 0

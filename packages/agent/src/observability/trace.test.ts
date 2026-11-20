@@ -281,6 +281,20 @@ describe('deriveTrace', () => {
 })
 
 describe('deriveAudit', () => {
+  it('计划阶段的每次转换是一项（executing 带 planId），plan 条目本身不入审计', () => {
+    const steps: Step[] = [
+      ['plan_phase', { phase: 'planning' }, null, 1],
+      ['plan', { planId: 'p1', revision: 1, markdown: '# secret', status: 'approved' }, 'r1', 2],
+      ['plan_phase', { phase: 'executing', planId: 'p1' }, 'r1', 3],
+      ['plan_phase', { phase: 'none' }, null, 4],
+    ]
+    expect(deriveAudit(build(steps))).toEqual([
+      { seq: 1, at: 1, kind: 'plan_phase', phase: 'planning' },
+      { seq: 3, at: 3, runId: 'r1', kind: 'plan_phase', phase: 'executing', planId: 'p1' },
+      { seq: 4, at: 4, kind: 'plan_phase', phase: 'none' },
+    ])
+  })
+
   it('每类事件按提交顺序，审批在决定时给出（含请求时刻与回答者），未回答的审批为 pending', () => {
     const steps: Step[] = [
       ['permission_mode', { mode: 'accept-edits' }, null, 1],

@@ -176,3 +176,44 @@ describe('forkEntries 的工具加载边界', () => {
     expect(again.entries.filter((item) => item.kind === 'tool_load')).toEqual([{ kind: 'tool_load', payload: a.payload }])
   })
 })
+
+describe('forkEntries 的计划阶段', () => {
+  const planning = () => {
+    seq = 0
+    return [
+      entry('permission_mode', { mode: 'default' }, null),
+      user('one'),
+      entry('permission_mode', { mode: 'plan', prior: 'default' }, null),
+      entry('plan_phase', { phase: 'planning' }, null),
+      entry('plan', { planId: 'p1', revision: 1, markdown: '# P', status: 'proposed' }),
+    ]
+  }
+
+  it('边界前在规划中：plan 模式与末尾追加的一条 plan_phase planning 一致；plan 与原阶段条目不复制', () => {
+    const entries = planning()
+    const target = user('two')
+    const copied = forkEntries([...entries, target], 's', target.seq).entries.filter((e) => e.kind !== 'fork_origin')
+    expect(copied.map((e) => e.kind)).toEqual(['permission_mode', 'message', 'permission_mode', 'plan_phase'])
+    expect(copied.at(-2)!.payload).toEqual({ mode: 'plan', prior: 'default' })
+    expect(copied.at(-1)!.payload).toEqual({ phase: 'planning' })
+  })
+
+  it('不在规划中（含规划后退出）不追加', () => {
+    const entries = [...planning(), entry('plan_phase', { phase: 'none' }, null), entry('permission_mode', { mode: 'default' }, null)]
+    const target = user('two')
+    expect(forkEntries([...entries, target], 's', target.seq).entries.map((e) => e.kind)).not.toContain('plan_phase')
+  })
+
+  it('过渡口径与 permission_mode 相同：user-before 只看边界前，assistant-inclusive 看全部有效条目', () => {
+    seq = 0
+    const first = user('one')
+    const reply = entry('message', { role: 'assistant', content: [{ type: 'text', text: 'ok' }], stopReason: 'stop', timestamp: 0 })
+    const end = entry('run_end', { status: 'completed' })
+    const later = [entry('permission_mode', { mode: 'plan', prior: 'default' }, null), entry('plan_phase', { phase: 'planning' }, null)]
+    const entries = [entry('permission_mode', { mode: 'default' }, null), first, reply, end, ...later, user('two')]
+    expect(forkEntries(entries, 's', first.seq).entries.map((e) => e.kind)).not.toContain('plan_phase')
+    const inclusive = forkEntries(entries, 's', reply.seq, 'assistant-inclusive').entries
+    expect(inclusive.filter((e) => e.kind === 'permission_mode').at(-1)!.payload).toEqual({ mode: 'plan', prior: 'default' })
+    expect(inclusive.at(-1)).toEqual({ kind: 'plan_phase', payload: { phase: 'planning' } })
+  })
+})

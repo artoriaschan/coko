@@ -35,3 +35,5 @@ export { pairedStateUpdates, planStateUpdates, STATE_UPDATE_NAMES } from './stat
 export type { StateUpdateName, StateValues, StateSnapshotPayload, StateUpdateDelivery, PairedStateUpdate } from './state-updates.ts'
 export type { TeamStateValue } from './team-text.ts'
 export { loadedToolNames } from './tool-loads.ts'
+export { activePlanOf, planPhaseOf } from './plan-phase.ts'
+export type { PlanPhaseState, PlanState } from './plan-phase.ts'

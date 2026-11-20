@@ -13,6 +13,7 @@ import type {
   SessionDetailResponse,
   SessionModel,
   SessionPermissionsResponse,
+  SessionPlanResponse,
   ThinkingLevel,
   UpdatePermissionsRequest,
 } from '@coko/protocol'
@@ -475,6 +476,10 @@ export class SessionService {
     return this.#permissions.setMode(sessionId, mode)
   }
 
+  sessionPlan(sessionId: string): Promise<SessionPlanResponse> {
+    return this.#permissions.sessionPlan(sessionId)
+  }
+
   changeSessionRule(sessionId: string, op: 'add' | 'remove', rule: PermissionRule): Promise<SessionPermissionsResponse> {
     return this.#permissions.changeSessionRule(sessionId, op, rule)
   }
@@ -578,6 +583,8 @@ export class SessionService {
     })
     // 初始模式也是条目：之后默认模式改变不影响已有 Session（ADR 0005）。
     await this.#runtimes.commit(session.id, { kind: 'permission_mode', payload: { mode } })
+    // 过渡期（票 02–03）：以 plan 创建即进入规划。
+    if (mode === 'plan') await this.#runtimes.commit(session.id, { kind: 'plan_phase', payload: { phase: 'planning' } })
     log.info('session created', { sessionId: session.id, workspaceId: session.workspaceId, mode })
     return this.toDto(session)
   }
