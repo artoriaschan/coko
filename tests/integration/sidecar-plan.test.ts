@@ -1,7 +1,6 @@
 // Plan Mode（ADR 0005、ADR 0028）：真实 Sidecar（faux 模型）经协议驱动 /plan 与计划接口进入和退出（不改变 Permission Mode）、规划中的约束（写入拒绝、命令只读
-// 沙箱且不能提权，其余调用按当前模式）、Run 中途进入与退出、exit_plan_mode 的提交与审阅（编辑后批准、带反馈继续规划，批准只结束规划，审阅等待中切换模式后
-// 按新模式执行）、回答的校验、压缩后的
-// <approved_plan> 与分叉。
+// 沙箱且不能提权，其余调用按当前模式）、Run 中途进入与退出、exit_plan_mode 的提交与审阅（编辑后批准、带反馈继续规划，批准后执行中，审阅等待中切换模式后
+// 按新模式执行）、回答的校验、执行中的放弃与重新规划、压缩后的 <approved_plan> 与分叉。
 // 本票不新增文件读取（没有读取根或注入点涉及路径），不需要符号链接越界用例。
 import { execFileSync } from 'node:child_process'
 import { access, readFile, realpath, writeFile } from 'node:fs/promises'
@@ -246,7 +245,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('批准后执行中：不先调用 todo_write 的写入照常按模式询问并写入、命令回到 workspace-write 沙箱；下一个带新输入的 Run 首块为 plan State Update，值不变不重复；Run 结束后不自动发起 Run；退出后送达一次清空', async () => {
+  it('批准后执行中：不先调用 todo_write 的写入照常按模式询问并写入、命令回到 workspace-write 沙箱；下一个带新输入的 Run 首块为 plan State Update，值不变不重复；Run 结束后不自动发起 Run；放弃后送达一次清空', async () => {
     const h = await boot([
       exit('e1', PLAN),
       call('write', 'w1', { path: 'notes.md', content: 'x' }),
@@ -307,7 +306,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(h.entries().filter((e) => e.kind === 'run_start')).toHaveLength(3)
 
     expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'exit' })).body).toEqual({ phase: 'none', plan: null })
-    expect(h.plans().at(-1)).toMatchObject({ planId, status: 'approved' })
+    expect(h.plans().at(-1)).toMatchObject({ planId, status: 'abandoned' })
     for (const [n, t] of [
       [4, 'after exit'],
       [5, 'once more'],
@@ -424,7 +423,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('/plan off 与计划接口退出不改模式；规划中切换模式不退出规划；审阅等待中退出规划后批准仍进入执行中；执行中退出只把阶段置为无；Run 进行中 /plan 为 409、计划接口照常可用', async () => {
+  it('/plan off 与计划接口退出不改模式；规划中切换模式不退出规划；审阅等待中退出规划后批准仍进入执行中；执行中 /plan off 即放弃；Run 进行中 /plan 为 409、计划接口照常可用', async () => {
     const h = await boot([exit('e1', '# Plan A'), exit('e2', '# Plan B'), { content: 'done' }])
     const phases = () =>
       h
@@ -472,11 +471,11 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     // 批准是用户的明确动作：审阅等待期间已退出规划，批准后同样进入执行中。
     expect(phases()).toEqual(['planning', 'none', 'planning', 'none', 'executing'])
     expect((await read()).phase).toBe('executing')
-    // 执行中退出（放弃在后续交付）：只提交计划阶段“无”，不改动 plan 条目。
+    // 执行中退出即放弃：先提交 abandoned 的 plan 条目，再提交计划阶段“无”。
     const before = h.plans()
     expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan off' })).status).toBe(204)
     expect(await read()).toEqual({ phase: 'none', plan: null })
-    expect(h.plans()).toEqual(before)
+    expect(h.plans()).toEqual([...before, { ...before.at(-1)!, status: 'abandoned' }])
     expect(phases()).toEqual(['planning', 'none', 'planning', 'none', 'executing', 'none'])
     expect(h.modes().at(-1)).toEqual({ mode: 'default' })
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
@@ -726,6 +725,105 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(tools).not.toContain('exit_plan_mode')
     expect(stream.invalidEntries).toEqual([])
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('执行中 /plan off 放弃：依次提交 abandoned 与阶段无，文件与 Checkpoint 不变；下一个 Run 送达一次清空；回退到放弃之前回到执行中；执行中再 /plan：旧计划放弃、进入规划、写入被拒、新计划新编号从修订 1 开始', async () => {
+    const h = await boot([
+      exit('e1', PLAN),
+      call('write', 'w1', { path: 'notes.md', content: 'kept' }),
+      { content: 'run one done' },
+      { content: 'run two' },
+      { content: 'run three' },
+      call('write', 'w2', { path: 'other.md', content: 'x' }),
+      exit('e2', '# New direction'),
+    ])
+    const phases = () =>
+      h
+        .entries()
+        .filter((e) => e.kind === 'plan_phase')
+        .map((e) => e.payload)
+    const read = async () => (await h.api.get(planPaths.sessionPlan(h.sessionId))).body
+    const checkpoints = async () => (await h.api.get(checkpointPaths.sessionCheckpoints(h.sessionId))).body
+    expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'accept-edits' })).status).toBe(200)
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan fix it' })).status).toBe(202)
+    expect((await h.answer((await waitApproval(h.stream, h.sessionId, 1)).requestId, { decision: 'allow' })).status).toBe(204)
+    await h.runEnds(1)
+    const approved = h.plans().at(-1)!
+    expect(approved).toMatchObject({ status: 'approved', revision: 1 })
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'continue' })).status).toBe(202)
+    await h.runEnds(2)
+    expect(planBlock((await h.requests()).at(-1)!)).toBe(PLAN_STATE('Fix the parser', 1))
+
+    // 放弃：不弹确认、不触碰文件与 Checkpoint；plan 条目沿用被执行计划的编号、修订与正文。
+    const bytes = await readFile(join(h.root, 'notes.md'))
+    const before = await checkpoints()
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan off' })).status).toBe(204)
+    expect(await read()).toEqual({ phase: 'none', plan: null })
+    expect(h.plans().at(-1)).toEqual({ ...approved, status: 'abandoned' })
+    const tail = h.entries().filter((e) => e.kind === 'plan' || e.kind === 'plan_phase')
+    expect(tail.slice(-2).map((e) => [e.kind, (e.payload as { status?: string; phase?: string }).status ?? (e.payload as { phase: string }).phase])).toEqual([
+      ['plan', 'abandoned'],
+      ['plan_phase', 'none'],
+    ])
+    expect(await readFile(join(h.root, 'notes.md'))).toEqual(bytes)
+    expect(await checkpoints()).toEqual(before)
+    expect(h.modes().at(-1)).toEqual({ mode: 'accept-edits' })
+    // 再次退出不提交。
+    expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'exit' })).body).toEqual({ phase: 'none', plan: null })
+    expect(h.plans().filter((p) => p.status === 'abandoned')).toHaveLength(1)
+
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'after abandon' })).status).toBe(202)
+    await h.runEnds(3)
+    let logged = (await h.requests()).at(-1)!
+    expect(firstBlock(logged)).toBe(PLAN_STATE_CLEARED)
+    expect(h.sections(logged).map((s) => s.name)).not.toContain('approved_plan')
+
+    // 回退到放弃之前的消息：abandoned 与阶段条目被回退，回到执行中、计划回到已批准。
+    const continued = h.entries().filter((e) => kindOf(e) === 'user')[1]!
+    expect((await h.api.post(checkpointPaths.sessionRewind(h.sessionId), { targetSeq: continued.seq, mode: 'conversation' })).status).toBe(200)
+    expect(await read()).toEqual({ phase: 'executing', plan: approved })
+
+    // 执行中再 /plan：先放弃（abandoned → 无），再进入规划；同一时刻只有一份活动的 Plan。
+    const count = phases().length
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan rethink' })).status).toBe(202)
+    expect(phases().slice(count)).toEqual([{ phase: 'none' }, { phase: 'planning' }])
+    expect(
+      h
+        .plans()
+        .filter((p) => p.status === 'abandoned')
+        .at(-1),
+    ).toEqual({ ...approved, status: 'abandoned' })
+    const write = await h.resultOf('w2')
+    expect([write.isError, text(write)]).toEqual([true, PLANNING_WRITE_REFUSED])
+    expect(await exists(join(h.root, 'other.md'))).toBe(false)
+    const review = await waitApproval(h.stream, h.sessionId, 2)
+    expect(review.planId).not.toBe(approved.planId)
+    expect(review.revision).toBe(1)
+    expect(await read()).toEqual({ phase: 'planning', plan: { planId: review.planId, revision: 1, markdown: '# New direction', status: 'proposed' } })
+    logged = (await h.requests()).at(-1)!
+    expect(h.sections(logged).find((s) => s.name === 'plan_mode')?.text).toBe(PLAN_MODE_T1)
+    await h.api.post(apiPaths.sessionAbort(h.sessionId))
+    await h.runEnds(4)
+    expect(h.stream.invalidEntries).toEqual([])
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('Run 进行中经计划接口放弃：等待中的写入审批不受影响，之后写入照常；Run 结束后读回无且没有活动的 Plan', async () => {
+    const h = await boot([exit('e1', PLAN), call('write', 'w1', { path: 'notes.md', content: 'x' }), { content: 'done' }])
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan fix it' })).status).toBe(202)
+    expect((await h.answer((await waitApproval(h.stream, h.sessionId, 1)).requestId, { decision: 'allow' })).status).toBe(204)
+    const write = await waitApproval(h.stream, h.sessionId, 2)
+    expect(write).toMatchObject({ kind: 'tool', toolName: 'write' })
+    const approved = h.plans().at(-1)!
+    expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'exit' })).body).toEqual({ phase: 'none', plan: null })
+    expect(h.plans().at(-1)).toEqual({ ...approved, status: 'abandoned' })
+    expect(h.entries().filter((e) => e.kind === 'approval_decision')).toHaveLength(1)
+    expect((await h.answer(write.requestId, { decision: 'allow' })).status).toBe(204)
+    expect((await h.resultOf('w1')).isError).toBe(false)
+    await h.runEnds(1)
+    expect(await readFile(join(h.root, 'notes.md'), 'utf8')).toBe('x')
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'none', plan: null })
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
   // ADR 0028：计划阶段按有效条目回放，回退后重新计算；Permission Mode 的回退口径不变（仍按原始条目，回退区间内的切换照常生效）。

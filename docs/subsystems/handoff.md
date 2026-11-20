@@ -45,7 +45,7 @@ lifecycle: active
 1. 按目标取得 worktree：当前目录沿用源会话绑定的 worktree（没有时不绑定）；已有 worktree 为所选的；新 worktree 此时才经 [Worktree](worktrees.md#创建) 创建（不复制未提交的改动）。
 2. 创建目标 Session：同一 Workspace、模型与推理档位，标题为下一步目标的首行（登记的 Secret 与凭据形态已替换，至多 60 字符）。
 3. 源 Session 以摘要 Run 的 runId 提交 `handoff { targetSessionId, instructions, summary, target: current | worktree, usage? }`；`usage` 为摘要请求的 usage。
-4. 目标 Session 依次提交首条 `handoff_origin { sessionId, seq }`（指向源 handoff 条目）与源会话有效条目中的 `permission_mode`、`permission_rule`（去掉 runId，顺序不变）；源会话当前（有效条目，回退区间不算）在规划中时，末尾再提交一条 `plan_phase { planning }`，目标会话以规划中开始（见 [Plan Mode](plan-mode.md#进入退出与判定)）。
+4. 目标 Session 依次提交首条 `handoff_origin { sessionId, seq }`（指向源 handoff 条目）与源会话有效条目中的 `permission_mode`、`permission_rule`（去掉 runId，顺序不变）；源会话当前（有效条目，回退区间不算）在规划中时，末尾再提交一条 `plan_phase { planning }`，目标会话以规划中开始（执行中不提交，目标会话没有计划阶段与活动的计划）（见 [Plan Mode](plan-mode.md#进入退出与判定)）。
 
 Run 被停止、暂停或出错时什么都不创建（不建 worktree、不建 Session、不提交 handoff）。目标创建失败（例如校验之后 git 才发现分支已存在、绑定的 worktree 已被移除）时源 Session 以摘要 Run 的 runId 提交 `handoff_failed { instructions, summary, error, usage? }`：usage 照常计入 Goal，摘要保留在时间线的原始输入/输出中，客户端据此离开"正在创建"。
 

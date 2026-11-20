@@ -204,6 +204,18 @@ describe('forkEntries 的计划阶段', () => {
     expect(forkEntries([...entries, target], 's', target.seq).entries.map((e) => e.kind)).not.toContain('plan_phase')
   })
 
+  it('边界处执行中：不追加计划阶段，plan 条目不复制（新 Session 没有活动的 Plan）', () => {
+    const entries = [
+      ...planning(),
+      entry('plan', { planId: 'p1', revision: 1, markdown: '# P', status: 'approved' }),
+      entry('plan_phase', { phase: 'executing', planId: 'p1' }, null),
+    ]
+    const target = user('two')
+    const kinds = forkEntries([...entries, target], 's', target.seq).entries.map((e) => e.kind)
+    expect(kinds).not.toContain('plan_phase')
+    expect(kinds).not.toContain('plan')
+  })
+
   // ADR 0028 起阶段取边界处（原过渡口径：assistant-inclusive 看全部有效条目，使新 Session 的 plan 模式与“规划中”一致）；规划不再改模式，
   // 权限状态仍按 assistant-inclusive 继承源当前状态，计划阶段只跟边界。
   it('边界口径：user-before 看边界前、assistant-inclusive 看到边界为止；边界之后才进入或退出规划不影响新 Session', () => {
