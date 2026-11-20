@@ -1,0 +1,19 @@
+.scratch/auto-review/issues/05-authorization-sources-and-injection.md
+  s_d1e837811db462::t_8eb118151f134b 37-41,43-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "26a501e9e456ec0e5acc75b5fdb164dd77740e0b",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
