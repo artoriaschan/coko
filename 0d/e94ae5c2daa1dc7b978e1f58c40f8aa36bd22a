@@ -1,0 +1,21 @@
+.scratch/auto-review/spec.md
+  s_d1e837811db462::t_34e709eae9d3c2 191
+.scratch/auto-review/design.md
+  s_d1e837811db462::t_9fab21fbc7ebb6 303
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "0de94ae5c2daa1dc7b978e1f58c40f8aa36bd22a",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
