@@ -67,6 +67,7 @@ export function createPermissionWiring(options: {
         ...(permissions.writeRoots ? { writeRoots: permissions.writeRoots } : {}),
         broker: options.broker,
         mode: permissions.mode,
+        ...(permissions.planning ? { planning: permissions.planning } : {}),
         rules: permissions.rules,
         rejected: () => current()?.rejected ?? false,
         reject: () => {
@@ -109,7 +110,7 @@ export function createPermissionWiring(options: {
         }
       : undefined,
     /**
-     * 执行前的准备（取得执行槽之后、执行记录之前，ADR 0005）：文件写入的目标按执行时的真实路径复核；沙箱档位按执行时的模式现算，
+     * 执行前的准备（取得执行槽之后、执行记录之前，ADR 0005）：文件写入的目标按执行时的真实路径复核；沙箱档位按执行时的模式与是否规划中现算，
      * 已批准的提权取两者中较宽者；目录工具拿到 Read 拒绝规则的过滤；声明的密钥只为这一次调用解析，缺失时调用失败且不提交执行记录。
      * 没有权限判定时不设沙箱与过滤（库调用方，命令不受限）。
      */
@@ -119,13 +120,16 @@ export function createPermissionWiring(options: {
         await recheck(toolCallId, tool.name, params, signal)
         const granted = escalations.get(toolCallId)
         escalations.delete(toolCallId)
-        const mode = sandboxModeFor(permissions.mode())
+        // 规划中（ADR 0028）一律 read-only 且不能提权；批准提权的请求在规划中不会产生，granted 只来自进入规划之前的批准。
+        const planning = permissions.planning?.() ?? false
+        const mode = sandboxModeFor(permissions.mode(), planning)
         const root = permissions.workspaceRoots?.()[0] ?? (await realWorkspace())
-        extra.sandbox = await sandboxPolicyFor(
-          granted ? widerSandbox(granted, mode) : mode,
+        const policy = await sandboxPolicyFor(
+          granted && !planning ? widerSandbox(granted, mode) : mode,
           permissions.workspaceRoots?.() ?? [root],
           permissions.writeRoots?.(),
         )
+        extra.sandbox = planning ? { ...policy, escalation: false } : policy
         const denied = readDenial(permissions.rules(), root)
         if (denied) extra.readDenied = denied
       }

@@ -1,4 +1,4 @@
-// Plan Mode（ADR 0005）：真实 Sidecar（faux 模型）经协议驱动 /plan 进入、plan 中的限制（写入询问、命令只读沙箱）、exit_plan_mode 的提交与审阅
+// Plan Mode（ADR 0005、ADR 0028）：真实 Sidecar（faux 模型）经协议驱动 /plan 进入、规划中的约束（写入拒绝、命令只读沙箱且不能提权）、exit_plan_mode 的提交与审阅
 // （编辑后批准、带反馈继续规划、批准为 accept-edits）、回答的校验、/plan off 与模式菜单退出、压缩后的 <approved_plan> 与分叉。
 // 本票不新增文件读取（没有读取根或注入点涉及路径），不需要符号链接越界用例。
 import { access, readFile, realpath, writeFile } from 'node:fs/promises'
@@ -65,11 +65,64 @@ async function boot(responses: unknown[], extra: Record<string, unknown> = {}) {
   return { root, sidecar, api, stream, sessionId, open, entries, runEnds, results, resultOf, plans, modes, requests, sections, answer }
 }
 
+const exists = (path: string) =>
+  access(path).then(
+    () => true,
+    () => false,
+  )
+/** 模型可见文本（设计稿 T1 过渡版、T3、T4、T5）。 */
+const PLAN_MODE_T1 = [
+  '<plan_mode>',
+  'Plan mode is active. Research and design only: the user reviews your plan before anything in the Workspace changes.',
+  '- File writes (write, edit) are refused while planning. Put the changes you intend to make in the plan instead.',
+  '- Commands run in a read-only sandbox and cannot be escalated; a command that writes files fails.',
+  '- Reads and searches are allowed; other calls may need the user’s approval.',
+  'When the plan is ready, call exit_plan_mode with the complete plan as Markdown starting with a # heading. If the user sends feedback, keep planning and submit a revised plan. Once the user approves, plan mode ends and the tool result tells you how to proceed.',
+  '</plan_mode>',
+].join('\n')
+const PLANNING_WRITE_REFUSED =
+  'Refused: plan mode is active, so file writes are blocked until the user approves a plan. Do not retry or work around this; describe the intended change in the plan (or in your report to the parent agent) instead.'
+const PLANNING_ESCALATION_REFUSED =
+  'invalid escalation: plan mode is active, so commands run in a read-only sandbox and cannot be escalated. Do not retry; describe the step that needs write access in the plan instead.'
+const PLANNING_SANDBOX_MARKER = '[sandbox: escalation is not available in plan mode]'
+
 const PLAN = '# Fix the parser\n\n1. Read src/parse.ts\n2. Add a test'
 const EDITED = '# Fix the parser\n\n1. Add a test first\n2. Then fix src/parse.ts'
 
 describe('Plan Mode', { timeout: 120_000 }, () => {
-  it('/plan 进入（prior = default）→ <plan_mode> → 写入询问、命令只读沙箱 → exit_plan_mode 提交 → 编辑后批准：新 revision、default、结果含编辑后的计划、Run 继续', async () => {
+  it('规划中的约束是硬性的：允许规则不能放行写入（文件逐字节不变、无审批）；被放行的写文件命令因只读沙箱失败；提权参数直接出错不询问', async () => {
+    const h = await boot([
+      call('edit', 'w1', { path: 'keep.txt', edits: [{ oldText: 'original', newText: 'changed' }] }),
+      call('write', 'w2', { path: 'new.txt', content: 'x' }),
+      call('bash', 'b1', { command: 'echo hi > touched.txt' }),
+      call('bash', 'b2', { command: 'echo hi > touched.txt', sandbox_permissions: 'workspace-write', justification: 'write the file' }),
+      { content: 'planning only' },
+    ])
+    await writeFile(join(h.root, 'keep.txt'), 'original\n')
+    for (const rule of [
+      { behavior: 'allow', tool: 'Edit' },
+      { behavior: 'allow', tool: 'Bash' },
+    ])
+      expect((await h.api.post(permissionPaths.sessionPermissionRules(h.sessionId), { rule })).status).toBe(200)
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan 调研 X' })).status).toBe(202)
+    await h.runEnds(1)
+
+    expect(text(await h.resultOf('w1'))).toBe(PLANNING_WRITE_REFUSED)
+    expect(text(await h.resultOf('w2'))).toBe(PLANNING_WRITE_REFUSED)
+    expect(await readFile(join(h.root, 'keep.txt'), 'utf8')).toBe('original\n')
+    expect(await exists(join(h.root, 'new.txt'))).toBe(false)
+    const b1 = await h.resultOf('b1')
+    expect(b1.isError).toBe(true)
+    // darwin：Seatbelt 以只读档位拒绝写入；其他平台没有 sandbox-exec，受限档位的命令 fail-closed（ADR 0005）。
+    expect(text(b1)).toContain(darwin ? `[sandbox: file access denied under read-only mode]\n${PLANNING_SANDBOX_MARKER}` : 'sandbox-unavailable')
+    expect([(await h.resultOf('b2')).isError, text(await h.resultOf('b2'))]).toEqual([true, PLANNING_ESCALATION_REFUSED])
+    expect(await exists(join(h.root, 'touched.txt'))).toBe(false)
+    expect(h.entries().filter((e) => e.kind === 'approval_request')).toEqual([])
+    expect(h.stream.invalidEntries).toEqual([])
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('/plan 进入（prior = default）→ <plan_mode> → 写入拒绝、命令只读沙箱 → exit_plan_mode 提交 → 编辑后批准：新 revision、default、结果含编辑后的计划、Run 继续', async () => {
     const h = await boot([
       call('write', 'w1', { path: 'notes.md', content: 'x' }),
       call('bash', 'b1', { command: 'echo hi > touched.txt' }),
@@ -80,25 +133,23 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(h.modes().at(-1)).toEqual({ mode: 'plan', prior: 'default' })
     expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'plan', prior: 'default', rules: [] })
 
-    const write = await waitApproval(h.stream, h.sessionId, 1)
-    expect(write).toMatchObject({ kind: 'tool', toolName: 'write' })
-    expect((await h.answer(write.requestId, { decision: 'deny', feedback: 'no writes while planning' })).status).toBe(204)
-    const bash = await waitApproval(h.stream, h.sessionId, 2)
+    // 票 03（ADR 0028）起规划中的写入直接拒绝，不再询问（原先断言写入出审批卡，由用户拒绝）。
+    const write = await h.resultOf('w1')
+    expect([write.isError, text(write)]).toEqual([true, PLANNING_WRITE_REFUSED])
+    expect(await exists(join(h.root, 'notes.md'))).toBe(false)
+    // 命令仍按 plan 模式（与 read-only 相同）询问（票 04 改为按当前权限）。
+    const bash = await waitApproval(h.stream, h.sessionId, 1)
     expect(bash).toMatchObject({ kind: 'tool', toolName: 'bash' })
     expect((await h.answer(bash.requestId, { decision: 'allow' })).status).toBe(204)
     const bashResult = await h.resultOf('b1')
     expect(bashResult.isError).toBe(true)
     // darwin：Seatbelt 以只读档位拒绝写入；其他平台没有 sandbox-exec，受限档位的命令 fail-closed（ADR 0005）。
-    expect(text(bashResult)).toContain(darwin ? '[sandbox: file access denied under read-only mode]' : 'sandbox-unavailable')
+    expect(text(bashResult)).toContain(darwin ? `[sandbox: file access denied under read-only mode]\n${PLANNING_SANDBOX_MARKER}` : 'sandbox-unavailable')
+    expect(text(bashResult)).not.toContain('escalation available')
     expect(bashResult.details).toMatchObject(darwin ? { sandbox: { mode: 'read-only', denied: true } } : {})
-    expect(
-      await access(join(h.root, 'touched.txt')).then(
-        () => true,
-        () => false,
-      ),
-    ).toBe(false)
+    expect(await exists(join(h.root, 'touched.txt'))).toBe(false)
 
-    const review = await waitApproval(h.stream, h.sessionId, 3)
+    const review = await waitApproval(h.stream, h.sessionId, 2)
     expect(review).toMatchObject({ kind: 'plan', toolName: 'exit_plan_mode', subject: 'Fix the parser', suggestions: [] })
     const proposed = h.plans()
     expect(proposed).toEqual([{ planId: expect.any(String), revision: 1, markdown: PLAN, status: 'proposed' }])
@@ -134,7 +185,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     const logged = await h.requests()
     expect(logged).toHaveLength(4)
     for (const request of logged) expect(h.sections(request).map((s) => s.name)).toContain('plan_mode')
-    expect(h.sections(logged[0]!).find((s) => s.name === 'plan_mode')!.text).toContain('exit_plan_mode')
+    expect(h.sections(logged[0]!).find((s) => s.name === 'plan_mode')!.text).toBe(PLAN_MODE_T1)
     expect(JSON.stringify(logged[3]!.at(-1))).toContain('Proceed under default.')
     expect(h.stream.invalidEntries).toEqual([])
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })

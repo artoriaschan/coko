@@ -663,6 +663,7 @@ const AppLive = Layer.effect(
         deliver: (sessionId, input) => sessions.runs.deliver(sessionId, input),
         visibleTools: (sessionId) => sessions.runs.visibleTools(sessionId),
         mode: async (sessionId) => (await sessions.sessionPermissions(sessionId)).mode,
+        planning: async (sessionId) => (await sessions.sessionPlan(sessionId)).phase === 'planning',
         resolveModel: (model) => sessions.runs.resolveModel(model),
         sessionModel: async (session) => session.model ?? (await sessions.defaultModel()),
         scope: (session) => sessions.runs.scope(session),

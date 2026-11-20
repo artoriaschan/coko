@@ -16,7 +16,7 @@ lifecycle: active
 | `packages/agent/src/tools/registry.ts` | `RegisterToolOptions.permissionClass`：宿主注册工具时给出权限类，`ToolRegistry.permissionClass(name)` 读回 |
 | `packages/agent/src/policy/rules.ts` | 规则内容的匹配：bash 拆分、env 前缀剥离、精确 / 前缀；gitignore 风格路径 |
 | `packages/agent/src/policy/paths.ts` | 把工具参数解析为绝对路径与真实路径（经符号链接，含悬空链接）；模式对应的可写根（委托 sandbox.ts） |
-| `packages/agent/src/policy/sandbox.ts` | 模式 → Sandbox Mode、可写根的唯一推导、提权参数校验 `checkEscalation`、模型可见的拒绝标记与提示文本 |
+| `packages/agent/src/policy/sandbox.ts` | 模式与是否规划中 → Sandbox Mode、可写根的唯一推导、提权参数校验 `checkEscalation`、模型可见的拒绝标记与提示文本 |
 | `packages/agent/src/ports/exec.ts`、`local-exec.ts` | `ExecRequest.sandbox`、`SandboxUnavailableError`；本地执行经宿主给出的 `LocalSandbox` 包裹受限命令，没有时 fail-closed |
 | `apps/server/src/adapters/seatbelt.ts` | Seatbelt profile、启动探测、`sandbox-exec -p <profile> --` 包裹 |
 | `packages/agent/src/policy/broker.ts` | `ApprovalBroker`：每个运行时一个，提交请求与决定条目，等待回答或重新判定；`recordHookAllowed` 提交由 PermissionRequest Hook 回答的请求 |
@@ -59,7 +59,7 @@ lifecycle: active
 | automation（M5） | schedule_create、schedule_update（规则组名 `Schedule`） | 只有 full-access |
 | lsp（M6） | lsp（规则组名 `Lsp`）；判定对象为 `file_path`，与 read 同一套路径判定，`Read` 的拒绝、询问与允许规则同样适用 | 与 read 相同：Workspace 与额外读取根内所有模式放行，越出询问（`outside-workspace`，建议规则为 `Lsp(<路径>)`） |
 | team（M6） | send_message、task_create、task_update、task_list（规则组名 `Team`） | 所有模式都放行；拒绝与询问规则照常生效 |
-| bash（M4 增加） | job_input（判定对象为终端当前行加写入的 text，与 bash 命令同一套规则，规则组名 `Bash`；Job 启动时的沙箱宽于当前模式时 plan / read-only 拒绝、其余模式按提权询问，见 [PTY 与 stdin](execution.md#pty-与-stdin)） | 与 bash 相同 |
+| bash（M4 增加） | job_input（判定对象为终端当前行加写入的 text，与 bash 命令同一套规则，规则组名 `Bash`；Job 启动时的沙箱宽于当前档位时规划中与 plan / read-only 拒绝、其余模式按提权询问，见 [PTY 与 stdin](execution.md#pty-与-stdin)） | 与 bash 相同 |
 
 M5 的 agent_wait、schedule_list 按 context-read，agent_cancel、schedule_delete 按 session-state 注册（子代理与定时任务）。M6 的 lsp 与 team 两类已进入判定与规则名的归一（`canonicalRuleTool('lsp')` 为 `Lsp`）；`lsp` 工具由代码智能在有语言服务器时注册（见 [代码智能](lsp.md#权限与脱敏)），team 的工具尚未注册；带 `name` 的 agent 调用（teammate）与 agent 同类。子 Session（子代理）没有自己的模式与规则：每次判定时取根 Session 当前模式（plan 按 read-only）与定义 `permission-mode` 中较窄者，规则为根 Session 的规则加全局、Workspace 与 project 规则；根切换模式时子级的待审批请求重新判定，"本会话总是允许"写入根 Session，子 Session 的模式与规则接口返回 409 `child-session`。子代理保留的 isolation worktree 在父 Session 中另有不入库的询问规则 `Read(<path>)`。见 [子代理](subagents.md#有效权限与审批)。没有权限类的其他宿主工具照旧只在 full-access 放行。拒绝与询问规则对所有类照常生效。MCP Server 的工具由上下文装配以 external 注册（effect 一律 side-effect），规则可写全名或 `mcp__<server>`；连接与工具适配见 [MCP Server 连接与工具](mcp.md#工具)。session-state 的工具由 Todo、Goal 与后台任务注册；plan-exit 的 `exit_plan_mode` 只在 plan 模式的 Run 中注册，询问不受允许规则免除，拒绝规则照常生效，审批为 kind plan（见下文与 [Plan Mode](plan-mode.md)）。
 
@@ -73,13 +73,15 @@ worktree 会话始终排除其来源主检出；项目移动、主要文件夹�
 
 拒绝和询问规则仍先于模式；受保护路径照常询问，受限命令仍不能写入。文件目标每次经真实路径解析，附加根中指向外部的符号链接不扩大权限；批准后目标被换成链接时仍执行写入前复核。配置发现与 Skill 读取根不因此成为可写根。
 
-托管独立会话在 `work/` 与 `outputs/` 内的普通 write/edit 沿用模式放行；会话根其他位置的写入须单次审批，不可保存为总是允许。read-only / plan 的文件写入仍按现有单次审批机制处理，用户拒绝则不执行；命令即使获批也受只读 Seatbelt 约束。full-access 与明确批准的提权保留原有更宽档位语义。`outputs/` 的文件工具备份与回退按同一写根分类，不误报为 cwd 外文件。长期决定见 [ADR 0026](../adr/0026-standalone-session-write-roots.md)。
+托管独立会话在 `work/` 与 `outputs/` 内的普通 write/edit 沿用模式放行；会话根其他位置的写入须单次审批，不可保存为总是允许。read-only 的文件写入仍按现有单次审批机制处理，用户拒绝则不执行；规划中的写入直接拒绝（见下文“规划中”）；命令即使获批也受只读 Seatbelt 约束。full-access 与明确批准的提权保留原有更宽档位语义。`outputs/` 的文件工具备份与回退按同一写根分类，不误报为 cwd 外文件。长期决定见 [ADR 0026](../adr/0026-standalone-session-write-roots.md)。
 
 **额外读取根。** `RuntimePermissions.readRoots()`（每次判定现取，按真实路径比较）给出 Workspace 之外的读取根（Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理（各模式放行，不报 `outside-workspace`）。它不放开写入与命令，Read 拒绝规则仍生效。
 
 没有显式写根的 workspace-write 在本 Run 的 Workspace 根集合之外，还允许 DSH `packages/sandbox` 的系统临时目录：不含主目录及其下的包管理缓存（`~/.npm`、`~/.cache` 等），写这些位置的命令被拒绝后需要提权或切换模式。
 
-**plan（Plan Mode）。** 判定与 read-only 相同，命令沙箱 read-only；进入时 `permission_mode`（v2）带 `prior`（进入前的模式，已在 plan 时不变），`/plan off`、Plan chip 与批准计划回到它；从 plan 选择其他模式即退出。默认模式只能是四档之一；Shift+Tab 循环不含 plan。完整契约见 [Plan Mode](plan-mode.md)。
+**plan（Plan Mode）。** 模式放行与 read-only 相同；进入时 `permission_mode`（v2）带 `prior`（进入前的模式，已在 plan 时不变），`/plan off`、Plan chip 与批准计划回到它；从 plan 选择其他模式即退出。默认模式只能是四档之一；Shift+Tab 循环不含 plan。完整契约见 [Plan Mode](plan-mode.md)。
+
+**规划中（计划阶段，[ADR 0028](../adr/0028-plan-phase-not-permission-mode.md)）。** 判定的另一个输入是 Session 是否在规划中（计划阶段为 `planning`；`RuntimePermissions.planning()`，与模式同样每次调用现取，子 Session 取根 Session 的阶段）。规划中：edit 组（write、edit 与权限类 edit）的调用在拒绝规则之后直接拒绝（见下文判定顺序），不产生审批请求；命令沙箱一律 read-only、可写根为空，且不能提权（见[命令沙箱与提权](#命令沙箱与提权)）；向较宽档位启动的终端输入被拒；带 isolation 的 agent 调用为错误结果。其余权限类（read、memory-write、session-state、context-read、team、不带 isolation 的 agent、external、bash 等）按 Permission Mode 走原有顺序。当前（票 03 至 04 之间）进入规划仍同时把模式设为 plan，所以其余调用仍按 read-only 询问。
 
 新 Session 创建时提交一条 `permission_mode` 条目，取设置 `permissions.defaultMode`（缺省 default）；之后改默认模式不影响已有 Session。没有 `permission_mode` 条目的旧 Session 按 default。切换模式提交新的 `permission_mode` 条目（与当前相同时不提交），立即作用于下一次调用。
 
@@ -89,13 +91,14 @@ worktree 会话始终排除其来源主检出；项目移动、主要文件夹�
 
 **工具名的写法。** 经 `/api/permissions` 与 `…/permission-rules` 写入时，工具名归一为规范名（`canonicalRuleTool`）：内置工具名与组名不区分大小写归为组名（`bash` → `Bash`，`write` / `edit` → `Edit`，`grep` → `Read`，`skill` → `Skill`，后者即使本次 Run 未注册 skill 工具也接受），宿主工具按注册名不区分大小写匹配；按 Run 贡献的工具即使当前未注册也接受（`memory_write` / `memory_delete` → `Memory`，`memory_list`、`list_mcp_resources`、`list_mcp_resource_templates`、`read_mcp_resource` 按原名；之后新增的贡献工具在 Run 开始时登记）；`mcp__` 开头的名字即使当前未注册也原样接受（Server 可能尚未连接）；都不是时 400 `bad-request`，`details = { reason: 'unknown-tool', tool }`，设置分区在输入框下行内提示。库中已有的非规范写法在读入时归一；`decide` 也按组名、不区分大小写比较，旧规则不会静默失效。
 
-**判定步骤。** `decideWithStep` 另给出作出判定的步骤：`deny-rule`、`ask-rule`、`protected`（受保护路径）、`outside-writable`（越出可写根，或没有目标的写入）、`mode`（模式放行；plan-exit 的总询问也记在这一步）、`allow-rule`、`default`（模式与规则都没有放行的询问）。`decide` 只返回判定。
+**判定步骤。** `decideWithStep` 另给出作出判定的步骤：`deny-rule`、`planning`（规划中拒绝写入）、`ask-rule`、`protected`（受保护路径）、`outside-writable`（越出可写根，或没有目标的写入）、`mode`（模式放行；plan-exit 的总询问也记在这一步）、`allow-rule`、`default`（模式与规则都没有放行的询问）。`decide` 只返回判定。
 
-**外部 Hook 的位置（M5）。** 权限 gate 接受 `PermissionHookPort { preToolUse, permissionRequest }`，由 Hook 的上下文贡献给出（[外部 Hook](hooks.md)，[ADR 0013](../adr/0013-external-hooks-tighten-only.md)）。PreToolUse 对每次调用在判定结果生效之前运行：Hook 的 deny 优先于一切（`Blocked by hook: <reason>`，结果带 `details.hostBlock { by: 'hook' }`）；之后是规则拒绝；第 2–4 步、提权与 plan-exit 的询问不能被 Hook 的 allow 免掉；Hook 的 ask 强制询问且没有建议规则（等待中模式放宽不使它消失）；Hook 的 allow 只能放行第 7 步的询问，与一条允许规则同位。最终为第 7 步的询问时，出卡片之前运行 PermissionRequest：deny 拒绝，allow 提交 `approval_request` 与 `approval_decision { by: hook }` 后执行，其余出卡片。没有 Hook 或 Hook 没有决定时 gate 的行为与之前相同。
+**外部 Hook 的位置（M5）。** 权限 gate 接受 `PermissionHookPort { preToolUse, permissionRequest }`，由 Hook 的上下文贡献给出（[外部 Hook](hooks.md)，[ADR 0013](../adr/0013-external-hooks-tighten-only.md)）。PreToolUse 对每次调用在判定结果生效之前运行：Hook 的 deny 优先于一切（`Blocked by hook: <reason>`，结果带 `details.hostBlock { by: 'hook' }`）；之后是规则拒绝与规划中的写入拒绝（Hook 的 allow 与 ask 都不改变它；Hook 的 deny 仍优先并保留自己的文本）；第 2–4 步、提权与 plan-exit 的询问不能被 Hook 的 allow 免掉；Hook 的 ask 强制询问且没有建议规则（等待中模式放宽不使它消失）；Hook 的 allow 只能放行第 7 步的询问，与一条允许规则同位。最终为第 7 步的询问时，出卡片之前运行 PermissionRequest：deny 拒绝，allow 提交 `approval_request` 与 `approval_decision { by: hook }` 后执行，其余出卡片。没有 Hook 或 Hook 没有决定时 gate 的行为与之前相同。
 
 顺序固定（ADR 0005）：
 
 1. 拒绝规则 → deny，模型收到 `Permission denied by rule …`，Run 继续。
+1. 规划中的 edit 组写入 → deny（判定为 `{ behavior: 'deny', reason: 'planning' }`，不是规则拒绝），不询问；允许规则、模式与 Hook 的 allow 都不能免掉。模型收到：`Refused: plan mode is active, so file writes are blocked until the user approves a plan. Do not retry or work around this; describe the intended change in the plan (or in your report to the parent agent) instead.` 等待审批中的写入在进入规划后经重新判定以 superseded 结束，模型收到同一文本。
 2. 询问规则 → ask（没有建议规则）。
 3. edit 组写入受保护路径 → ask，没有建议规则；允许规则与模式都不能免掉。
 4. edit 组写入越出可写根 → ask，没有建议规则（这次批准即这次提权）。
@@ -111,7 +114,7 @@ worktree 会话始终排除其来源主检出；项目移动、主要文件夹�
 
 ## 命令沙箱与提权
 
-**档位与执行。** bash 每次执行时按当时的模式现算沙箱策略 `{ mode, writableRoots }`，经执行上下文（`ToolExecutionContext.sandbox`）交给执行端口。Sidecar 的 bash 由 `adapters/seatbelt.ts` 包裹为 `/usr/bin/sandbox-exec -p <profile> -- /bin/bash -c <command>`：
+**档位与执行。** bash 每次执行时按当时的模式与是否规划中现算沙箱策略 `{ mode, writableRoots }`（规划中一律 read-only、可写根为空，策略另带 `escalation: false`，进入规划前已批准而未执行的提权也不再生效），经执行上下文（`ToolExecutionContext.sandbox`）交给执行端口。Sidecar 的 bash 由 `adapters/seatbelt.ts` 包裹为 `/usr/bin/sandbox-exec -p <profile> -- /bin/bash -c <command>`：
 
 ```text
 (version 1) (allow default) (deny file-write*) (allow file-write* (literal "/dev/null")) (allow file-write* (subpath "<root>") …)
@@ -120,7 +123,7 @@ worktree 会话始终排除其来源主检出；项目移动、主要文件夹�
 
 SBPL 中后出现的规则优先：workspace-write 在可写根之后，对绝对路径任意深度的受保护路径段（与判定相同的集合 `PROTECTED_PATH_NAMES`，不区分大小写）追加 deny，被拒后走提权。受保护段的正则不拼入用户提供的根路径，因此带引号、反斜杠、`]` 或 `^` 的文件夹仍受保护。read-only 没有 subpath；danger-full-access 不包裹。沙箱只约束文件写入，不限制网络与读取。经审批或允许规则放行的命令同样在本档位内运行。
 
-**拒绝。** 受限命令非零退出且输出含 `operation not permitted`（大小写不敏感）时视为被沙箱拒绝：结果在退出码之前追加拒绝标记 `[sandbox: file access denied under <mode> mode]` 与提权提示（文本沿用 DSH，属于模型可见契约），`details.sandbox = { mode, denied: true }`；工具卡标题行显示"被沙箱拦截（档位）"。
+**拒绝。** 受限命令非零退出且输出含 `operation not permitted`（大小写不敏感）时视为被沙箱拒绝：结果在退出码之前追加拒绝标记 `[sandbox: file access denied under <mode> mode]` 与提权提示（文本沿用 DSH，属于模型可见契约；规划中提权提示替换为 `[sandbox: escalation is not available in plan mode]`），`details.sandbox = { mode, denied: true }`；工具卡标题行显示"被沙箱拦截（档位）"。
 
 **不可用（fail-closed）。** 启动时以 read-only profile 运行一次 `sandbox-exec … -- /usr/bin/true`；失败或可执行文件不存在（非 macOS）时记 warn `command sandbox unavailable`，Sidecar 照常启动。此后受限档位的命令不运行，结果为 `sandbox-unavailable: the command was not run because the <mode> sandbox is not available …`；full-access 不受影响。运行时包裹的可执行文件消失（spawn 报 ENOENT / EACCES）按同样方式处理。`@coko/agent` 的内置本地执行没有沙箱：宿主不提供 `LocalSandbox` 时受限档位一律 fail-closed。
 
@@ -134,6 +137,7 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对绝�
 | 档位不在取值内（如 `read-only`） | pi 的参数校验错误，不询问 |
 | 严格更宽，但本 Run 中同一命令（合并空白后）没有被沙箱拒绝过 | 参数错误 `invalid escalation: sandbox_permissions only retries a command the sandbox denied in this run …`，不询问也不执行 |
 | 严格更宽，且同一命令本 Run 中被沙箱拒绝过 | kind=escalation 的审批请求，替代该次调用的普通审批 |
+| 规划中，严格更宽（不论是否被拒绝过） | 错误结果 `invalid escalation: plan mode is active, so commands run in a read-only sandbox and cannot be escalated. Do not retry; describe the step that needs write access in the plan instead.`，不询问也不执行 |
 
 **提权请求。** `approval_request { kind: 'escalation', subject: 命令, targetMode, justification, suggestions: [] }`。拒绝规则仍然先生效；允许规则与模式放行不能免掉提权审批。只能允许一次（scope 非 once 时 400）或拒绝；不随模式或规则变更重新判定。允许后该调用以目标档位（执行时模式档位更宽则取后者）运行，只对这一次调用有效，Run 结束时未用掉的授权作废。无反馈拒绝：调用得到 `The user rejected escalating this command to "<mode>"; it stays denied, so stop and explain instead of working around it.`，与普通无反馈拒绝一样 Run 在本批结束后以 aborted 结束；带反馈的拒绝把反馈交给模型，Run 继续。
 
@@ -232,7 +236,7 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对绝�
 
 - [项目根的 Sidecar 协议用例](../../tests/integration/sidecar-project-permissions.test.ts)：附加根读取、模式写入、Run 快照、归属移动、子代理、worktree 来源排除、拒绝过滤、符号链接及 cwd 资源发现；其中 Seatbelt 用例仅在 darwin 运行。
 
-- `packages/agent/src/policy/decide.test.ts`：判定顺序、四种模式 × 工具类型、拒绝与询问规则在 full-access 下生效、受保护路径不被允许规则免除、建议规则；权限类（context-read、memory-write、external、session-state 在四种模式下的放行，memory-write 另含 plan 放行、询问与拒绝规则仍生效，plan-exit 在四种模式下都询问且允许规则不生效，plan 模式与 read-only 的判定相同、plan-exit 在 plan 中询问、`permission_mode` v1 → v2，`mcp__srv` 规则的匹配范围，未注册的 `mcp__` 名字被接受）与额外读取根。`policy/permission-class.test.ts`：权限类与读取根经运行时的权限 gate 生效，工具对象自身声明的类不生效；`tools/registry.test.ts`：注册时给出的类。
+- `packages/agent/src/policy/decide.test.ts`：判定顺序、四种模式 × 工具类型、拒绝与询问规则在 full-access 下生效、受保护路径不被允许规则免除、建议规则；权限类（context-read、memory-write、external、session-state 在四种模式下的放行，memory-write 另含 plan 放行、询问与拒绝规则仍生效，plan-exit 在四种模式下都询问且允许规则不生效，plan 模式与 read-only 的判定相同、plan-exit 在 plan 中询问、`permission_mode` v1 → v2、Permission Mode × 是否规划中 × 工具类型，`mcp__srv` 规则的匹配范围，未注册的 `mcp__` 名字被接受）与额外读取根。`policy/permission-class.test.ts`：权限类与读取根经运行时的权限 gate 生效，工具对象自身声明的类不生效；`tools/registry.test.ts`：注册时给出的类。
 - `packages/agent/src/policy/rules.test.ts`：bash 精确 / 前缀、复合命令拆分、命令替换与 50 个子命令上限、env 前缀剥离（含 `LD_PRELOAD` 不剥）、拒绝规则命中拆分后的子命令；gitignore 路径、`~/`、绝对路径。
 - `packages/agent/src/policy/decide.test.ts` 另覆盖规则工具名的大小写与别名（deny `bash(rm *)`、`Write(secret.txt)` 在 full-access 下生效）。`packages/agent/src/policy/execution-checks.test.ts`：目录工具的读取拒绝过滤、执行前复核（同批先建指向受保护文件的链接再 write）、缺失密钥不提交 `tool_exec`、提权须先被沙箱拒绝、暂停只改写被取消的审批、重新判定后重新询问；`tools/builtin/read-filter.test.ts`：grep、find、ls 的过滤。`sidecar-permissions.test.ts` 另覆盖规则工具名归一与 400 `unknown-tool`；`sidecar-context.test.ts` 覆盖经 `PUT /api/permissions` 写入 Memory、`memory_list` 与 MCP 资源工具的拒绝规则后生效；`sidecar-memory.test.ts` 覆盖记忆写入在 default、read-only、plan 下不经审批，全局询问规则出审批卡、全局与项目设置的拒绝规则拒绝、PreToolUse Hook 的 deny 阻止写入。
 - `packages/agent/src/policy/approvals.test.ts`、`reevaluate.test.ts`：运行时上的请求、允许一次、拒绝两种语义、同批顺序、停止、重新判定为 superseded。

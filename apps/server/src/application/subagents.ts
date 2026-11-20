@@ -65,6 +65,8 @@ export interface SubagentSessionHost {
   visibleTools(sessionId: string): string[] | undefined
   /** 父 Session 当前的权限模式（根 Session 的模式；isolation 在 plan / read-only 下为错误结果）。 */
   mode(sessionId: string): Promise<PermissionMode>
+  /** 父 Session 是否在规划中（根 Session 的计划阶段，ADR 0028；isolation 在规划中为错误结果）。 */
+  planning(sessionId: string): Promise<boolean>
   resolveModel(model: SessionModel): { priced: boolean }
   /** 父 Session 的当前（或默认）模型。 */
   sessionModel(session: StoredSession): Promise<SessionModel | undefined>
@@ -330,7 +332,7 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     if (goalId && goal!.budget.maxCost !== undefined && !priced)
       throw new Error(`The goal has a cost limit but model ${model.providerId}/${model.modelId} has no price; choose a priced model`)
     if (request.isolation === 'worktree') {
-      const mode = await sessions.mode(parentId)
+      const mode = (await sessions.planning(parentId)) ? 'plan' : await sessions.mode(parentId)
       if (mode === 'plan' || mode === 'read-only') throw new Error(`isolation: worktree is not available in ${mode} mode`)
       if (!this.#worktrees) throw new Error('Worktrees are not available')
     }

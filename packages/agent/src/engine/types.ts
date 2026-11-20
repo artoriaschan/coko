@@ -264,6 +264,10 @@ export interface RuntimePermissions {
   writeRoots?: () => readonly string[] | undefined
   mode: () => PermissionMode
   rules: () => readonly PermissionRule[]
+  /**
+   * Session 在规划中（计划阶段，ADR 0028）：write 类拒绝、命令在 read-only 沙箱中运行且不能提权。每次判定与执行现取；缺省不在规划中。
+   */
+  planning?: () => boolean
   /** 额外读取根（例如 Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理。每次判定现取。 */
   readRoots?: () => readonly string[]
   /** 外部 Hook 的 PreToolUse / PermissionRequest（ADR 0013）；缺省无。 */

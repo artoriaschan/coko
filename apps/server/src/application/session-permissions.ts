@@ -186,7 +186,7 @@ export class SessionPermissions implements PlanHost {
   }
 
   /**
-   * 运行时每次调用现算的模式与规则：Session 规则在前，其后是全局与 Workspace 规则（判定不依赖顺序）。模式取 Session 模式与作用域上限中
+   * 运行时每次调用现算的模式、是否规划中与规则：Session 规则在前，其后是全局与 Workspace 规则（判定不依赖顺序）。模式取 Session 模式与作用域上限中
    * 较窄者（narrowerMode；缺省没有上限）。
    */
   runtimePermissions(
@@ -194,11 +194,13 @@ export class SessionPermissions implements PlanHost {
     workspaceId: string,
     sessionId: string,
     cwd?: string,
-  ): { mode: () => PermissionMode; rules: () => PermissionRule[]; unattended?: { deniedText: string } } {
-    // 子 Session：state 是根 Session 的状态；模式在每次判定时取根当前模式（plan 按 read-only）与定义上限中较窄者。
+  ): { mode: () => PermissionMode; planning: () => boolean; rules: () => PermissionRule[]; unattended?: { deniedText: string } } {
+    // 子 Session：state 是根 Session 的状态；模式在每次判定时取根当前模式（plan 按 read-only）与定义上限中较窄者。是否规划中同样取根
+    // Session 的计划阶段（ADR 0028），根中途进入或退出即时生效。
     const child = this.#scopes.rootSessionId(sessionId) !== sessionId || this.#children.has(sessionId)
     return {
       mode: () => (child ? effectiveSubagentMode(state.mode, this.#scopes.modeCap(sessionId)) : narrowerMode(state.mode, this.#scopes.modeCap(sessionId))),
+      planning: () => state.phase.phase === 'planning',
       rules: () => [...state.rules, ...this.service.rulesFor(workspaceId, cwd), ...(child ? [] : (this.#scopes.extraRules?.(sessionId) ?? []))],
       // 子 Session 与根 Session 相同：无人回答时子代理的审批同样立即拒绝。
       ...(this.#unattended ? { unattended: this.#unattended } : {}),

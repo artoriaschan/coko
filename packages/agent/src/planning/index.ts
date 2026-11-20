@@ -12,6 +12,6 @@ export {
   planTitle,
 } from './exit-plan-mode.ts'
 export type { PlanReview } from './exit-plan-mode.ts'
-export { APPROVED_PLAN_MAX_CHARS, approvedPlanSection, PLAN_MODE_TEXT, planModeSection } from './prompt.ts'
+export { APPROVED_PLAN_MAX_CHARS, approvedPlanSection, PLAN_MODE_TEXT, planModeSection, SUBAGENT_PLAN_MODE_TEXT } from './prompt.ts'
 export { approvedPlanToReinject, latestPlan, nextPlanRef } from './state.ts'
 export type { PlanRef } from './state.ts'

@@ -117,6 +117,55 @@ describe('子代理：审批与有效权限', { timeout: 120_000 }, () => {
     expect([set.status, set.body.error.code]).toEqual([409, 'child-session'])
   })
 
+  it('根 Session 规划中派发的子代理（ADR 0028）：写入直接拒绝（无审批）、命令在只读沙箱、system 中是子 Session 的 <plan_mode>（不提提交计划）', async () => {
+    const env = await bootAgents([
+      { match: 'PARENT-P', content: [call('agent', 'a1', { description: 'probe', prompt: 'CHILD-P probe', subagent_type: 'general' })] },
+      {
+        match: 'CHILD-P',
+        content: [call('write', 'w1', { path: 'child.txt', content: 'x' }), call('bash', 'b1', { command: 'echo hi > child-cmd.txt' })],
+      },
+      { match: 'CHILD-P', content: 'reported' },
+      { match: 'PARENT-P', content: 'ok' },
+    ])
+    const parent = await env.open('plan')
+    // 根 Session 的允许规则对子 Session 同样有效：命令不询问，写入仍被拒绝。
+    for (const rule of [
+      { behavior: 'allow', tool: 'Edit' },
+      { behavior: 'allow', tool: 'Bash' },
+    ])
+      expect((await env.api.post(permissionPaths.sessionPermissionRules(parent), { rule })).status).toBe(200)
+    await env.submit(parent, 'PARENT-P go')
+    await env.stream.waitFor(() => runEnds(env.stream, parent).length >= 1, 30_000)
+    const child = starts(env.stream, parent)[0]!.agentId
+    const entries = await entriesOf(env, child)
+    expect(entries.filter((e) => e.kind === 'approval_request')).toEqual([])
+    const results = entries
+      .filter((e) => e.kind === 'message' && e.payload.role === 'toolResult')
+      .map((e) => ({ toolName: e.payload.toolName, text: (e.payload.content as { text?: string }[]).map((b) => b.text ?? '').join('') }))
+    expect(results[0]).toEqual({
+      toolName: 'write',
+      text: 'Refused: plan mode is active, so file writes are blocked until the user approves a plan. Do not retry or work around this; describe the intended change in the plan (or in your report to the parent agent) instead.',
+    })
+    // darwin：Seatbelt 以只读档位拒绝写入；其他平台没有 sandbox-exec，受限档位的命令 fail-closed。
+    expect(results[1]!.text).toContain(
+      process.platform === 'darwin'
+        ? '[sandbox: file access denied under read-only mode]\n[sandbox: escalation is not available in plan mode]'
+        : 'sandbox-unavailable',
+    )
+    expect(existsSync(join(env.wsPath, 'child.txt'))).toBe(false)
+    expect(existsSync(join(env.wsPath, 'child-cmd.txt'))).toBe(false)
+    const logged = byUser(await env.requests(), 'CHILD-P probe') as Logged[]
+    expect(logged.length).toBeGreaterThan(0)
+    for (const request of logged)
+      expect(request.find((m) => m.role === 'system')?.sections?.plan_mode).toBe(
+        [
+          '<plan_mode>',
+          'The parent session is in plan mode, so this task must not change the Workspace. File writes (write, edit) are refused and commands run in a read-only sandbox that cannot be escalated. Research, then report your findings and the changes you would make to the parent agent.',
+          '</plan_mode>',
+        ].join('\n'),
+      )
+  })
+
   it('对手用例：子级的工具表没有 agent、create_goal、schedule_create、job_output；调用它们失败；bash run_in_background 为参数错误', async () => {
     const env = await bootAgents([
       { match: 'PARENT-T', content: [call('agent', 'a1', { description: 'probe', prompt: 'CHILD-T probe', subagent_type: 'general' })] },

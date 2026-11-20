@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "当前的 Plan Mode 契约：plan 权限模式（判定与 read-only 相同、命令只读沙箱）、进入与退出（/plan、权限选择、Plan chip）与 prior、<plan_mode> 与 <approved_plan> 注入、exit_plan_mode 的校验与审阅（kind plan 的审批、editedPlan 与 mode）、plan 与 plan_phase 条目、计划阶段与 Session 计划读取接口、界面（审阅卡、右栏 Plan tab、计划卡）。修改规划模式、计划提交或审阅界面前查阅。"
+description: "当前的 Plan Mode 契约：plan 权限模式（模式放行与 read-only 相同）与计划阶段施加的硬性约束（写入拒绝、命令只读沙箱且不能提权）、进入与退出（/plan、权限选择、Plan chip）与 prior、<plan_mode> 与 <approved_plan> 注入、exit_plan_mode 的校验与审阅（kind plan 的审批、editedPlan 与 mode）、plan 与 plan_phase 条目、计划阶段与 Session 计划读取接口、界面（审阅卡、右栏 Plan tab、计划卡）。修改规划模式、计划提交或审阅界面前查阅。"
 lifecycle: active
 ---
 
 # Plan Mode
 
-Plan Mode 让 Agent 先调研与设计、由用户审阅计划后再动手。它是第五种 Permission Mode `plan`（决定见 [ADR 0005](../adr/0005-permission-mode-and-sandbox.md)）：判定与 read-only 相同，命令在只读沙箱中运行；Agent 用 `exit_plan_mode` 提交以 `#` 标题开头的 Markdown 计划，用户批准（可先编辑）后回到进入规划前的模式，或带反馈让它继续规划。“是否在规划”记在独立的计划阶段条目 `plan_phase` 中（[ADR 0028](../adr/0028-plan-phase-not-permission-mode.md)）；当前它与 `plan` 模式同步进出，判定仍按 `plan` 模式。模型可调用的"进入规划"工具、计划写入 Workspace 文件与语义化授权不在当前范围。
+Plan Mode 让 Agent 先调研与设计、由用户审阅计划后再动手。它是第五种 Permission Mode `plan`（决定见 [ADR 0005](../adr/0005-permission-mode-and-sandbox.md)），模式放行与 read-only 相同；Agent 用 `exit_plan_mode` 提交以 `#` 标题开头的 Markdown 计划，用户批准（可先编辑）后回到进入规划前的模式，或带反馈让它继续规划。“是否在规划”记在独立的计划阶段条目 `plan_phase` 中（[ADR 0028](../adr/0028-plan-phase-not-permission-mode.md)）；当前它与 `plan` 模式同步进出。“不改 Workspace”由计划阶段保证：规划中写入直接拒绝、命令在只读沙箱中运行且不能提权；其余调用按 `plan` 模式（与 read-only 相同）询问。模型可调用的"进入规划"工具、计划写入 Workspace 文件与语义化授权不在当前范围。
 
 ## 结构入口
 
@@ -14,7 +14,7 @@ Plan Mode 让 Agent 先调研与设计、由用户审阅计划后再动手。它
 | --- | --- |
 | `packages/agent/src/planning/` | `<plan_mode>` 与 `<approved_plan>` 文本（`prompt.ts`）；`createExitPlanModeTool(review)`、`PlanReview`、计划校验与模型可见文本（`exit-plan-mode.ts`）；条目派生 `nextPlanRef`、`latestPlan`、`approvedPlanToReinject`（`state.ts`） |
 | `packages/agent/src/entries/plan-phase.ts`（`@coko/agent/entries`，浏览器安全） | 计划阶段与活动 Plan 的派生 `planPhaseOf`、`activePlanOf` |
-| `packages/agent/src/policy/decide.ts`、`sandbox.ts`、`gate.ts` | plan 的模式放行与沙箱档位；plan-exit 总询问；权限 hook 在询问前提交 proposed 的计划并以 kind plan 等待审阅 |
+| `packages/agent/src/policy/decide.ts`、`sandbox.ts`、`gate.ts`、`engine/permission-wiring.ts` | plan 的模式放行；规划中的写入拒绝、只读沙箱、提权与固定档位的拒绝；plan-exit 总询问；权限 hook 在询问前提交 proposed 的计划并以 kind plan 等待审阅 |
 | `packages/agent/src/session-entries/{planning,permissions}.ts`、`packages/protocol/src/{planning,permissions}.ts` | `plan` 条目（v2）、`plan_phase` 条目、`SessionPlanResponse` 与 `planPaths`、`permission_mode` v2 的 `prior`、`approval_request` 的 kind plan、`AnswerApprovalRequest` 的 `editedPlan` 与 `mode`、`planMarkdownProblem` / `planTitle` |
 | `apps/server/src/application/context/plan.ts` | 上下文贡献：开始时计划阶段为规划中的 Run 注册 `exit_plan_mode` 并注入 `<plan_mode>`；`<approved_plan>`；`/plan` 动作 |
 | `apps/server/src/application/session-permissions.ts` | prior 的记录与恢复、计划阶段的回放与提交、计划审阅（提交 plan 条目、批准时的编辑与模式）、Session 计划的读取 |
@@ -23,7 +23,7 @@ Plan Mode 让 Agent 先调研与设计、由用户审阅计划后再动手。它
 
 ## 模式与进入退出
 
-- **判定。** 模式放行与 read-only 相同：Workspace 与额外读取根内的 read 组、context-read、session-state 与 memory-write（记忆写入不经审批，见 [ADR 0027](../adr/0027-memory-follows-project-writes-without-approval.md)）放行；写入、bash、MCP 照常询问。命令沙箱为 read-only，可写根为空，已批准的命令也不能写 Workspace。进入 plan 之前在较宽档位启动的 PTY Job 不接受 `job_input`（见 [PTY 与 stdin](execution.md#pty-与-stdin)）；非 PTY 的后台 Job 已在运行，切换模式不改变它的沙箱。判定顺序与规则不变，见 [权限判定与审批](permissions.md#模式)。
+- **判定。** 规划中（计划阶段为 `planning`）的约束由阶段施加，不依赖用户不点批准：write、edit 与权限类 edit 的调用在拒绝规则之后直接拒绝，允许规则、模式与外部 Hook 的 allow 都不能放行，Hook 的 deny 仍优先并保留自己的文本；不产生审批请求，模型收到 `Refused: plan mode is active, so file writes are blocked until the user approves a plan. …`。命令沙箱一律 read-only、可写根为空，被批准或被规则放行的写文件命令也会失败，被沙箱拒绝时提权提示换为 `[sandbox: escalation is not available in plan mode]`；带提权参数的 bash 直接返回 `invalid escalation: plan mode is active, …`，不询问。进入规划之前在较宽档位启动的 PTY Job 不接受 `job_input`（`Not sent: … but plan mode only allows the read-only sandbox; …`，见 [PTY 与 stdin](execution.md#pty-与-stdin)）；非 PTY 的后台 Job 已在运行，进入规划不改变它的沙箱。带 isolation 的 agent 调用为错误结果。其余调用按 Permission Mode：当前进入规划仍把模式设为 plan，模式放行与 read-only 相同（Workspace 与额外读取根内的 read 组、context-read、session-state 与 memory-write 放行，见 [ADR 0027](../adr/0027-memory-follows-project-writes-without-approval.md)；bash、MCP 等询问）。约束在每次调用时现取：Run 进行中进入或退出规划，下一次调用即生效或解除。判定顺序见 [权限判定与审批](permissions.md#判定)。
 - **进入。** `PUT /api/sessions/:id/permission-mode { mode: 'plan' }` 或 `/plan [消息]`：提交 `permission_mode { mode: 'plan', prior }`，prior 为当时的模式；已处于 plan 时不再提交，prior 不变。`/plan 消息` 在切换后把消息作为普通提交（202 `{ runId }`），没有消息时 204。Shift+Tab 循环不含 plan，从 plan 按 Shift+Tab 回到 read-only。
 - **退出。** `/plan off` 与 Plan chip 的 × 回到 prior（没有记录时 default），不在 plan 时不提交；从 plan 选择其他模式即退出，不经审阅。`/plan` 在 Run 进行中以 `run-in-progress` 拒绝（模式菜单与 chip 照常可用）。
 - **计划阶段。** `plan_phase` 条目记录一次转换：`{ phase: 'none' }`、`{ phase: 'planning' }` 或 `{ phase: 'executing', planId }`（当前不写入 executing）；与 `permission_mode` 一样经 `runtimes.commit` 提交，不带 runId。每条进入路径（切换接口设为 `plan`、`/plan`、新建 Session 或首次发送带 `permissionMode: 'plan'`）在 `permission_mode` 之后提交 `planning`；每条退出路径（`/plan off`、Plan chip、从 plan 选择其他模式、批准计划）在 `permission_mode` 之前提交 `none`。已在该阶段时不提交；已在 plan 模式但没有阶段条目的 Session 再次进入时只补提交 `planning`。服务端按原始条目顺序回放最后一条（与 Permission Mode 同一口径，回退不改变它）；`@coko/agent/entries` 的 `planPhaseOf` 按有效条目取最后一条，没有时为 none。每次转换进入审计序列（`plan_phase` 事件，executing 时带 planId）。
@@ -33,7 +33,7 @@ Plan Mode 让 Agent 先调研与设计、由用户审阅计划后再动手。它
 
 ## 注入
 
-- 开始时计划阶段为规划中的 Run 注入 system section `<plan_mode>`（只调研与设计、不改动 Workspace、用 exit_plan_mode 提交以 # 标题开头的完整计划），并注册 `exit_plan_mode`（权限类 plan-exit）。子 Session 取根 Session 的阶段（`exit_plan_mode` 对子代理排除）。section 与工具在 Run 开始时取值：Run 中批准后阶段与模式已恢复，本 Run 剩余的请求仍带 `<plan_mode>`；批准的结果写明 plan 模式已结束、忽略之前的 `<plan_mode>`，同一 Run 中再调用 `exit_plan_mode` 时不审阅，直接返回错误结果 `Not in plan mode: …`。
+- 开始时计划阶段为规划中的 Run 注入 system section `<plan_mode>`（只调研与设计；写入会被拒绝、改为写进计划；命令在只读沙箱中运行且不能提权；读取与搜索放行、其他调用可能需要批准；用 exit_plan_mode 提交以 # 标题开头的完整计划），并注册 `exit_plan_mode`（权限类 plan-exit）。子 Session 取根 Session 的阶段，收到另一段 `<plan_mode>`：父 Session 在规划中、本任务不可改动 Workspace（写入被拒、命令在不能提权的只读沙箱中），调研后把发现与拟做的改动报告给父代理；不提提交计划（`exit_plan_mode` 对子代理排除）。section 与工具在 Run 开始时取值：Run 中批准后阶段与模式已恢复，本 Run 剩余的请求仍带 `<plan_mode>`；批准的结果写明 plan 模式已结束、忽略之前的 `<plan_mode>`，同一 Run 中再调用 `exit_plan_mode` 时不审阅，直接返回错误结果 `Not in plan mode: …`。
 - 最新的 approved 计划早于最后一个有效 compaction 的 `firstKeptSeq`（已被摘要掉）时，之后每个 Run 注入 `<approved_plan>`（正文至多 16 000 字符，超出截断并注明总长度）。与模式无关。section 顺序见 [上下文管理](context.md#压缩后的-approved_plan)。
 
 ## 提交与审阅
@@ -64,8 +64,8 @@ Plan Mode 让 Agent 先调研与设计、由用户审阅计划后再动手。它
 ## 验证
 
 - `packages/agent/src/session-entries/session-entries.test.ts`：`plan` v1 → v2、`plan_phase` 的形状；`packages/agent/src/agents/{fork,handoff}.test.ts`：规划中的源追加 `plan_phase { planning }`；`packages/agent/src/observability/trace.test.ts`：`plan_phase` 审计事件；`apps/server/src/application/session-permissions.test.ts`：子 Session 读取根 Session 的计划、没有阶段条目的 plan 模式 Session 不在规划中。
-- `packages/agent/src/policy/decide.test.ts`：plan × 各工具类型与 read-only 相同、session-state 放行、plan-exit 询问且允许规则不生效、`permission_mode` v1 → v2；`sandbox.test.ts`：plan → read-only。`packages/agent/src/planning/planning.test.ts`：planId / revision 派生（以 `plan_phase` 为起点）、`planPhaseOf` 与 `activePlanOf`、`<approved_plan>` 的判定与截断、计划校验，以及运行时上的审阅闭环（批准、带反馈与无反馈拒绝、参数错误不询问）。
-- `tests/integration/sidecar-plan.test.ts`：真实 Sidecar 上 `/plan` 进入与 prior、`<plan_mode>`、写入询问、命令被只读沙箱拒绝（darwin；其他平台 fail-closed）、提交与审阅、回答校验（`mode: full-access` 与宽于 prior 的模式 400）、编辑后批准的新 revision、带反馈继续规划、从 accept-edits 进入后批准回到 accept-edits、批准后同一 Run 的 `exit_plan_mode` 不再审阅、`/plan off`、压缩后的 `<approved_plan>`、分叉（含分叉后的计划阶段）；各进入与退出路径的 `plan_phase`（不重复提交、相对 `permission_mode` 的顺序）、`GET …/plan` 读回阶段与待审阅的计划、批准的条目顺序、审计中的阶段转换、首次发送带 plan。`secrets-gate-plan.test.ts`：plan 条目、审批卡、结果、WS 与 `<approved_plan>` 中没有登记明文。
+- `packages/agent/src/policy/decide.test.ts`：plan × 各工具类型与 read-only 相同、session-state 放行、plan-exit 询问且允许规则不生效、`permission_mode` v1 → v2，以及 Permission Mode × 是否规划中 × 工具类型（规划中写入在拒绝规则之后拒绝，其余与不在规划中相同）；`sandbox.test.ts`：plan → read-only、规划中一律 read-only 且可写根为空。`policy/escalation.test.ts`：规划中写入拒绝、各模式下命令在 read-only 沙箱、拒绝后的规划标记、提权直接出错、Run 中途进入规划；`policy/gate-hooks.test.ts` 与 `extensions/hooks/hooks.test.ts`：Hook allow 不放行规划中的写入、Hook deny 优先。`apps/server/src/application/subagents-dispatch.test.ts`：规划中带 isolation 的派发在派发处被拒。`packages/agent/src/planning/planning.test.ts`：planId / revision 派生（以 `plan_phase` 为起点）、`planPhaseOf` 与 `activePlanOf`、`<approved_plan>` 的判定与截断、计划校验，以及运行时上的审阅闭环（批准、带反馈与无反馈拒绝、参数错误不询问）。
+- `tests/integration/sidecar-plan.test.ts`：真实 Sidecar 上 `/plan` 进入与 prior、`<plan_mode>` 全文、写入直接拒绝且无审批、有允许规则时写入仍被拒且文件逐字节不变、命令被只读沙箱拒绝（darwin；其他平台 fail-closed）且带规划标记、提权参数出错且不询问、提交与审阅、回答校验（`mode: full-access` 与宽于 prior 的模式 400）、编辑后批准的新 revision、带反馈继续规划、从 accept-edits 进入后批准回到 accept-edits、批准后同一 Run 的 `exit_plan_mode` 不再审阅、`/plan off`、压缩后的 `<approved_plan>`、分叉（含分叉后的计划阶段）；各进入与退出路径的 `plan_phase`（不重复提交、相对 `permission_mode` 的顺序）、`GET …/plan` 读回阶段与待审阅的计划、批准的条目顺序、审计中的阶段转换、首次发送带 plan。`secrets-gate-plan.test.ts`：plan 条目、审批卡、结果、WS 与 `<approved_plan>` 中没有登记明文。`sidecar-hooks.test.ts`：全局 Hook 的 allow 不放行规划中的写入；`sidecar-subagents-permissions.test.ts`：规划中派发的子代理写入被拒、命令在只读沙箱、system 中是子 Session 的 `<plan_mode>`；`sidecar-subagents-isolation.test.ts`：规划中带 isolation 的派发为错误结果；`sidecar-pty.test.ts`：规划中向较宽档位终端的输入被拒；`sidecar-project-permissions.test.ts` 与 `sidecar-rewind.test.ts`：附加根与分叉后规划中的写入直接拒绝。
 - `apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx`（审阅卡、只在更窄时给出的"批准并允许编辑"、右栏 Plan tab、chip 与模式菜单在同一文件中依次渲染；共用 setup 断言没有遗留的模态层）；`apps/desktop/e2e/plan.e2e.test.ts`：`/plan` 进入、chip 关闭并从协议读回 prior、提交后右栏自动打开、继续规划、右栏编辑后批准并执行、模式恢复与计划卡。
 
 ## 延伸阅读

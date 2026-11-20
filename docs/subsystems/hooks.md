@@ -100,7 +100,7 @@ PreToolUse 在权限 gate 内、`decide` 的结果生效之前对每次调用运
 | 条件（按顺序） | 结果 |
 | --- | --- |
 | H = deny | 拒绝：`Blocked by hook: <reason>`，结果带 `details.hostBlock { by: 'hook', hookId, command }`，Run 继续 |
-| P = deny | 按规则拒绝 |
+| P = deny | 按规则拒绝；P 为规划中的写入拒绝（[ADR 0028](../adr/0028-plan-phase-not-permission-mode.md)）时为规划的拒绝文本，H 的 allow 与 ask 都不改变它 |
 | P 来自第 2–4 步（询问规则、受保护路径、越出可写根），或调用为 plan-exit | 按 P 询问（H 的 allow 无效） |
 | 调用带提权参数或效果固定在更宽的沙箱中 | 照常走提权询问（H 的 allow 无效） |
 | H = ask | 询问，没有建议规则 |
@@ -201,7 +201,7 @@ Coko 产生桌面通知时运行（`NotificationService.notify` 先通知 Hook�
 - `packages/agent/src/extensions/hooks/hooks.test.ts`：配置解析与每种诊断、matcher、if（复合命令）、输出解释、聚合与组合表每一行（表驱动）。
 - `packages/agent/src/policy/gate-hooks.test.ts`：运行时中的组合（Hook deny 在 full-access 下、allow 免掉第 7 步、对手用例：allow 不免掉询问规则 / 受保护路径 / 越出可写根，ask 不随模式放宽消失）与 PermissionRequest 的三种结论。
 - `apps/server/src/adapters/hook-runner.test.ts`：stdin、环境过滤、输出上限、忽略 SIGTERM 时 2 秒后 SIGKILL 与登记释放（darwin）。
-- `tests/integration/sidecar-hooks.test.ts`：真实 Sidecar 与 Hook 夹具，覆盖上述事件、并行聚合、超时与进程组终止（darwin）、非法输出、项目 Hook 的批准与改动、能力开关与对手用例（含提权与 plan-exit、伪造的 Hook JSON、`if: Bash(rm *)` 的 guard）。
+- `tests/integration/sidecar-hooks.test.ts`：真实 Sidecar 与 Hook 夹具，覆盖上述事件、并行聚合、超时与进程组终止（darwin）、非法输出、项目 Hook 的批准与改动、能力开关与对手用例（含提权与 plan-exit、规划中的写入、伪造的 Hook JSON、`if: Bash(rm *)` 的 guard）。
 - `tests/integration/sidecar-hooks-lifecycle.test.ts`：真实 Sidecar 与内联 bash Hook，覆盖 UserPromptSubmit（400 `hook-blocked` 且没有 user message 与 run_start、`<hook-context>` 块、continue: false、定时任务与 Goal Round 不运行）、Stop（继续与 stop_hook_active、第 4 次忽略、伪造的 Hook JSON 不继续、暂停与停止不运行）、PreCompact（手动 400 与 stdout 追加、自动跳过、溢出不运行）、Notification（输入字段、matcher、失败不影响通知）、PreToolUse 的 continue: false（含 Goal Round），以及对手用例：Stop 持续 block 时 Goal 的 maxTokens 在继续的请求前生效、未批准的项目 UserPromptSubmit 不运行、改动后为已改动。
 - `apps/server/src/application/hooks.test.ts`：Stop 与 UserPromptSubmit 在子 Session 中不运行。
 - `tests/integration/sidecar-teams-hooks.test.ts`：TaskCreated exit 2 时没有 `team_task` 条目、TaskCompleted exit 2 时任务保持 in_progress、TeammateIdle 的继续与第 4 次忽略、三个事件的 stdin、未批准的项目 Hook 不运行。

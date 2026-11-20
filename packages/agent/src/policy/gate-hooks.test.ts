@@ -21,6 +21,7 @@ afterEach(async () => {
 
 interface Setup {
   mode?: PermissionMode
+  planning?: boolean
   rules?: PermissionRule[]
   pre?: (call: HookToolCall) => HookVerdict
   request?: (call: HookToolCall) => HookVerdict
@@ -41,6 +42,7 @@ function harness(setup: Setup) {
     commit: async () => {},
     permissions: {
       mode: () => state.mode,
+      planning: () => setup.planning ?? false,
       rules: () => setup.rules ?? [],
       hooks: {
         preToolUse: async (call) => (calls.pre.push(call), setup.pre?.(call) ?? {}),
@@ -125,6 +127,26 @@ describe('PreToolUse 与判定的组合', () => {
     expect(await readFile(ws.path('out.txt'), 'utf8')).toBe('hi')
     expect(kinds(h.entries)).not.toContain('approval_request')
     expect(h.calls.request).toEqual([])
+  })
+
+  it('规划中（ADR 0028）：Hook allow 与允许规则都不能放行写入，不询问，文件不存在；Hook deny 仍优先并保留自己的文本', async () => {
+    const allowed = harness({
+      mode: 'full-access',
+      planning: true,
+      rules: [{ behavior: 'allow', tool: 'Edit' }],
+      pre: () => ({ decision: 'allow', source: 'global' }),
+    })
+    script(allowed, write('w1', 'plan.txt'))
+    await allowed.runtime.run('go')
+    expect(text(toolResults(allowed.entries)[0]!)).toMatch(/^Refused: plan mode is active, so file writes are blocked/)
+    expect(kinds(allowed.entries)).not.toContain('approval_request')
+    expect(allowed.calls.request).toEqual([])
+    expect(await exists(ws.path('plan.txt'))).toBe(false)
+
+    const denied = harness({ planning: true, pre: () => deny })
+    script(denied, write('w1', 'plan.txt'))
+    await denied.runtime.run('go')
+    expect(text(toolResults(denied.entries)[0]!)).toBe('Blocked by hook: no rm here')
   })
 
   const cases: [string, Setup, () => ReturnType<typeof fauxToolCall>][] = [

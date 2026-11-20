@@ -335,6 +335,73 @@ describe('plan 模式（Plan Mode，ADR 0005）', () => {
   })
 })
 
+describe('Permission Mode × 是否规划中 × 工具类型（ADR 0028）', () => {
+  const MODES = ['read-only', 'plan', 'default', 'accept-edits', 'full-access'] as const
+  type Mode = (typeof MODES)[number]
+  // 可写根按 sandbox.ts 的推导：规划中一律为空，否则按模式。
+  const roots = (mode: Mode, planning: boolean) => (planning || mode === 'read-only' || mode === 'plan' ? [] : mode === 'full-access' ? ['/'] : [WS, TMP])
+  const at = (mode: Mode, planning: boolean, rules: PermissionRule[] = []) =>
+    ctx({ mode, rules, writableRoots: roots(mode, planning), ...(planning ? { planning } : {}) })
+  type Expect = 'allow' | `deny:${string}` | `ask:${string}`
+  const outcome = (call: PermissionCall, context: PermissionContext): Expect => {
+    const { decision, step } = decideWithStep(call, context)
+    if (decision.behavior === 'ask') return `ask:${decision.reason}`
+    return decision.behavior === 'deny' ? `deny:${step}` : 'allow'
+  }
+  const PLANNING_DENIED = MODES.map(() => 'deny:planning')
+
+  it.each<[string, PermissionCall, Expect[] | 'same']>([
+    // 名称, 调用, 规划中五种模式的结果（same：与不在规划中相同）
+    ['Workspace 内 write', file('write', 'a.ts', `${WS}/a.ts`), PLANNING_DENIED as Expect[]],
+    ['Workspace 内 edit', file('edit', 'a.ts', `${WS}/a.ts`), PLANNING_DENIED as Expect[]],
+    ['可写根之外写入', file('write', '/etc/x', '/etc/x'), PLANNING_DENIED as Expect[]],
+    ['受保护路径写入', file('write', '.git/config', `${WS}/.git/config`), PLANNING_DENIED as Expect[]],
+    ['没有目标的写入', { toolName: 'write' }, PLANNING_DENIED as Expect[]],
+    [
+      '权限类 edit 的宿主工具',
+      { toolName: 'apply_patch', permissionClass: 'edit', subject: 'a.ts', target: { resolved: `${WS}/a.ts`, real: `${WS}/a.ts` } },
+      PLANNING_DENIED as Expect[],
+    ],
+    ['Workspace 内读取', file('read', 'a.ts', `${WS}/a.ts`), 'same'],
+    ['Workspace 外读取', file('read', '/etc/hosts', '/etc/hosts'), 'same'],
+    ['grep', file('grep', '.', WS), 'same'],
+    ['bash', bash('ls'), ['ask:approval-required', 'ask:approval-required', 'ask:approval-required', 'ask:approval-required', 'allow']],
+    ['memory-write', { toolName: 'memory_write', permissionClass: 'memory-write' }, 'same'],
+    ['session-state（Todo、Goal）', { toolName: 'todo_write', permissionClass: 'session-state' }, 'same'],
+    ['context-read', { toolName: 'memory_list', permissionClass: 'context-read' }, 'same'],
+    ['team', { toolName: 'team_message', permissionClass: 'team' }, 'same'],
+    ['agent（不带 isolation）', { toolName: 'agent', permissionClass: 'agent', subject: 'explore' }, 'same'],
+    ['external', { toolName: 'mcp__srv__x', permissionClass: 'external' }, 'same'],
+    ['plan-exit', { toolName: 'exit_plan_mode', permissionClass: 'plan-exit' }, 'same'],
+    ['未知工具', { toolName: 'deploy' }, 'same'],
+  ])('%s', (_name, call, planning) => {
+    const expected = planning === 'same' ? MODES.map((mode) => outcome(call, at(mode, false))) : planning
+    expect(MODES.map((mode) => outcome(call, at(mode, true)))).toEqual(expected)
+  })
+
+  it('不在规划中时 write 的结果与改动前相同（planning 缺省与 false 一致）', () => {
+    const write = file('write', 'a.ts', `${WS}/a.ts`)
+    expect(MODES.map((mode) => outcome(write, at(mode, false)))).toEqual([
+      'ask:outside-writable-roots',
+      'ask:outside-writable-roots',
+      'ask:approval-required',
+      'allow',
+      'allow',
+    ])
+    expect(decide(write, { ...at('default', false), planning: false })).toEqual(decide(write, at('default', false)))
+  })
+
+  it('规划中拒绝写入：紧随拒绝规则之后，先于询问规则、受保护路径、越出可写根、模式放行与允许规则；没有建议，不带规则', () => {
+    const write = file('write', '.git/config', `${WS}/.git/config`)
+    expect(decide(write, at('full-access', true, [rule('allow', 'Edit'), rule('ask', 'Edit')]))).toEqual({ behavior: 'deny', reason: 'planning' })
+    // 拒绝规则仍在它之前。
+    expect(decideWithStep(write, at('default', true, [rule('deny', 'Edit')]))).toEqual({
+      step: 'deny-rule',
+      decision: { behavior: 'deny', rule: rule('deny', 'Edit') },
+    })
+  })
+})
+
 describe('permission_mode 条目的版本', () => {
   const definition = permissionEntryPayloads.find((d) => d.kind === 'permission_mode')!
   const [v1, v2] = definition.versions

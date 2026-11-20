@@ -90,13 +90,17 @@ describe('回退与分叉', () => {
     stream.send({ type: 'subscribe', sessionId: id, afterSeq: 0 })
     await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === id)
     expect((await api.post(apiPaths.sessionMessages(id), { text: 'try writing' })).status).toBe(202)
-    const approval = await waitApproval(stream, id)
-    expect(await absent(join(root, 'blocked.txt'))).toBe(true)
-    expect((await api.post(apiPaths.sessionApproval(id, approval.requestId), { decision: 'deny' })).status).toBe(204)
+    // 票 03（ADR 0028）起分叉继承的规划阶段直接拒绝写入，不再出审批卡（原先断言询问后由用户拒绝）。
     await runEnds(stream, id, 1)
     expect(await absent(join(root, 'blocked.txt'))).toBe(true)
-    const result = (await entriesOf(api, id)).find((e) => e.kind === 'message' && (e.payload as { toolCallId?: string }).toolCallId === 'restricted-write')
-    expect(result?.payload).toMatchObject({ role: 'toolResult', isError: true })
+    const entries = await entriesOf(api, id)
+    expect(entries.filter((e) => e.kind === 'approval_request')).toEqual([])
+    const result = entries.find((e) => e.kind === 'message' && (e.payload as { toolCallId?: string }).toolCallId === 'restricted-write')
+    expect(result?.payload).toMatchObject({
+      role: 'toolResult',
+      isError: true,
+      content: [{ type: 'text', text: expect.stringMatching(/^Refused: plan mode is active/) }],
+    })
   })
 
   it('从较早成功助手回复包含边界分支；下一请求保留工具上下文且排除之后内容，原记录与文件不变', async () => {

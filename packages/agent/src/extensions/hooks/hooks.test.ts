@@ -260,6 +260,7 @@ describe('combinePreToolUse（组合表）', () => {
   })
   const allow = (step: SteppedDecision['step'] = 'mode'): SteppedDecision => ({ step, decision: { behavior: 'allow' } })
   const deny: SteppedDecision = { step: 'deny-rule', decision: { behavior: 'deny', rule: { behavior: 'deny', tool: 'Bash', content: 'rm *' } } }
+  const planningDeny: SteppedDecision = { step: 'planning', decision: { behavior: 'deny', reason: 'planning' } }
   const H = (decision?: 'allow' | 'deny' | 'ask'): HookVerdict => (decision ? { decision, reason: 'r', source: 'global' } : {})
   const shape = (c: ReturnType<typeof combinePreToolUse>) =>
     c.behavior === 'ask' ? `ask:${c.by}:${c.decision.suggestions.length}` : c.behavior === 'deny' ? `deny:${c.by}` : `allow:${c.by}`
@@ -269,6 +270,8 @@ describe('combinePreToolUse（组合表）', () => {
     ['H deny 优先于 P deny', H('deny'), deny, false, 'deny:hook'],
     ['H deny 优先于提权', H('deny'), allow(), true, 'deny:hook'],
     ['P deny（H allow）', H('allow'), deny, false, 'deny:rule'],
+    ['规划中拒绝写入（H allow 无效，ADR 0028）', H('allow'), planningDeny, false, 'deny:rule'],
+    ['H deny 优先于规划中拒绝写入', H('deny'), planningDeny, false, 'deny:hook'],
     ['P 询问来自询问规则：H allow 无效', H('allow'), ask('ask-rule', 'ask-rule'), false, 'ask:policy:0'],
     ['P 询问来自受保护路径：H allow 无效', H('allow'), ask('protected', 'protected-path'), false, 'ask:policy:0'],
     ['P 询问来自越出可写根：H allow 无效', H('allow'), ask('outside-writable', 'outside-writable-roots'), false, 'ask:policy:0'],

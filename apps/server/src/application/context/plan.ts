@@ -47,7 +47,8 @@ export function planContribution(_options: ContextContributionOptions): ContextC
       const host = hosts.get(contribution)
       if (!host || scope.sessionId === undefined) return []
       const sections: SystemSection[] = []
-      if ((await host.phase(scope.sessionId)) === 'planning') sections.push(planModeSection())
+      // 子 Session 取根 Session 的阶段，收到只讲不可改动的一段（没有 exit_plan_mode）。
+      if ((await host.phase(scope.sessionId)) === 'planning') sections.push(planModeSection(scope.parentSessionId !== undefined))
       const approved = approvedPlanToReinject(await host.entries(scope.sessionId))
       if (approved !== undefined) sections.push(approvedPlanSection(approved))
       return sections

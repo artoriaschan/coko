@@ -35,6 +35,8 @@ export {
   escalationHintMarker,
   escalationRejectedText,
   isWiderSandbox,
+  PLANNING_ESCALATION_TEXT,
+  planningEscalationMarker,
   sandboxDenialMarker,
   sandboxModeFor,
   sandboxPolicyFor,

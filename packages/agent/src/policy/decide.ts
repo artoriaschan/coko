@@ -1,5 +1,5 @@
 // 权限判定（ADR 0005）：纯函数，输入一次调用与当时的模式、规则、Workspace 与可写根，输出 allow / deny / ask。
-// 顺序固定：拒绝规则 → 询问规则 → 受保护路径 → 越出可写根的文件写入 → （plan-exit 总询问）→ 模式放行 → 允许规则 → 询问。
+// 顺序固定：拒绝规则 → 规划中拒绝写入（ADR 0028）→ 询问规则 → 受保护路径 → 越出可写根的文件写入 → （plan-exit 总询问）→ 模式放行 → 允许规则 → 询问。
 import { homedir } from 'node:os'
 import { relative, sep } from 'node:path'
 import type { PermissionMode, PermissionRule } from '../session-entries/index.ts'
@@ -147,8 +147,10 @@ export interface PermissionContext {
   rules: readonly PermissionRule[]
   /** Workspace 的真实路径。 */
   workspace: string
-  /** 文件写入与命令沙箱共用的可写根（真实路径）；read-only 与 plan 下为空，full-access 下为根目录。 */
+  /** 文件写入与命令沙箱共用的可写根（真实路径）；read-only、plan 与规划中为空，full-access 下为根目录。 */
   writableRoots: readonly string[]
+  /** Session 在规划中（计划阶段，ADR 0028）：write 类直接拒绝，紧随拒绝规则之后；缺省不在规划中。 */
+  planning?: boolean
   /** 额外读取根（真实路径，例如 Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理。 */
   readRoots?: readonly string[]
   /** `~/` 规则的主目录；缺省为 os.homedir()。 */
@@ -170,15 +172,17 @@ export type AskReason =
 export type PermissionDecision =
   | { behavior: 'allow' }
   | { behavior: 'deny'; rule: PermissionRule }
+  /** 规划中的文件写入（ADR 0028）：不是用户规则，允许规则与 Hook 的 allow 都不能免掉。 */
+  | { behavior: 'deny'; reason: 'planning' }
   /** suggestions：可保存为"总是允许"的规则；受保护路径、越界写入、询问规则与无法拆分的命令为空。 */
   | { behavior: 'ask'; reason: AskReason; suggestions: PermissionRule[] }
 
 /**
- * 给出判定的步骤（按判定顺序）：deny-rule、ask-rule、protected（受保护路径）、outside-writable（越出可写根或没有目标的写入）、
+ * 给出判定的步骤（按判定顺序）：deny-rule、planning（规划中拒绝写入）、ask-rule、protected（受保护路径）、outside-writable（越出可写根或没有目标的写入）、
  * mode（模式放行；plan-exit 的总询问也在这一步，它不能被 Hook 或规则免掉）、allow-rule、default（模式与规则都没有放行的询问）。
  * 外部 Hook 的组合按它区分：第 2–4 步的询问不能被 Hook 的 allow 免掉（ADR 0013）。
  */
-export type DecisionStep = 'deny-rule' | 'ask-rule' | 'protected' | 'outside-writable' | 'mode' | 'allow-rule' | 'default'
+export type DecisionStep = 'deny-rule' | 'planning' | 'ask-rule' | 'protected' | 'outside-writable' | 'mode' | 'allow-rule' | 'default'
 
 export interface SteppedDecision {
   decision: PermissionDecision
@@ -337,6 +341,7 @@ export function decideWithStep(call: PermissionCall, context: PermissionContext)
 
   const deny = restrictive('deny')
   if (deny) return at('deny-rule', { behavior: 'deny', rule: deny })
+  if (context.planning && category === 'write') return at('planning', { behavior: 'deny', reason: 'planning' })
   if (restrictive('ask')) return at('ask-rule', { behavior: 'ask', reason: 'ask-rule', suggestions: [] })
 
   const target = call.target

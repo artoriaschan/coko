@@ -476,6 +476,28 @@ describe('对手用例（权限）', () => {
     await h.sidecar.stop()
   })
 
+  it('全局 Hook 的 allow 不免掉规划中的写入（ADR 0028）：直接拒绝、没有审批、文件逐字节不变', async () => {
+    const h = await boot(
+      [
+        { content: [{ type: 'toolCall', name: 'edit', id: 'w1', arguments: { path: 'keep.txt', edits: [{ oldText: 'original', newText: 'changed' }] } }] },
+        { content: 'ok' },
+      ],
+      {
+        hooks: allowAll,
+      },
+    )
+    await writeFile(join(h.root, 'keep.txt'), 'original\n')
+    const sessionId = await h.open('plan')
+    await h.send(sessionId)
+    await h.runEnds(sessionId, 1)
+    expect(text(await resultOf(h.stream, sessionId, 'w1'))).toMatch(
+      /^Refused: plan mode is active, so file writes are blocked until the user approves a plan\./,
+    )
+    expect(h.stream.entries(sessionId).filter((e) => e.kind === 'approval_request')).toEqual([])
+    expect(await readFile(join(h.root, 'keep.txt'), 'utf8')).toBe('original\n')
+    await h.sidecar.stop()
+  })
+
   it.skipIf(!darwin)('全局 Hook 的 allow 不免掉提权（escalation 卡）与 plan-exit（计划审阅）', async () => {
     const outside = await realpath(await tempDir('coko-outside-'))
     const escalated = { sandbox_permissions: 'danger-full-access', justification: 'outside the workspace' }

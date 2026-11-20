@@ -35,9 +35,11 @@ function recordingExec(respond: (request: ExecRequest) => ExecOutcome = () => ({
   return { requests, port }
 }
 
-function harness(options: { mode?: PermissionMode; rules?: PermissionRule[]; exec?: ExecPort; tools?: CokoTool[]; secrets?: SecretProvider } = {}) {
+function harness(
+  options: { mode?: PermissionMode; planning?: boolean; rules?: PermissionRule[]; exec?: ExecPort; tools?: CokoTool[]; secrets?: SecretProvider } = {},
+) {
   const { faux, models, model } = createFauxModels()
-  const state = { mode: options.mode ?? 'default', rules: options.rules ?? [] }
+  const state = { mode: options.mode ?? 'default', rules: options.rules ?? [], planning: options.planning ?? false }
   const entries: RunEntry[] = []
   const waiters = new Set<() => void>()
   const exec = options.exec ?? recordingExec().port
@@ -50,7 +52,7 @@ function harness(options: { mode?: PermissionMode; rules?: PermissionRule[]; exe
     sessionId: 's1',
     tools: registry,
     commit: async () => {},
-    ...(options.tools ? {} : { permissions: { mode: () => state.mode, rules: () => state.rules } }),
+    ...(options.tools ? {} : { permissions: { mode: () => state.mode, rules: () => state.rules, planning: () => state.planning } }),
     ...(options.secrets ? { secrets: options.secrets } : {}),
   })
   runtime.subscribe((event) => {
@@ -193,6 +195,110 @@ describe('单次提权', () => {
       'The user rejected escalating this command to "danger-full-access"; it stays denied, so stop and explain instead of working around it.',
     )
     expect(exec.requests.map((r) => r.sandbox?.mode)).toEqual(['workspace-write'])
+  })
+})
+
+describe('规划中（计划阶段，ADR 0028）', () => {
+  const PLANNING_WRITE_REFUSED =
+    'Refused: plan mode is active, so file writes are blocked until the user approves a plan. Do not retry or work around this; describe the intended change in the plan (or in your report to the parent agent) instead.'
+  const PLANNING_ESCALATION_REFUSED =
+    'invalid escalation: plan mode is active, so commands run in a read-only sandbox and cannot be escalated. Do not retry; describe the step that needs write access in the plan instead.'
+
+  it('文件写入直接拒绝（T3）：不询问，文件不存在；允许规则与 full-access 都不能放行', async () => {
+    const h = harness({ mode: 'full-access', planning: true, rules: [{ behavior: 'allow', tool: 'Edit' }] })
+    h.faux.setResponses([
+      fauxAssistantMessage([fauxToolCall('write', { path: 'new.txt', content: 'x' }, { id: 'w1' })], { stopReason: 'toolUse' }),
+      fauxAssistantMessage('done'),
+    ])
+    expect((await h.runtime.run('go')).status).toBe('completed')
+    const [result] = toolResults(h.entries)
+    expect(result).toMatchObject({ toolCallId: 'w1', isError: true })
+    expect(text(result!)).toBe(PLANNING_WRITE_REFUSED)
+    expect(h.entries.some((e) => e.kind === 'approval_request')).toBe(false)
+    await expect(realpath(ws.path('new.txt'))).rejects.toThrow(/ENOENT/)
+  })
+
+  it.each(['default', 'accept-edits', 'full-access'] as const)('%s 模式下命令以 read-only 沙箱运行，可写根为空', async (mode) => {
+    const exec = recordingExec()
+    const h = harness({ mode, planning: true, rules: [allowBash], exec: exec.port })
+    h.faux.setResponses([fauxAssistantMessage(bash('b1', {}), { stopReason: 'toolUse' }), fauxAssistantMessage('done')])
+    await h.runtime.run('go')
+    expect(exec.requests.map((r) => r.sandbox)).toEqual([{ mode: 'read-only', writableRoots: [], escalation: false }])
+  })
+
+  it('被只读沙箱拒绝的命令：拒绝标记之后是 T5，不给提权提示', async () => {
+    const exec = recordingExec(() => ({ kind: 'exited', exitCode: 1, sandboxDenied: true }))
+    const h = harness({ planning: true, rules: [allowBash], exec: exec.port })
+    h.faux.setResponses([fauxAssistantMessage(bash('b1', {}), { stopReason: 'toolUse' }), fauxAssistantMessage('done')])
+    await h.runtime.run('go')
+    const output = text(toolResults(h.entries)[0]!)
+    expect(output).toContain(
+      '[sandbox: file access denied under read-only mode]\n[sandbox: escalation is not available in plan mode]\nCommand exited with code 1',
+    )
+    expect(output).not.toContain('escalation available')
+  })
+
+  it('带提权参数的命令直接出错（T4），不询问也不执行，即使本 Run 被沙箱拒绝过；参数错误仍按原文本', async () => {
+    const exec = recordingExec(() => ({ kind: 'exited', exitCode: 1, sandboxDenied: true }))
+    const h = harness({ mode: 'full-access', planning: true, exec: exec.port })
+    h.faux.setResponses([
+      fauxAssistantMessage(bash('p0', {}), { stopReason: 'toolUse' }),
+      fauxAssistantMessage([bash('b1', { sandbox_permissions: 'workspace-write', justification: 'build' }), bash('b2', { justification: 'only a reason' })], {
+        stopReason: 'toolUse',
+      }),
+      fauxAssistantMessage('done'),
+    ])
+    expect((await h.runtime.run('go')).status).toBe('completed')
+    const results = toolResults(h.entries)
+    expect(text(results.find((r) => r.toolCallId === 'b1')!)).toBe(PLANNING_ESCALATION_REFUSED)
+    expect(text(results.find((r) => r.toolCallId === 'b2')!)).toContain('justification is only valid together with sandbox_permissions')
+    expect(h.entries.some((e) => e.kind === 'approval_request')).toBe(false)
+    expect(exec.requests.map((r) => r.sandbox?.mode)).toEqual(['read-only'])
+  })
+
+  it('不在规划中时提权照常询问（行为不变）', async () => {
+    const exec = deniedUnderWorkspaceWrite()
+    const h = harness({ rules: [allowBash], exec: exec.port })
+    h.faux.setResponses([
+      fauxAssistantMessage(bash('p0', {}), { stopReason: 'toolUse' }),
+      fauxAssistantMessage(bash('b1', { sandbox_permissions: 'danger-full-access', justification: 'x' }), { stopReason: 'toolUse' }),
+      fauxAssistantMessage('done'),
+    ])
+    const run = h.runtime.run('go')
+    expect((await h.request()).payload.kind).toBe('escalation')
+    await h.runtime.answerApproval((await h.request()).payload.requestId, { decision: 'allow' })
+    await run
+  })
+
+  it('等待审批的写入在进入规划后重新判定：以 superseded 结束，模型收到 T3，文件不存在', async () => {
+    const h = harness()
+    h.faux.setResponses([
+      fauxAssistantMessage([fauxToolCall('write', { path: 'pending.txt', content: 'x' }, { id: 'w1' })], { stopReason: 'toolUse' }),
+      fauxAssistantMessage('done'),
+    ])
+    const run = h.runtime.run('go')
+    const request = await h.request()
+    h.state.planning = true
+    await h.runtime.answerApproval(request.payload.requestId, { decision: 'reevaluate' })
+    expect((await run).status).toBe('completed')
+    expect(text(toolResults(h.entries)[0]!)).toBe(PLANNING_WRITE_REFUSED)
+    expect(h.entries.filter((e) => e.kind === 'approval_decision').map((e) => (e.payload as { outcome: string }).outcome)).toEqual(['superseded'])
+    await expect(realpath(ws.path('pending.txt'))).rejects.toThrow(/ENOENT/)
+  })
+
+  it('Run 中途进入规划：下一次调用即按规划判定与执行', async () => {
+    let enter = () => {}
+    const exec = recordingExec(() => (enter(), { kind: 'exited', exitCode: 0 }))
+    const h = harness({ rules: [allowBash], exec: exec.port })
+    // 第一条命令执行时进入规划（与 Run 进行中经接口进入相同：判定与沙箱每次调用现取）。
+    enter = () => void (h.state.planning = true)
+    h.faux.setResponses([
+      fauxAssistantMessage(bash('b0', {}), { stopReason: 'toolUse' }),
+      fauxAssistantMessage(bash('b1', {}), { stopReason: 'toolUse' }),
+      fauxAssistantMessage('done'),
+    ])
+    await h.runtime.run('go')
+    expect(exec.requests.map((r) => r.sandbox?.mode)).toEqual(['workspace-write', 'read-only'])
   })
 })
 
