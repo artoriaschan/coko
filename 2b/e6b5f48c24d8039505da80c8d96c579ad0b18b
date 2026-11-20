@@ -1,0 +1,75 @@
+packages/agent/src/context/references/session.ts
+  s_085ed727045dd9::t_79cf7974290864 1-110
+apps/server/src/runtime/layers.ts
+  s_085ed727045dd9::t_0d99a5f34c783f 404
+docs/subsystems/context.md
+  s_085ed727045dd9::t_01044e3fc117fc 100-101
+  s_085ed727045dd9::t_642848d8f8529d 113-161
+  s_085ed727045dd9::t_277107401da6f1 39-41
+  s_085ed727045dd9::t_723ec39ffdcac9 91
+  s_085ed727045dd9::t_52a4f2195ef616 87
+  s_085ed727045dd9::t_7b0bf6bc232b5a 44
+apps/server/src/application/session-project.ts
+  s_085ed727045dd9::t_e93d68fa2da0cd 18
+apps/server/src/application/context/references.ts
+  s_085ed727045dd9::t_c08af7d567abbe 29-30
+  s_085ed727045dd9::t_26290fcda728f4 1-5,11-28,31-35,40-44,50-51
+packages/agent/src/context/references/expand.ts
+  s_085ed727045dd9::t_efa4a3b995f466 47-60,68-69,73,76-77
+  s_085ed727045dd9::t_e26d56ec88f50e 5-6
+  s_085ed727045dd9::t_8fd3578d30b8d8 147-148,150-151
+  s_085ed727045dd9::t_1d05598fced909 163-173,176-183
+  s_085ed727045dd9::t_e19b6105fd26da 174-175
+  s_085ed727045dd9::t_53d463c91d762a 198
+  s_085ed727045dd9::t_2f35e5ea7ecb3f 15-17
+packages/agent/src/context/references/parse.ts
+  s_085ed727045dd9::t_fbd330cb802a2c 19-29,39,45-51
+GLOSSARY.md
+  s_085ed727045dd9::t_e87f30421bfb19 264-267
+packages/agent/src/context/references/session.test.ts
+  s_085ed727045dd9::t_1fb402e1512a64 123
+  s_085ed727045dd9::t_9f21909eac7e15 1-30,32-76,78-122,124-127,129-130,132-158,160-175
+  s_085ed727045dd9::t_655de86a35837d 131
+tests/integration/secrets-gate-session-references.test.ts
+  s_085ed727045dd9::t_426554083ee082 1-68
+.scratch/session-reference/issues/02-attach-session-transcript.md
+  s_085ed727045dd9::t_5200776dc3d67b 36-73
+packages/agent/src/context/references/parse.test.ts
+  s_085ed727045dd9::t_e99c6c325fa3b8 3
+  s_085ed727045dd9::t_1930cf5d7775ee 41-61
+apps/server/src/application/context/types.ts
+  s_085ed727045dd9::t_7c82e8e2f4e5e8 241-242
+  s_085ed727045dd9::t_b100f956c5ad54 44-45
+apps/server/README.md
+  s_085ed727045dd9::t_df702ab39c1bb0 67
+packages/agent/src/context/references/index.ts
+  s_085ed727045dd9::t_cadce56b3c40b3 2
+  s_085ed727045dd9::t_03265ab8a42f0e 11,13
+  s_085ed727045dd9::t_3137ea79175990 16
+tests/integration/sidecar-session-references.test.ts
+  s_085ed727045dd9::t_89ceb17931102c 108-135,137-165,167-174,177-182
+  s_085ed727045dd9::t_cd4eebf67f4767 183-218,220-247,249-254,256-258
+  s_085ed727045dd9::t_006d4f06c18e17 175-176
+  s_085ed727045dd9::t_b027c1b202cde9 1-52,54-107,219
+packages/agent/src/context/references/expand.test.ts
+  s_085ed727045dd9::t_5d7d49211891ed 6-14
+packages/agent/src/checkpoints/rewind.ts
+  s_085ed727045dd9::t_4b7f3b074133c3 89-98,100-102
+  s_085ed727045dd9::t_8196a767591d35 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "2be6b5f48c24d8039505da80c8d96c579ad0b18b",
+  "prompts": {},
+  "sessions": {
+    "s_085ed727045dd9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d626f66c-4285-483b-b8a1-1e40637e2a6c",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
