@@ -1,0 +1,50 @@
+packages/i18n/src/dictionaries/domains/plan.ts
+  s_e66561215efab5::t_9b666b5b005b65 11,53
+apps/desktop/src/renderer/features/conversation/plan-chip.tsx
+  s_e66561215efab5::t_9b666b5b005b65 9,24
+docs/adr/0028-plan-phase-not-permission-mode.md
+  s_e66561215efab5::t_4387781cd90b8e 70,72
+packages/agent/src/agents/fork.test.ts
+  s_e66561215efab5::t_99ecf2ae792aa9 207-218
+tests/integration/sidecar-handoff.test.ts
+  s_e66561215efab5::t_99ecf2ae792aa9 10,162-176
+docs/subsystems/plan-mode.md
+  s_e66561215efab5::t_da60166469db82 3,9,28,32-33,63,65,80-81
+apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx
+  s_e66561215efab5::t_106fa4ab90ad8b 438
+  s_e66561215efab5::t_3eceb8ec192cc4 415,437,439-441,453,463,466-467,470-504
+docs/subsystems/workbench.md
+  s_e66561215efab5::t_da60166469db82 197
+apps/server/src/application/session-permissions.ts
+  s_e66561215efab5::t_0a4323f1d4029e 254-258
+  s_e66561215efab5::t_dc756a81ec7664 242-245,252-253,259-262
+docs/subsystems/commands.md
+  s_e66561215efab5::t_da60166469db82 18,30,77
+docs/subsystems/handoff.md
+  s_e66561215efab5::t_4387781cd90b8e 48
+.scratch/plan-lifecycle/issues/11-abandon-and-replan.md
+  s_e66561215efab5::t_7b18d9b5510c5c 11-12,14-33
+tests/integration/sidecar-plan.test.ts
+  s_e66561215efab5::t_1044ce5f800972 2-3
+  s_e66561215efab5::t_ee57a2b5aed7cb 730-789,796-828
+  s_e66561215efab5::t_942da6c0eef539 248,309,426,474,478
+  s_e66561215efab5::t_0a4323f1d4029e 790-795
+docs/README.md
+  s_e66561215efab5::t_4387781cd90b8e 47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "53b0a78106aec1582d2a90d120c624ba3bb0bdce",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
