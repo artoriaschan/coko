@@ -68,6 +68,7 @@ export {
   type ComposerTypeaheadSelection,
 } from './composer/composer-typeahead.tsx'
 export { $createFileReferenceNode, $isFileReferenceNode, FileReferenceNode, formatFileReference } from './composer/file-reference-node.ts'
+export { $createSessionReferenceNode, $isSessionReferenceNode, SessionReferenceNode } from './composer/session-reference-node.ts'
 export { DiffBlock, ToolCard, ToolOutput, type ToolCardProps, type ToolCardStatus } from './tool-card/tool-card.tsx'
 export { toast } from 'sonner'
 

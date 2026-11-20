@@ -1,4 +1,4 @@
-import { IMAGE_ATTACHMENT_MAX_BYTES, type FileAttachment, type ImageAttachment } from '@coko/protocol'
+import { IMAGE_ATTACHMENT_MAX_BYTES, type FileAttachment, type ImageAttachment, type Session } from '@coko/protocol'
 import { Button, cn, ComposerEditor, Tooltip, TooltipContent, TooltipTrigger, type ComposerEditorHandle } from '@coko/ui'
 import { IconArrowUp, IconLoader2, IconPlayerPause, IconPlus, IconSettings, IconSquare, IconX } from '@tabler/icons-react'
 import * as React from 'react'
@@ -42,8 +42,12 @@ export interface ComposerProps {
   className?: string
   /** 命令目录的作用域（当前会话或 Workspace 草稿）：草稿开头输入 / 时显示命令菜单。省略时没有命令菜单。 */
   commandTarget?: CommandTarget | undefined
-  /** @ 文件菜单的 Workspace（当前会话的或草稿的）。省略时没有文件菜单。 */
+  /** @ 菜单文件组的 Workspace（当前会话的或草稿的）。省略时没有文件组。 */
   fileWorkspaceId?: string | undefined
+  /** @ 菜单会话组的来源：界面已持有的会话列表，与 referenceProjectId 都给出时显示会话组。 */
+  referenceSessions?: readonly Session[] | undefined
+  /** 会话候选的范围：当前会话或新对话草稿所属的 Project，null 为独立对话。 */
+  referenceProjectId?: string | null | undefined
   pickFiles?: () => Promise<readonly string[]>
   getFilePath?: (file: File) => string
   /** 草稿持久化（测试注入）；缺省为应用内共用的 localStorage store。草稿按 commandTarget 区分，省略 commandTarget 时不持久化。 */
@@ -91,6 +95,8 @@ export function Composer({
   className,
   commandTarget,
   fileWorkspaceId,
+  referenceSessions,
+  referenceProjectId,
   pickFiles = () => window.coko?.pickFiles() ?? Promise.resolve([]),
   getFilePath = (file) => window.coko?.getFilePath(file) ?? '',
   drafts: injectedDrafts,
@@ -448,7 +454,7 @@ export function Composer({
           onDraftChange={persist}
         >
           {commandTarget && <CommandMenu target={commandTarget} />}
-          {fileWorkspaceId !== undefined && <FileMenu workspaceId={fileWorkspaceId} />}
+          <FileMenu workspaceId={fileWorkspaceId} sessions={referenceSessions} projectId={referenceProjectId} sessionId={sessionId} />
         </ComposerEditor>
       </div>
       <div data-slot="composer-toolbar" className="relative flex h-10 shrink-0 items-center gap-2 px-3 pb-2">

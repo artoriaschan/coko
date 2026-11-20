@@ -115,6 +115,10 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     (!images?.length && !files?.length && openGoalCard(text)) || send(text, images, files)
   const steerOrAct = async (text: string) => openGoalCard(text) || (isGoalRunningControl(text) ? send(text) : steer(text))
   const activeWorkspaceId = useActiveWorkspaceId()
+  // @ 菜单的会话候选：界面已持有的会话列表，范围为当前会话的 Project（新对话为草稿所选的 Project，null 为独立对话）。
+  const referenceSessions = useLists((s) => s.sessions)
+  const draftProjectId = useNewChat((s) => s.projectId)
+  const referenceProjectId = activeSessionId === null ? draftProjectId : session?.projectId
   const workspacePath = useLists((s) => s.workspaces.find((w) => w.id === activeWorkspaceId)?.path)
   const defaultPermissionMode = useSettings((s) => s.permissions?.defaultMode.value ?? 'default')
   const settingsStatus = useSettings((s) => s.status)
@@ -514,6 +518,8 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
                 commandTarget={commandTarget}
                 draftStorageKey={activeSessionId === null ? NEW_CHAT_EDITOR_KEY : undefined}
                 fileWorkspaceId={activeWorkspaceId}
+                referenceSessions={referenceSessions}
+                referenceProjectId={referenceProjectId}
                 needsSetup={needsSetup}
                 onSend={sendOrOpen}
                 supportsImages={

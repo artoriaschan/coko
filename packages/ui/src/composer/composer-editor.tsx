@@ -22,6 +22,7 @@ import {
 import * as React from 'react'
 import { cn } from '../lib/utils.ts'
 import { $createFileReferenceNode, FileReferenceNode } from './file-reference-node.ts'
+import { SessionReferenceNode } from './session-reference-node.ts'
 
 export interface ComposerEditorHandle {
   focus(): void
@@ -31,7 +32,7 @@ export interface ComposerEditorHandle {
   setText(text: string): void
   /** 在当前光标插入引用或路径；引用与 @ 菜单使用同一种节点并随草稿保存。 */
   insertAttachments(items: readonly ({ fileReference: string } | { text: string })[]): void
-  /** 当前文本（未去首尾空白）；File Reference 节点为 @path。 */
+  /** 当前文本（未去首尾空白）；File Reference 节点为 @path，Session Reference 节点为 @session:<id>。 */
   getText(): string
   /** 当前内容的 EditorState JSON（草稿持久化）。 */
   getEditorState(): SerializedEditorState
@@ -95,7 +96,7 @@ export function ComposerEditor({
   const initialConfig = React.useMemo(
     () => ({
       namespace: 'coko-composer',
-      nodes: [FileReferenceNode],
+      nodes: [FileReferenceNode, SessionReferenceNode],
       onError: (error: Error) => {
         throw error
       },
