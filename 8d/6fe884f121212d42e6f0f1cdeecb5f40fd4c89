@@ -1,0 +1,107 @@
+packages/agent/src/context/references/parse.test.ts
+  s_085ed727045dd9::t_1930cf5d7775ee 41-61
+  s_085ed727045dd9::t_e99c6c325fa3b8 3
+docs/subsystems/commands.md
+  s_085ed727045dd9::t_f8f156620e03d0 86
+  s_085ed727045dd9::t_827d10cd719e51 90
+  s_085ed727045dd9::t_7d1faa06f8258e 99-100
+apps/server/src/application/context/skills.ts
+  s_085ed727045dd9::t_3760a12eeaf5c6 70
+packages/agent/src/context/references/expand.test.ts
+  s_085ed727045dd9::t_5d7d49211891ed 6-14
+packages/agent/src/context/references/parse.ts
+  s_085ed727045dd9::t_fbd330cb802a2c 19-29,39,45-51
+packages/agent/src/instructions/commands/loader.ts
+  s_085ed727045dd9::t_290000b77cd433 104
+apps/server/src/application/context/commands.ts
+  s_085ed727045dd9::t_3e1dd67fba979e 60
+apps/server/src/runtime/layers.ts
+  s_085ed727045dd9::t_0d99a5f34c783f 404
+.scratch/session-reference/issues/02-attach-session-transcript.md
+  s_171661b5c71d73::t_c155b088af1f0b 15-35
+  s_085ed727045dd9::t_5200776dc3d67b 36-73
+packages/agent/src/context/references/expand.ts
+  s_085ed727045dd9::t_8fd3578d30b8d8 147-148,150-151
+  s_085ed727045dd9::t_53d463c91d762a 198
+  s_085ed727045dd9::t_2f35e5ea7ecb3f 15-17
+  s_085ed727045dd9::t_1d05598fced909 163-173,176-183
+  s_085ed727045dd9::t_efa4a3b995f466 47-60,68-69,73,76-77
+  s_085ed727045dd9::t_e19b6105fd26da 174-175
+  s_085ed727045dd9::t_e26d56ec88f50e 5-6
+packages/agent/src/checkpoints/rewind.ts
+  s_085ed727045dd9::t_8196a767591d35 4
+  s_085ed727045dd9::t_4b7f3b074133c3 89-98,100-102
+packages/protocol/src/commands.ts
+  s_085ed727045dd9::t_f96a5af71b7a67 16-17
+docs/subsystems/context.md
+  s_085ed727045dd9::t_7b0bf6bc232b5a 44
+  s_085ed727045dd9::t_277107401da6f1 39-41
+  s_085ed727045dd9::t_723ec39ffdcac9 92
+  s_085ed727045dd9::t_01044e3fc117fc 101-102
+  s_085ed727045dd9::t_642848d8f8529d 114-162
+  s_085ed727045dd9::t_52a4f2195ef616 88
+packages/agent/src/context/references/index.ts
+  s_085ed727045dd9::t_cadce56b3c40b3 2
+  s_085ed727045dd9::t_03265ab8a42f0e 11,13
+  s_085ed727045dd9::t_3137ea79175990 16
+.scratch/session-reference/issues/01-plugin-group-in-command-menu.md
+  s_171661b5c71d73::t_ad579eb7962525 15-26
+  s_085ed727045dd9::t_18ed2a57d85e35 27-56
+apps/server/src/application/session-project.ts
+  s_085ed727045dd9::t_e93d68fa2da0cd 18
+apps/server/src/application/context/types.ts
+  s_085ed727045dd9::t_7c82e8e2f4e5e8 241-242
+  s_085ed727045dd9::t_b100f956c5ad54 44-45
+apps/server/README.md
+  s_085ed727045dd9::t_df702ab39c1bb0 67
+tests/integration/sidecar-plugins.test.ts
+  s_085ed727045dd9::t_560c990dbf9dac 159-171
+packages/agent/src/instructions/commands/types.ts
+  s_085ed727045dd9::t_fd58de700eab74 13-14
+.scratch/session-reference/issues/04-session-group-and-draft-chip.md
+  s_171661b5c71d73::t_b3c522230990a9 61-64
+apps/server/src/application/context/references.ts
+  s_085ed727045dd9::t_26290fcda728f4 1-5,11-28,31-35,40-44,50-51
+  s_085ed727045dd9::t_c08af7d567abbe 29-30
+tests/integration/sidecar-session-references.test.ts
+  s_085ed727045dd9::t_cd4eebf67f4767 183-218,220-258
+  s_085ed727045dd9::t_89ceb17931102c 108-174,177-182
+  s_085ed727045dd9::t_b027c1b202cde9 1-107,219
+  s_085ed727045dd9::t_006d4f06c18e17 175-176
+docs/subsystems/plugins.md
+  s_085ed727045dd9::t_e101fa866c49e5 105-106
+packages/agent/src/context/references/session.test.ts
+  s_085ed727045dd9::t_9f21909eac7e15 1-122,124-130,132-175
+  s_085ed727045dd9::t_1fb402e1512a64 123
+  s_085ed727045dd9::t_655de86a35837d 131
+apps/desktop/src/renderer/features/conversation/command-menu.tsx
+  s_085ed727045dd9::t_b8918bfd0af27c 13-18
+GLOSSARY.md
+  s_085ed727045dd9::t_e87f30421bfb19 264-267
+tests/integration/secrets-gate-session-references.test.ts
+  s_085ed727045dd9::t_426554083ee082 1-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "8d6fe884f121212d42e6f0f1cdeecb5f40fd4c89",
+  "prompts": {},
+  "sessions": {
+    "s_085ed727045dd9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d626f66c-4285-483b-b8a1-1e40637e2a6c",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    },
+    "s_171661b5c71d73": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08f3a4f9-ec6f-4fff-b690-90e909855fb8",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
