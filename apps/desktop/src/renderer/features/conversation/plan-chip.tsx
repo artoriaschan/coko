@@ -6,7 +6,7 @@ import { useI18n } from '../../app/i18n.tsx'
 
 /**
  * 输入区底栏的 Plan chip：会话的计划阶段（由条目派生，ADR 0028）为规划中时显示“计划”，执行中时显示“执行中”（样式相同）；hover 时变为 ×，
- * 点击调用计划接口的退出动作（不改变 Permission Mode）。
+ * 点击调用计划接口的退出动作（不改变 Permission Mode）：规划中为退出规划，执行中为放弃计划（不弹确认）。
  * 等待响应期间禁用；失败时保留显示并经失败通道提示；成功后 chip 随 plan_phase 条目消失。草稿不显示。
  */
 export function PlanChip({ sessionId, onExit }: { sessionId: string | null; onExit?: () => void }) {
@@ -21,7 +21,7 @@ export function PlanChip({ sessionId, onExit }: { sessionId: string | null; onEx
   return (
     <PlanModePill
       label={t(phase === 'executing' ? 'plan.chipExecuting' : 'plan.chip')}
-      closeLabel={t('plan.exit')}
+      closeLabel={t(phase === 'executing' ? 'plan.abandon' : 'plan.exit')}
       disabled={exiting}
       onClose={async () => {
         setExiting(true)

@@ -240,19 +240,27 @@ export class SessionPermissions implements PlanHost {
   }
 
   /**
-   * 计划接口的动作（ADR 0028）：enter 在不在规划中时提交 plan_phase planning，exit 在规划中或执行中时提交 plan_phase none，否则不提交；
-   * 执行中的 exit 与 enter 暂不把计划记为放弃（只转换阶段，plan 条目不变）。不改变
-   * Permission Mode，不改动待审阅的 plan 条目与等待中的审批。Run 进行中照常可用：写入拒绝与沙箱档位从下一次判定起生效或解除（等待中的
-   * 写入审批随之重新判定），本 Run 的 section 与工具不变。子 Session 409 child-session。
+   * 计划接口的动作（ADR 0028）：enter 在不在规划中时提交 plan_phase planning，exit 在规划中或执行中时提交 plan_phase none，否则不提交。
+   * 执行中先放弃（被执行的计划以原编号、修订与正文提交 abandoned，再提交 none），enter 随后提交 planning；放弃不触碰文件与 Checkpoint。
+   * 不改变 Permission Mode，规划中退出不改动待审阅的 plan 条目与等待中的审批。Run 进行中照常可用：写入拒绝与沙箱档位从下一次判定起生效或解除
+   * （等待中的写入审批随之重新判定），本 Run 的 section 与工具不变。子 Session 409 child-session。
    */
   async planAction(sessionId: string, action: PlanActionRequest['action']): Promise<SessionPlanResponse> {
     const session = await requireSession(this.#store, sessionId)
     if (session.parentSessionId !== null) throw new AppError('child-session', 'A subagent session uses the plan of its root session')
     await this.locked(sessionId, async () => {
       const state = await this.state(session)
-      const planning = state.phase.phase === 'planning'
-      if (action === 'enter' && !planning) await this.#commitPhase(sessionId, state, { phase: 'planning' })
-      else if (action === 'exit' && state.phase.phase !== 'none') await this.#commitPhase(sessionId, state, { phase: 'none' })
+      if (state.phase.phase === 'executing') {
+        const plan = activePlanOf(await this.#store.sessions.listEntries(sessionId))
+        if (plan)
+          await this.#runtimes.commit(sessionId, {
+            kind: 'plan',
+            payload: { planId: plan.planId, revision: plan.revision, markdown: plan.markdown, status: 'abandoned' },
+          })
+        await this.#commitPhase(sessionId, state, { phase: 'none' })
+        log.info('plan abandoned', { sessionId, planId: plan?.planId })
+      } else if (action === 'exit' && state.phase.phase === 'planning') await this.#commitPhase(sessionId, state, { phase: 'none' })
+      if (action === 'enter' && state.phase.phase === 'none') await this.#commitPhase(sessionId, state, { phase: 'planning' })
     })
     await this.reevaluate(this.#sameRoot(sessionId))
     return this.sessionPlan(sessionId)

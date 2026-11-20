@@ -8,6 +8,7 @@ export const plan = defineDomain(
     chip: '计划',
     chipExecuting: '执行中',
     exit: '关闭计划模式',
+    abandon: '放弃计划',
     status: {
       proposed: '待审阅',
       approved: '已批准',
@@ -50,6 +51,7 @@ export const plan = defineDomain(
     chip: 'Planning',
     chipExecuting: 'Executing',
     exit: 'Exit planning',
+    abandon: 'Abandon plan',
     status: {
       proposed: 'Awaiting review',
       approved: 'Approved',

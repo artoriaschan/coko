@@ -412,7 +412,7 @@ describe('plan-chip', () => {
       await expect.poll(() => screen.container.querySelector('[data-slot="plan-chip"]')).toBeNull()
     })
 
-    it('执行中：chip 显示“执行中”且几何与规划中相同，× 调用退出动作；计划卡与 Plan 页显示执行中，历史上已批准（没有执行阶段）的仍为已批准；退出后 chip 消失、计划回到已批准', async () => {
+    it('执行中：chip 显示“执行中”且几何与规划中相同，× 为放弃计划；计划卡与 Plan 页显示执行中，历史上已批准（没有执行阶段）的仍为已批准；放弃后 chip 消失、计划卡与 Plan 页显示已放弃；重新规划后 chip 显示“计划”', async () => {
       seq = 0
       const approved = (planId: string, markdown: string) => entry('plan', { planId, revision: 1, markdown, status: 'approved' }, null)
       const rows = [
@@ -434,9 +434,11 @@ describe('plan-chip', () => {
         const entries = useChat((s) => s.conversations['s-1']?.entries ?? [])
         return (
           <TimelineSessionContext.Provider value={{ sessionId: 's-1', entries, actionsDisabled: false, openPlan: () => {} }}>
-            {[rows[1]!, rows[4]!].map((row) => (
-              <PlanCard key={row.seq} item={{ kind: 'plan', key: String(row.seq), plan: row.payload as PlanPayload }} />
-            ))}
+            {entries
+              .filter((row) => row.kind === 'plan' && (row.payload as PlanPayload).status !== 'proposed')
+              .map((row) => (
+                <PlanCard key={row.seq} item={{ kind: 'plan', key: String(row.seq), plan: row.payload as PlanPayload }} />
+              ))}
           </TimelineSessionContext.Provider>
         )
       }
@@ -448,7 +450,7 @@ describe('plan-chip', () => {
         </>,
         chat,
       )
-      const chip = screen.getByRole('button', { name: /Exit planning/ })
+      const chip = screen.getByRole('button', { name: /Abandon plan/ })
       await expect.element(chip).toHaveTextContent('Executing')
       expect(chip.element().getBoundingClientRect().height).toBe(28)
       const card = (planId: string) => screen.container.querySelector(`[data-slot="plan-card"][data-plan-id="${planId}"]`)!
@@ -458,11 +460,48 @@ describe('plan-chip', () => {
       expect([tab().getAttribute('data-plan-id'), tab().getAttribute('data-status')]).toEqual(['p1', 'executing'])
       await expect.element(screen.getByText('In progress', { exact: true }).first()).toBeVisible()
 
+      // 放弃不弹确认：点击即调用退出动作；chip 在条目到达后才消失。
       await userEvent.click(chip)
       await expect.poll(() => calls).toEqual(['s-1:exit'])
+      expect(document.querySelector('[role="alertdialog"], [role="dialog"]')).toBeNull()
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('plan', { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'abandoned' }, null) })
       sendServer({ type: 'entry', sessionId: 's-1', entry: entry('plan_phase', { phase: 'none' }, null) })
       await expect.poll(() => screen.container.querySelector('[data-slot="plan-chip"]')).toBeNull()
-      await expect.poll(() => [card('p1').getAttribute('data-status'), tab().getAttribute('data-status')]).toEqual(['approved', 'approved'])
+      const abandoned = () => screen.container.querySelector('[data-slot="plan-card"][data-status="abandoned"]')
+      await expect.poll(() => abandoned()?.querySelector('[data-slot="plan-status"]')?.textContent).toBe('Abandoned')
+      expect(abandoned()!.getAttribute('data-plan-id')).toBe('p1')
+      expect([card('p1').getAttribute('data-status'), tab().getAttribute('data-status')]).toEqual(['approved', 'abandoned'])
+      expect(tab().textContent).toContain('Abandoned')
+
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('plan_phase', { phase: 'planning' }, null) })
+      const planning = screen.getByRole('button', { name: /Exit planning/ })
+      await expect.element(planning).toHaveTextContent('Planning')
+    })
+
+    it('放弃失败：chip 保留“执行中”与放弃按钮，可再次点击', async () => {
+      seq = 0
+      const { chat, api } = createFixtureChat({
+        entries: {
+          's-1': [
+            entry('plan', { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'approved' }, null),
+            entry('plan_phase', { phase: 'executing', planId: 'p1' }, null),
+          ],
+        },
+      })
+      let attempts = 0
+      api.planAction = async () => {
+        attempts++
+        throw new ApiError('network', 'down', 0)
+      }
+      await expect.poll(() => chat.getState().conversations['s-1']?.status).toBe('ready')
+      const screen = await wrap(<PlanChip sessionId="s-1" />, chat)
+      const chip = screen.getByRole('button', { name: /Abandon plan/ })
+      await userEvent.click(chip)
+      await expect.poll(() => attempts).toBe(1)
+      await expect.element(chip).toBeEnabled()
+      await expect.element(chip).toHaveTextContent('Executing')
+      await userEvent.click(chip)
+      await expect.poll(() => attempts).toBe(2)
     })
 
     it('完成：chip 消失，计划卡与 Plan 页显示“已完成”，Plan 页显示完成报告；回退到完成之前回到执行中、报告不再显示', async () => {
