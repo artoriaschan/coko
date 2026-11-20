@@ -1,6 +1,6 @@
 ---
 kind: decision
-description: "每个 Session 只有一个权限模式，同时决定免审批范围与命令的 Seatbelt 沙箱档位；审批与沙箱叠加，越出沙箱只能单次提权。修改权限模式、规则判定、沙箱或审批卡时回看。"
+description: "每个 Session 只有一个权限模式，同时决定免审批范围与命令的 Seatbelt 沙箱档位；审批与沙箱叠加，越出沙箱只能单次提权。plan 作为模式取值的部分已被 ADR 0028 替代。修改权限模式、规则判定、沙箱或审批卡时回看。"
 status: accepted
 implementation: implemented
 lifecycle: active
@@ -17,7 +17,7 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 
 ## 决定
 
-以下模式、审批与提权决定继续有效。2026-11-05 的 [ADR 0026](0026-standalone-session-write-roots.md) 局部替代托管独立会话的 workspace-write 根集合：其显式写根仅为 `work/` 与 `outputs/`，不自动追加临时目录；项目与旧会话的默认集合不变。
+以下模式、审批与提权决定继续有效。2026-11-20 的 [ADR 0028](0028-plan-phase-not-permission-mode.md) 局部替代 `plan` 作为模式取值的部分（下文“后果与验证”中 Plan 模式的加入与 M4 实施记录）：计划改为独立的 Session 状态，Permission Mode 回到下表四档，规划期约束由计划流程施加；该决定尚未实施，实施前当前行为仍以 [Plan Mode](../subsystems/plan-mode.md) 为准。2026-11-05 的 [ADR 0026](0026-standalone-session-write-roots.md) 局部替代托管独立会话的 workspace-write 根集合：其显式写根仅为 `work/` 与 `outputs/`，不自动追加临时目录；项目与旧会话的默认集合不变。
 
 - 每个 Session 有一个权限模式，取值 read-only、default、accept-edits、full-access；新 Session 使用设置中的默认模式（缺省 default）。模式切换记为 Session Entry，重启后由回放恢复。
 - 模式同时决定免审批范围和命令的沙箱档位：
@@ -44,7 +44,7 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 
 - 已批准的命令仍可能因沙箱失败，模型要读懂拒绝标记再请求提权；拒绝标记与提权提示的文本属于模型可见契约。
 - workspace-write 下写用户目录缓存（例如 `~/.npm`、`~/.cache`）的命令会被拒绝，需要提权或切换模式。可写根沿用 deepseek-harness 的默认集合（Workspace、`/tmp`、系统临时目录），不放开主目录。
-- Plan 模式（M4）作为新的模式取值加入，沿用同一判定顺序（实施记录见下文）。
+- Plan 模式（M4）作为新的模式取值加入，沿用同一判定顺序（实施记录见下文）。此条已被 [ADR 0028](0028-plan-phase-not-permission-mode.md) 替代。
 - 外部 Hook（M5）的 allow 与允许规则同位、不越过前四步，也不能免掉提权与计划审阅，见 [ADR 0013](0013-external-hooks-tighten-only.md)。
 - 实施（2026-10-29）：本决定已全部落地。四种模式的判定与选择界面、判定顺序、受保护路径、越出可写根的写入询问、规则作用域及其持久化、重新判定、审批条目与审批卡；命令经 macOS `sandbox-exec` 在模式对应的档位内运行（`apps/server/src/adapters/seatbelt.ts`，档位与可写根推导在 `packages/agent/src/policy/sandbox.ts`），被拒后以 kind=escalation 的审批单次提权，sandbox-exec 不可用时受限档位不运行。当前机制见 [权限判定与审批](../subsystems/permissions.md#命令沙箱与提权)。
 - 评审修复（2026-10-29，M2 两轴评审）：提权只用于重试本 Run 中被沙箱拒绝过的同一命令，未被拒绝过的命令带提权参数为参数错误，与上文"被沙箱拒绝的命令只能以更宽档位重试一次"一致；受限档位的命令在可写根之下不能写受保护路径（`.git`、`.coko` 等，与文件写入的受保护路径同一集合），Seatbelt profile 在可写根之后追加 deny；write / edit 在执行前按真实路径复核目标，判定之后被替换为指向别处的链接时重新判定；规则的工具名在写入时归一为规范名、未知工具拒绝，避免拒绝规则因写法静默失效；grep、find、ls 不列出被 Read 拒绝规则覆盖的路径；打包的发布构建不接受替换 sandbox-exec 等测试钩子变量（只有以构建期标志打出的测试构建接受）。机制见 [权限判定与审批](../subsystems/permissions.md)。
@@ -65,3 +65,5 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 - [ADR 0026](0026-standalone-session-write-roots.md)（2026-11-05）分离托管独立会话的读取根、写根与 cwd，补充 outputs 的 Checkpoint 回退边界；本页的模式、判定顺序和提权语义保持有效。
 
 - [ADR 0027](0027-memory-follows-project-writes-without-approval.md)（2026-11-19 接受，已实施）把 memory-write 权限类改为在所有模式下由模式放行，记忆写入不再审批；本页的判定顺序、其余模式放行与沙箱档位不变。
+
+- [ADR 0028](0028-plan-phase-not-permission-mode.md)（2026-11-20 接受，未实施）是 `plan` 作为模式取值这一部分的后继：计划是独立的 Session 状态，规划中文件写入直接拒绝（判定顺序中紧随拒绝规则之后）、命令在 read-only 沙箱中运行且不能提权，批准不改变模式。本页的四档模式表、判定顺序的其余各步、审批与沙箱叠加、单次提权与受保护路径继续有效。

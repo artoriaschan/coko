@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Spec status: approved（2026-11-20 拆票时向用户说明“启动 `/to-tickets` 视为规格通过，含测试接缝与 Further Notes 的补充决定”，用户答复“确认”）
-讨论：[grilling.md](grilling.md) · 实施票：[01–12](issues/01-design-and-adr.md) · 现状：[Plan Mode](../../docs/subsystems/plan-mode.md) · 相关决定：[ADR 0005](../../docs/adr/0005-permission-mode-and-sandbox.md)、[ADR 0024](../../docs/adr/0024-session-state-as-state-updates.md) · 术语：[GLOSSARY](../../GLOSSARY.md)
+讨论：[grilling.md](grilling.md) · 设计：[design.md](design.md) · 实施票：[01–12](issues/01-design-and-adr.md) · 现状：[Plan Mode](../../docs/subsystems/plan-mode.md) · 相关决定：[ADR 0028](../../docs/adr/0028-plan-phase-not-permission-mode.md)、[ADR 0005](../../docs/adr/0005-permission-mode-and-sandbox.md)、[ADR 0024](../../docs/adr/0024-session-state-as-state-updates.md) · 术语：[GLOSSARY](../../GLOSSARY.md)
 
 ## Problem Statement
 
