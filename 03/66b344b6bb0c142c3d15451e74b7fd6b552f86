@@ -1,0 +1,28 @@
+packages/agent/src/policy/gate-unattended.test.ts
+  s_d1e837811db462::t_db1f8b38433bfe 60-61,103,125,140
+  s_d1e837811db462::t_5baac12226cd97 10,13,25-27,42,48,99-102,104-106,110-113,122-124,126-134,141-150
+  s_d1e837811db462::t_e2cce3495b38cc 107-109,114-121,135-139
+tests/integration/headless-auto-review.test.ts
+  s_d1e837811db462::t_d52a785cda3f8b 119-121,125,136,214,216,219-221,226-232,234
+  s_d1e837811db462::t_6a3a5e098681a4 1-57,59-118,122-124,126-135,137-156,162-165,171-213,215,217-218,222-225,233,235-236
+  s_d1e837811db462::t_e2cce3495b38cc 157-161,166-170
+  s_d1e837811db462::t_88be48cfce2123 58
+.scratch/auto-review/issues/09-headless.md
+  s_d1e837811db462::t_e2cce3495b38cc 11-19,22-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "0366b344b6bb0c142c3d15451e74b7fd6b552f86",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
