@@ -33,6 +33,7 @@ export const plan = defineDomain(
       sendFeedback: '发送反馈',
       cancel: '取消',
       openPanel: '在侧边栏查看',
+      permission: '执行权限',
     },
     card: {
       label: '计划',
@@ -71,6 +72,7 @@ export const plan = defineDomain(
       sendFeedback: 'Send feedback',
       cancel: 'Cancel',
       openPanel: 'View in sidebar',
+      permission: 'Runs with',
     },
     card: {
       label: 'Plan',

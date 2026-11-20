@@ -1,5 +1,6 @@
 // Plan Mode（ADR 0005、ADR 0028）：真实 Sidecar（faux 模型）经协议驱动 /plan 与计划接口进入和退出（不改变 Permission Mode）、规划中的约束（写入拒绝、命令只读
-// 沙箱且不能提权，其余调用按当前模式）、Run 中途进入与退出、exit_plan_mode 的提交与审阅（编辑后批准、带反馈继续规划，批准只结束规划）、回答的校验、压缩后的
+// 沙箱且不能提权，其余调用按当前模式）、Run 中途进入与退出、exit_plan_mode 的提交与审阅（编辑后批准、带反馈继续规划，批准只结束规划，审阅等待中切换模式后
+// 按新模式执行）、回答的校验、压缩后的
 // <approved_plan> 与分叉。
 // 本票不新增文件读取（没有读取根或注入点涉及路径），不需要符号链接越界用例。
 import { execFileSync } from 'node:child_process'
@@ -7,6 +8,7 @@ import { access, readFile, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
+import { getCurrentTools, type Context } from '@earendil-works/pi-ai'
 import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, planPaths, tracePaths, type SessionEntryRecord, type TraceResponse } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval as waitRequest, type Stream } from './sidecar-harness.ts'
 
@@ -25,8 +27,10 @@ const text = (r: ToolResult) => r.content.map((b) => b.text ?? '').join('')
 async function boot(responses: unknown[], extra: Record<string, unknown> = {}) {
   const root = await realpath(await tempDir())
   const requestLog = join(root, '.requests.jsonl')
+  const detailsLog = join(root, '.request-details.jsonl')
   await writeFile(requestLog, '')
-  const script = await fauxScript(root, { requestLog, responses, ...extra }, '.faux.json')
+  await writeFile(detailsLog, '')
+  const script = await fauxScript(root, { requestLog, requestDetailsLog: detailsLog, responses, ...extra }, '.faux.json')
   const sidecar = await startSidecar({ dirs: await sidecarDirs(), env: { COKO_FAUX_SCRIPT: script } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
@@ -62,10 +66,17 @@ async function boot(responses: unknown[], extra: Record<string, unknown> = {}) {
       .split('\n')
       .filter(Boolean)
       .map((line) => JSON.parse(line) as Logged)
+  /** 每次带工具的模型请求注册的工具名（faux 的 requestDetailsLog；标题请求不带工具，不计入）。 */
+  const tools = async (): Promise<string[][]> =>
+    (await readFile(detailsLog, 'utf8'))
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => (getCurrentTools((JSON.parse(line) as Context).messages) ?? []).map((tool) => tool.name))
+      .filter((names) => names.length > 0)
   const sections = (logged: Logged) =>
     logged.filter((m) => m.role === 'system').flatMap((m) => Object.entries(m.sections ?? {}).map(([name, text]) => ({ name, text })))
   const answer = (requestId: string, body: unknown, id = sessionId) => api.post(apiPaths.sessionApproval(id, requestId), body)
-  return { root, sidecar, api, stream, sessionId, open, entries, runEnds, results, resultOf, plans, modes, requests, sections, answer }
+  return { root, sidecar, api, stream, sessionId, open, entries, runEnds, results, resultOf, plans, modes, requests, tools, sections, answer }
 }
 
 const exists = (path: string) =>
@@ -332,6 +343,45 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
+  /** 在 from 下进入规划，计划审阅等待中切到 to 后批准：计划的审批请求仍在等待、不被重新判定；返回时 Run 仍在继续（下一个调用是写入 w1）。 */
+  async function approveAfterSwitch(from: string, to: string) {
+    const h = await boot([exit('e1', PLAN), call('write', 'w1', { path: 'out.txt', content: 'x' }), { content: 'done' }])
+    expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: from })).status).toBe(200)
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan fix it' })).status).toBe(202)
+    const review = await waitApproval(h.stream, h.sessionId, 1)
+    expect(review).toMatchObject({ kind: 'plan' })
+    expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: to })).body).toEqual({ mode: to, rules: [] })
+    // 切换在锁内提交并重新判定 kind tool 的请求；kind plan 的请求保持等待（没有决定条目），审阅仍可回答。
+    expect(h.entries().filter((e) => e.kind === 'approval_decision')).toEqual([])
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toMatchObject({ phase: 'planning' })
+    expect((await h.answer(review.requestId, { decision: 'allow' })).status).toBe(204)
+    expect(text(await h.resultOf('e1'))).toBe(APPROVED_T7(PLAN))
+    return h
+  }
+  async function finished(h: Awaited<ReturnType<typeof boot>>, to: string) {
+    expect((await h.resultOf('w1')).isError).toBe(false)
+    await h.runEnds(1)
+    expect(await readFile(join(h.root, 'out.txt'), 'utf8')).toBe('x')
+    expect(h.modes().at(-1)).toEqual({ mode: to })
+    expect(h.entries().filter((e) => e.kind === 'run_start')).toHaveLength(1)
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  }
+
+  it('审阅等待中放宽（default → accept-edits）：计划审批仍在等待；批准后同一个 Run 的写入不再询问', async () => {
+    const h = await approveAfterSwitch('default', 'accept-edits')
+    await finished(h, 'accept-edits')
+    expect(h.entries().filter((e) => e.kind === 'approval_request')).toHaveLength(1)
+  })
+
+  it('审阅等待中收紧（accept-edits → default）：计划审批仍在等待；批准后同一个 Run 的写入询问', async () => {
+    const h = await approveAfterSwitch('accept-edits', 'default')
+    const write = await waitApproval(h.stream, h.sessionId, 2)
+    expect(write).toMatchObject({ kind: 'tool', toolName: 'write' })
+    expect((await h.answer(write.requestId, { decision: 'allow', scope: 'once' })).status).toBe(204)
+    await finished(h, 'default')
+    expect(h.entries().filter((e) => e.kind === 'approval_request')).toHaveLength(2)
+  })
+
   it('Run 中途进入与退出规划：等待中的写入审批被重新判定为拒绝，之后的写入立即拒绝；退出后写入恢复询问；<plan_mode> 到下一个 Run 才出现', async () => {
     const h = await boot([
       call('write', 'w1', { path: 'a.txt', content: 'a' }),
@@ -537,6 +587,81 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(tools).not.toContain('exit_plan_mode')
     expect(stream.invalidEntries).toEqual([])
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  // 票 06：计划阶段按有效条目回放，回退后重新计算；Permission Mode 的回退口径不变（仍按原始条目，回退区间内的切换照常生效）。
+  it('回退到 /plan 消息本身仍在规划中；回退到进入规划之前：读回无，下一个 Run 没有 <plan_mode> 与提交工具，写入按 Permission Mode；模式不随回退还原', async () => {
+    const h = await boot([{ content: 'one' }, { content: 'researching' }, call('write', 'w1', { path: 'notes.md', content: 'x' }), { content: 'written' }])
+    await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'first' })
+    await h.runEnds(1)
+    expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'accept-edits' })).status).toBe(200)
+    await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan 调研' })
+    await h.runEnds(2)
+    const [first, planned] = h.entries().filter((e) => kindOf(e) === 'user')
+    expect(h.entries().find((e) => e.kind === 'plan_phase')!.seq).toBeLessThan(planned!.seq)
+    expect((await h.tools()).at(-1)).toContain('exit_plan_mode')
+
+    const rewind = (targetSeq: number) => h.api.post(checkpointPaths.sessionRewind(h.sessionId), { targetSeq, mode: 'conversation' })
+    expect((await rewind(planned!.seq)).status).toBe(200)
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'planning', plan: null })
+    expect((await rewind(first!.seq)).status).toBe(200)
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'none', plan: null })
+    // Permission Mode 的回退行为保持现状：回退区间内切换的 accept-edits 仍生效（另开问题，不在本票范围）。
+    expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'accept-edits', rules: [] })
+
+    await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'write now' })
+    await h.runEnds(3)
+    expect((await h.resultOf('w1')).isError).toBe(false)
+    expect(await readFile(join(h.root, 'notes.md'), 'utf8')).toBe('x')
+    expect(h.entries().filter((e) => e.kind === 'approval_request')).toEqual([])
+    const logged = await h.requests()
+    expect(h.sections(logged.at(-1)!).map((s) => s.name)).not.toContain('plan_mode')
+    expect((await h.tools()).at(-1)).not.toContain('exit_plan_mode')
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('回退到批准所在 Run 的用户消息：读回规划中，写入再次被拒，提交工具可用；被回退的已批准记录不算当前计划，修订沿用回退后最后一条 plan 续号', async () => {
+    const h = await boot([
+      exit('e0', PLAN),
+      { content: 'revising' },
+      exit('e1', EDITED),
+      { content: 'implementing' },
+      call('write', 'w1', { path: 'notes.md', content: 'x' }),
+      exit('e2', PLAN),
+    ])
+    await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan 调研' })
+    const first = await waitApproval(h.stream, h.sessionId, 1)
+    expect((await h.answer(first.requestId, { decision: 'deny', feedback: 'add tests' })).status).toBe(204)
+    await h.runEnds(1)
+    await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'submit' })
+    const second = await waitApproval(h.stream, h.sessionId, 2)
+    expect(second).toMatchObject({ planId: first.planId, revision: 2 })
+    expect((await h.answer(second.requestId, { decision: 'allow' })).status).toBe(204)
+    await h.runEnds(2)
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'none', plan: null })
+
+    const submit = h
+      .entries()
+      .filter((e) => kindOf(e) === 'user')
+      .at(-1)!
+    expect((await h.api.post(checkpointPaths.sessionRewind(h.sessionId), { targetSeq: submit.seq, mode: 'conversation' })).status).toBe(200)
+    // 被回退的是 revision 2 的 proposed 与 approved、计划阶段“无”；之前带反馈拒绝的 revision 1 不是待审阅的计划。
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'planning', plan: null })
+    expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'default', rules: [] })
+
+    await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'try again' })
+    const write = await h.resultOf('w1')
+    expect([write.isError, text(write)]).toEqual([true, PLANNING_WRITE_REFUSED])
+    expect(await exists(join(h.root, 'notes.md'))).toBe(false)
+    const third = await waitApproval(h.stream, h.sessionId, 3)
+    expect(third).toMatchObject({ kind: 'plan', planId: first.planId, revision: 2 })
+    expect(h.entries().filter((e) => e.kind === 'approval_request')).toHaveLength(3)
+    const logged = await h.requests()
+    expect(h.sections(logged.at(-1)!).find((s) => s.name === 'plan_mode')?.text).toBe(PLAN_MODE_T1)
+    expect((await h.tools()).at(-1)).toContain('exit_plan_mode')
+    await h.api.post(apiPaths.sessionAbort(h.sessionId))
+    await h.runEnds(3)
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
   it('压缩把已批准计划摘要掉后注入 <approved_plan>；分叉规划中的 Session：仍在规划中、模式随 permission_mode 复制（default），没有 plan 条目', async () => {

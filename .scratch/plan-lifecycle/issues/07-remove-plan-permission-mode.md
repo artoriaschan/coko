@@ -44,3 +44,8 @@
   - Browser Mode：`plan.browser.test.tsx` 与 `context-ring.browser.test.tsx` 2 个文件 24 例通过。
   - 集成（真实 Sidecar，darwin）：`sidecar-plan`、`sidecar-memory`、`sidecar-permissions`、`sidecar-subagents-permissions`、`sidecar-subagents-isolation`、`sidecar-hooks`、`sidecar-handoff`、`sidecar-rewind`、`sidecar-trace`、`headless`、`sidecar-schedules`、`sidecar-pty`、`sidecar-project-permissions`、`sidecar-state-update-fork`、`sidecar-first-send`、`secrets-gate-plan`、`sidecar-tool-search-keywords`、`sidecar-goal`：19 个文件 145 例通过。
   - 未运行：Electron E2E（`plan.e2e.test.ts`、`conversation-workbench-closeout.e2e.test.ts` 只改断言）；非 darwin 平台。
+
+### 合入集成分支后（2026-11-20）
+
+- 合入 `feat/plan-lifecycle`（05 审阅卡执行权限、06 回退分叉交接）。冲突处理：`session-permissions.ts` 取 06 的 `planPhaseOf(entries)` 回放，保留本票只取 `mode` 的回放；`fork.test.ts` 取 06 的边界口径用例（其中已无 plan 模式）；`sidecar-plan.test.ts` 与 `plan.browser.test.tsx` 两边新增的用例都保留；`plan-mode.md` 与导航摘要取 06 / 05 的正文，再叠加本票的旧数据迁移、兼容与降级和验证描述。
+- 重跑：`pnpm run typecheck`、`pnpm run check:docs` 通过；单元（同上范围，去掉 `apps/desktop/src/renderer/app`）2157 例，2147 通过，10 例为上文已知基线；Browser Mode `plan.browser`、`context-ring.browser` 28 例通过；集成同上 19 个文件 150 例通过。

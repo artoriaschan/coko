@@ -27,6 +27,8 @@ export interface SessionCheckpointsOptions {
   store: SessionStore
   runtimes: SessionRuntimes
   recovery: SessionRecovery
+  /** 回退提交 rewind 条目后重新计算计划阶段（ADR 0028）。 */
+  permissions: Pick<import('./session-permissions.ts').SessionPermissions, 'rewound'>
   /** Session 的工作目录（回退的边界；worktree 会话为 worktree 中的目录）；缺省 Workspace 目录。 */
   cwd?: SessionCwd
   /** 回退代码读取快照正文与当前文件摘要（Sidecar 为 <dataDir>/blobs）。缺省：回退代码以 internal 失败。 */
@@ -104,7 +106,7 @@ export class SessionCheckpoints {
 
   /**
    * 回退到某条用户消息（ADR 0006）。code / both 先恢复文件（目标锚点及之后追踪过的路径回到最早的备份，原先不存在的删除），
-   * conversation / both 再提交 rewind 条目并丢弃运行时（下次开始 Run 时按有效条目重建）。dryRun 只返回将发生的变化。
+   * conversation / both 再提交 rewind 条目、重新计算计划阶段并丢弃运行时（下次开始 Run 时按有效条目重建）。dryRun 只返回将发生的变化。
    */
   async rewind(sessionId: string, input: { targetSeq: number; mode: RewindMode; dryRun?: boolean }): Promise<RewindResponse> {
     const { store, runtimes } = this.#options
@@ -131,6 +133,7 @@ export class SessionCheckpoints {
         }
         if (!dryRun && planned.entry) {
           await runtimes.commit(sessionId, planned.entry)
+          await this.#options.permissions.rewound(sessionId)
           runtimes.discard(sessionId)
           runtimes.rememberStatus(sessionId, await store.sessions.listEntries(sessionId))
         }

@@ -5,7 +5,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { API_ROUTES, apiPaths, goalPaths, handoffPaths, permissionPaths, worktreePaths, type SessionEntryRecord } from '@coko/protocol'
+import { API_ROUTES, apiPaths, goalPaths, handoffPaths, permissionPaths, planPaths, worktreePaths, type SessionEntryRecord } from '@coko/protocol'
 import { createGitWorkspace } from '../fixtures/git/index.ts'
 import { client, connect, exchange, fauxScript, pollUntil, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
 
@@ -143,6 +143,20 @@ describe('交接：摘要与目标 Session', { timeout: 120_000 }, () => {
     expect(h.of(h.sessionId, 'todo_list')).toHaveLength(1)
     const sessionsAfter = (await h.api.get(API_ROUTES.sessions)).body.sessions as { id: string }[]
     expect(sessionsAfter.map((s) => s.id).sort()).toEqual([...sessionsBefore.map((s) => s.id), targetId].sort())
+    expect(h.stream.invalidEntries).toEqual([])
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('源在规划中：目标 Session 以规划中开始（权限条目之后一条 plan_phase planning），模式不变', async () => {
+    const h = await boot([{ content: 'researching' }, { content: SUMMARY }])
+    await h.send('/plan 调研登录页')
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'planning', plan: null })
+    await h.send('/handoff 接着规划')
+    const { targetId } = await h.handedOff()
+    await h.stream.waitFor(() => h.of(targetId, 'plan_phase').length > 0, 10_000)
+    expect(kinds(h.stream.entries(targetId))).toEqual(['handoff_origin', 'permission_mode', 'plan_phase'])
+    expect((await h.api.get(planPaths.sessionPlan(targetId))).body).toEqual({ phase: 'planning', plan: null })
+    expect((await h.api.get(permissionPaths.sessionPermissionRules(targetId))).body).toEqual({ mode: 'default', rules: [] })
     expect(h.stream.invalidEntries).toEqual([])
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })

@@ -4,7 +4,7 @@ import * as React from 'react'
 import { useChat, useChatActions } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { isAgentRunning } from '../../stores/agents-store.ts'
-import { pendingApprovals } from '../../stores/chat-store.ts'
+import { pendingApprovals, sessionPermissionMode } from '../../stores/chat-store.ts'
 import { useSessionAgents } from './agents-button.tsx'
 import { PlanReviewPanel } from './plan-review-panel.tsx'
 import type { ToolCallBlock } from './timeline.ts'
@@ -192,7 +192,8 @@ const TITLE = {
 function PlanApproval({ request, autoFocus, className, onOpenPlan }: Pick<ApprovalPanelProps, 'request' | 'autoFocus' | 'className' | 'onOpenPlan'>) {
   const sessionId = useChat((s) => s.activeSessionId)
   const entries = useChat((s) => (s.activeSessionId === null ? undefined : s.conversations[s.activeSessionId]?.entries))
-  const { answerApproval } = useChatActions()
+  const pendingMode = useChat((s) => (s.activeSessionId === null ? undefined : s.conversations[s.activeSessionId]?.pendingMode))
+  const { answerApproval, setPermissionMode } = useChatActions()
   if (sessionId === null || !entries) return null
   return (
     <PlanReviewPanel
@@ -200,6 +201,9 @@ function PlanApproval({ request, autoFocus, className, onOpenPlan }: Pick<Approv
       request={request}
       entries={entries}
       answer={(answer) => answerApproval(request.requestId, answer)}
+      // 与输入区的模式菜单同一来源与动作：乐观显示待确认的切换，失败时撤回并经失败通道提示。
+      permissionMode={pendingMode ?? sessionPermissionMode(entries)}
+      onPermissionModeChange={(mode) => void setPermissionMode(mode)}
       onOpenPanel={onOpenPlan}
       {...(autoFocus ? { autoFocus } : {})}
       {...(className ? { className } : {})}
