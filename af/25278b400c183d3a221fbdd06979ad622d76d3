@@ -1,0 +1,65 @@
+apps/desktop/src/renderer/features/conversation/tool-cards.tsx
+  s_d1e837811db462::t_b08e1e6de625cc 265-267
+  s_d1e837811db462::t_71ce60bc170713 268-269
+packages/agent/src/engine/runtime.ts
+  s_d1e837811db462::t_6774c964fcec3c 136
+apps/desktop/src/renderer/features/conversation/agent-card.tsx
+  s_d1e837811db462::t_15b2d2e356d7f9 66
+packages/agent/src/policy/gate.ts
+  s_d1e837811db462::t_fd15afa52fa4c8 503-523
+  s_d1e837811db462::t_0680bd42b3fb2a 492
+  s_d1e837811db462::t_3e3dd25f31a04a 139-140
+apps/desktop/src/renderer/features/conversation/permission-states.browser.test.tsx
+  s_d1e837811db462::t_010b1dcb87fcdc 323-326,348,357
+  s_d1e837811db462::t_71ce60bc170713 327-347,349-356,358-362
+apps/desktop/src/renderer/stores/chat-store.ts
+  s_d1e837811db462::t_3f94216aa4ab78 53-54,290,854-857,892-893
+apps/desktop/src/renderer/features/conversation/tool-states.tsx
+  s_d1e837811db462::t_d683f6b9721a1d 44-48
+packages/agent/src/engine/types.ts
+  s_d1e837811db462::t_78874b39c9fc0a 84-85
+packages/i18n/src/dictionaries/en.ts
+  s_d1e837811db462::t_482c199a6afffb 649
+apps/desktop/src/renderer/features/conversation/timeline.test.ts
+  s_d1e837811db462::t_a206a6d724c13a 312
+apps/desktop/src/renderer/features/trajectory/trajectory-record.test.ts
+  s_d1e837811db462::t_a206a6d724c13a 76
+apps/desktop/src/renderer/stores/chat-store.test.ts
+  s_d1e837811db462::t_71ce60bc170713 329
+  s_d1e837811db462::t_8ada69348b2f73 338
+  s_d1e837811db462::t_f8ee4dc0b029cc 315-328,330-337,339-351
+packages/agent/src/policy/gate-review.test.ts
+  s_d1e837811db462::t_e0f1f5460fab0f 8,53,75,93
+  s_d1e837811db462::t_efcf0abeb069aa 307-339,457
+  s_d1e837811db462::t_3643e96952ff43 361-403
+  s_d1e837811db462::t_6b16170799f52e 340-360
+  s_d1e837811db462::t_eba7e3ffab1f85 404-456
+packages/protocol/src/ws.ts
+  s_d1e837811db462::t_90fde3b1f8ca0f 50-51,126
+packages/agent/src/engine/permission-wiring.ts
+  s_d1e837811db462::t_6774c964fcec3c 49-50,90
+packages/protocol/README.md
+  s_d1e837811db462::t_0e9aa7633a1f61 123
+packages/i18n/src/dictionaries/zh.ts
+  s_d1e837811db462::t_482c199a6afffb 645
+tests/integration/sidecar-auto-review.test.ts
+  s_d1e837811db462::t_c0d0227061e355 394-469
+  s_d1e837811db462::t_7cff757a1eda26 21-33,61-63,96
+  s_d1e837811db462::t_3e72b2b802bf15 64-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "af25278b400c183d3a221fbdd06979ad622d76d3",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
