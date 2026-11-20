@@ -1,0 +1,21 @@
+packages/agent/src/observability/trace.ts
+  s_d1e837811db462::t_e97e3ce84410b4 132
+packages/agent/src/policy/index.ts
+  s_d1e837811db462::t_64c50b6703793a 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "ace3bf56c5706f946938d5259bcb96eff4c9a8b8",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
