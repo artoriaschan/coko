@@ -1,0 +1,43 @@
+docs/subsystems/plan-mode.md
+  s_e66561215efab5::t_c40c12082ad6d5 3
+  s_e66561215efab5::t_d93d6a6f4b9997 70-71
+  s_e66561215efab5::t_1d59c470343027 62
+apps/desktop/src/renderer/features/conversation/plan-review-panel.tsx
+  s_e66561215efab5::t_10f65ed8666863 9,19,90-92,102-112,114,205-212
+  s_e66561215efab5::t_c9bfee2e572783 2-8,10,99-100
+apps/desktop/src/renderer/features/conversation/approval-panel.tsx
+  s_e66561215efab5::t_81e443140b6d37 7
+  s_e66561215efab5::t_7c580f96c0629c 195-196,204-206
+tests/integration/sidecar-plan.test.ts
+  s_e66561215efab5::t_a147ac1f03d686 344-345,357-359,366-380
+  s_e66561215efab5::t_ca889647b777ee 2-3,381-382
+  s_e66561215efab5::t_a0b89e730001ad 346-356,360-365
+apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx
+  s_e66561215efab5::t_c250f695467ccf 477-597
+  s_e66561215efab5::t_5350a5c77813d4 17
+  s_e66561215efab5::t_6436b5aedbcf7b 2
+.scratch/plan-lifecycle/issues/05-review-card-permission.md
+  s_e66561215efab5::t_93d4abea563080 11-24,26-35
+  s_e66561215efab5::t_107253a31e9700 25
+docs/subsystems/workbench.md
+  s_e66561215efab5::t_e9b2c145b3bc33 199
+packages/i18n/src/dictionaries/domains/plan.ts
+  s_e66561215efab5::t_e634bbae524728 77
+  s_e66561215efab5::t_8b433f1dd2b1ae 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "f553bf4e963b9f4cec62701095d1b37003ab42df",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
