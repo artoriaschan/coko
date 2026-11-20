@@ -3,7 +3,7 @@ import type { Model, Models, TextContent, UserMessage } from '@earendil-works/pi
 import type { EntryLike, StateUpdateDelivery } from '../entries/index.ts'
 import type { ToolHooks } from '../extensions/hooks/index.ts'
 import type { ApprovalAnswer } from '../policy/broker.ts'
-import type { PermissionHookPort } from '../policy/gate.ts'
+import type { PermissionHookPort, ReviewerPort } from '../policy/gate.ts'
 import type { ExecPort } from '../ports/exec.ts'
 import type { SecretProvider } from '../ports/secrets.ts'
 import type {
@@ -277,6 +277,8 @@ export interface RuntimePermissions {
    * hooks, recorded as approval_decision { outcome: denied, by: headless }; the model sees `deniedText` and the Run continues.
    */
   unattended?: { deniedText: string }
+  /** 自动审查的 Reviewer（ADR 0029）：auto-review 下第 7 步的询问先交给它；缺省无，询问照常出卡片。 */
+  reviewer?: ReviewerPort
 }
 
 export interface AgentRuntime {

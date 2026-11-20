@@ -739,6 +739,8 @@ export const en: typeof zh = {
     escalationTarget: 'Access',
     escalationJustification: 'Reason',
     allowedWithMode: 'Allowed once with {mode}',
+    allowedByReviewer: 'Allowed by auto review',
+    reviewerReason: 'Auto review reason',
   },
   sandbox: {
     modes: {

@@ -244,6 +244,40 @@ describe('工具卡：外部 Hook', () => {
     expect(document.querySelector('[data-approval-outcome="allowed"]')?.textContent).toBe('Allowed by hook')
   })
 
+  it('由自动审查允许：标题行标注，展开后在参数之前显示理由全文（中英文）', async () => {
+    const reason = 'Running the test suite is part of the requested fix. ' + '理由/'.repeat(20)
+    const reviewed = (locale: 'zh' | 'en') =>
+      renderCard(
+        {
+          kind: 'tool',
+          key: 'tool:v1',
+          call: { id: 'v1', name: 'bash', arguments: { command: 'pnpm test' } },
+          result: { isError: false, text: 'ok', details: undefined },
+          status: 'done',
+          live: null,
+          approval: {
+            request: { requestId: 'r1', toolCallId: 'v1', toolName: 'bash', kind: 'tool', subject: 'pnpm test', suggestions: [] },
+            decision: { requestId: 'r1', outcome: 'allowed', scope: 'once', by: 'reviewer', reason },
+          },
+        },
+        locale,
+      )
+    const screen = await reviewed('zh')
+    expect(document.querySelector('[data-approval-outcome="allowed"]')?.textContent).toBe('已由自动审查允许')
+    expect(document.querySelector('[data-reviewer-reason]')).toBeNull()
+    await page.getByRole('button', { name: /运行命令/ }).click()
+    const note = document.querySelector<HTMLElement>('[data-reviewer-reason]')!
+    expect(note.textContent).toBe(`自动审查理由${reason}`)
+    const body = document.querySelector('[data-slot="tool-card-body"]')!
+    expect(body.textContent!.indexOf(reason)).toBeLessThan(body.textContent!.indexOf('pnpm test'))
+    expect(note.scrollWidth).toBeLessThanOrEqual(note.clientWidth)
+    await screen.unmount()
+    await reviewed('en')
+    expect(document.querySelector('[data-approval-outcome="allowed"]')?.textContent).toBe('Allowed by auto review')
+    await page.elementLocator(document.querySelector('[data-slot="tool-card"] button')!).click()
+    expect(document.querySelector('[data-reviewer-reason]')?.textContent).toBe(`Auto review reason${reason}`)
+  })
+
   it('lsp：标题为操作，摘要为文件与位置，明细先显示结果计数；截断时注明总数；诊断超时注明没有收到', async () => {
     const lsp = (id: string, args: Record<string, unknown>, text: string, details: Record<string, unknown>): ToolItem => ({
       kind: 'tool',

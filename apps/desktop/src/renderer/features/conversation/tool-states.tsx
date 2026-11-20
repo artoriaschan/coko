@@ -63,15 +63,17 @@ function ApprovalMeta({ item }: { item: ToolItem }) {
       label =
         decision.by === 'hook'
           ? t('hooks.allowedBy')
-          : target
-            ? t('approval.allowedWithMode', { mode: t(`sandbox.shortModes.${target}`) })
-            : decision.scope === 'session'
-              ? t('approval.allowedSession')
-              : decision.scope === 'workspace'
-                ? t('approval.allowedWorkspace')
-                : decision.scope === 'global'
-                  ? t('approval.allowedGlobal')
-                  : t('approval.allowedOnce')
+          : decision.by === 'reviewer'
+            ? t('approval.allowedByReviewer')
+            : target
+              ? t('approval.allowedWithMode', { mode: t(`sandbox.shortModes.${target}`) })
+              : decision.scope === 'session'
+                ? t('approval.allowedSession')
+                : decision.scope === 'workspace'
+                  ? t('approval.allowedWorkspace')
+                  : decision.scope === 'global'
+                    ? t('approval.allowedGlobal')
+                    : t('approval.allowedOnce')
       break
     case 'denied':
       label = decision.feedback ? t('approval.deniedWithFeedback', { feedback: decision.feedback }) : t('approval.denied')
@@ -122,8 +124,18 @@ export function ProcessToolStates({ members }: { members: TimelineItem[] }) {
 export function ToolStateDetail({ item }: { item: ToolItem }) {
   const { t } = useI18n()
   const feedback = item.approval?.decision?.feedback
+  const decision = item.approval?.decision
+  const reviewerReason = decision?.by === 'reviewer' ? decision.reason : undefined
   return (
     <>
+      {reviewerReason && (
+        <p data-reviewer-reason className="flex min-w-0 items-baseline gap-2 px-3 py-2 text-ui-small text-muted-foreground">
+          <span className="shrink-0">{t('approval.reviewerReason')}</span>
+          <span data-user-content className="min-w-0 break-words text-foreground">
+            {reviewerReason}
+          </span>
+        </p>
+      )}
       {feedback && (
         <p data-approval-feedback data-user-content className="px-3 py-2 text-ui-small break-words text-destructive">
           {feedback}

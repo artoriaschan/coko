@@ -731,6 +731,8 @@ export const zh = {
     escalationTarget: '权限',
     escalationJustification: '理由',
     allowedWithMode: '已以{mode}允许一次',
+    allowedByReviewer: '已由自动审查允许',
+    reviewerReason: '自动审查理由',
   },
   sandbox: {
     modes: {

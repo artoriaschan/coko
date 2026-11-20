@@ -16,6 +16,7 @@ export const PAUSED_BEFORE_APPROVAL_TEXT = 'Not run: the user paused the run bef
 
 /** 权限接线读写的 Run 状态（运行时的 RunState 的一部分）。 */
 export interface PermissionRun {
+  runId: string
   rejected: boolean
   paused: boolean
   /** Aborted by pause(): cancels approvals that are waiting (not running tools). */
@@ -83,6 +84,8 @@ export function createPermissionWiring(options: {
         grantEscalation: (toolCallId, mode) => void escalations.set(toolCallId, mode),
         ...(permissions.hooks ? { hooks: permissions.hooks } : {}),
         ...(permissions.unattended ? { unattended: permissions.unattended } : {}),
+        ...(permissions.reviewer ? { reviewer: permissions.reviewer } : {}),
+        runId: () => current()?.runId,
       })
     : undefined
 

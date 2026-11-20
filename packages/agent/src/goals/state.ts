@@ -366,7 +366,7 @@ export type RunAuthority = { kind: 'user' } | { kind: 'goal-round'; goalId: stri
  * 从条目判定最后一个未结束的 Run 的授权：trigger submit 为 user；之后送达的 user message 中有一条不是宿主的通知（前一条不是
  * job_notification）时同样为 user。没有进行中的 Run 时 none。
  */
-const UNATTENDED_TRIGGERS: ReadonlySet<string> = new Set(['schedule', 'subagent', 'handoff'])
+export const UNATTENDED_TRIGGERS: ReadonlySet<string> = new Set(['schedule', 'subagent', 'handoff'])
 
 export function runAuthority(entries: readonly EntryLike[]): RunAuthority {
   let start = -1

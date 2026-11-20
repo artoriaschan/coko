@@ -8,7 +8,13 @@ const strict = { additionalProperties: false } as const
 const Id = Type.String({ minLength: 1 })
 const Count = Type.Integer({ minimum: 0 })
 
-export const ModelRequestPurpose = Type.Union([Type.Literal('turn'), Type.Literal('compaction'), Type.Literal('summary'), Type.Literal('title')])
+export const ModelRequestPurpose = Type.Union([
+  Type.Literal('turn'),
+  Type.Literal('compaction'),
+  Type.Literal('summary'),
+  Type.Literal('title'),
+  Type.Literal('review'),
+])
 export type ModelRequestPurpose = Static<typeof ModelRequestPurpose>
 
 export const ModelRequestUsage = Type.Object({ input: Count, output: Count, cacheRead: Count, cacheWrite: Count, total: Count }, strict)
@@ -74,7 +80,7 @@ export const ToolTrace = Type.Object(
     isError: Type.Optional(Type.Boolean()),
     approvalWaitMs: Type.Optional(Count),
     approval: Type.Optional(ToolApproval),
-    approvalBy: Type.Optional(Type.Union([Type.Literal('user'), Type.Literal('hook'), Type.Literal('headless')])),
+    approvalBy: Type.Optional(Type.Union([Type.Literal('user'), Type.Literal('hook'), Type.Literal('headless'), Type.Literal('reviewer')])),
     hooks: Type.Array(HookTrace),
   },
   strict,

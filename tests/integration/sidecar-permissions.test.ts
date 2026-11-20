@@ -337,11 +337,12 @@ describe('规则工具名（大小写与别名）', () => {
   })
 })
 
-describe('auto-review 的取值与入口（票 02：尚未接入 Reviewer，判定与 accept-edits 相同）', () => {
-  it('切到 auto-review 后读回；可写根内编辑免审批；未被规则覆盖的命令出现普通审批请求；重启后模式仍在', async () => {
+describe('auto-review 的取值与入口（判定与 accept-edits 相同；Reviewer 见 sidecar-auto-review.test.ts）', () => {
+  it('切到 auto-review 后读回；可写根内编辑免审批；未被规则覆盖的命令经 Reviewer 转交后出现普通审批请求；重启后模式仍在', async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const first = await boot(root, dirs, [
+      { match: 'COKO_PERMISSION_REVIEW', content: JSON.stringify({ decision: 'escalate', reason: 'Not sure.' }) },
       { content: [write('w1', 'w.txt')] },
       { content: 'ok' },
       { content: [bash('b1', 'printf a > a.txt')] },

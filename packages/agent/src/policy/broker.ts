@@ -55,6 +55,11 @@ export interface ApprovalBroker {
    */
   recordHookAllowed(request: Omit<ApprovalRequestPayload, 'requestId'>): Promise<void>
   /**
+   * 由 Reviewer 放行的请求（ADR 0029）：依次提交 approval_request 与 approval_decision { outcome: allowed, scope: once, by: reviewer, reason }；
+   * 不进入等待表。提交失败时 reject。
+   */
+  recordReviewerAllowed(request: Omit<ApprovalRequestPayload, 'requestId'>, reason: string): Promise<void>
+  /**
    * 无人回答的运行（ADR 0019）：依次提交 approval_request 与 approval_decision { outcome: denied, by: headless }；不进入等待表。提交失败时 reject。
    */
   recordUnattendedDenied(request: Omit<ApprovalRequestPayload, 'requestId'>): Promise<void>
@@ -130,6 +135,12 @@ export function createApprovalBroker(commit: (entry: ApprovalBrokerEntry) => Pro
       const payload: ApprovalRequestPayload = { requestId: randomUUID(), ...request }
       await commit({ kind: 'approval_request', payload })
       await commit({ kind: 'approval_decision', payload: { requestId: payload.requestId, outcome: 'allowed', scope: 'once', by: 'hook' } })
+    },
+
+    async recordReviewerAllowed(request, reason) {
+      const payload: ApprovalRequestPayload = { requestId: randomUUID(), ...request }
+      await commit({ kind: 'approval_request', payload })
+      await commit({ kind: 'approval_decision', payload: { requestId: payload.requestId, outcome: 'allowed', scope: 'once', by: 'reviewer', reason } })
     },
 
     async recordUnattendedDenied(request) {

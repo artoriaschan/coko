@@ -101,12 +101,23 @@ const approvalDecisionV1Schema = Type.Object(approvalDecisionFields, strict)
 /** approval_decision v2：另带回答者 by（user 或 hook；v1 原样迁移）。 */
 const approvalDecisionV2Schema = Type.Object({ ...approvalDecisionFields, by: Type.Optional(Type.Union([Type.Literal('user'), Type.Literal('hook')])) }, strict)
 
-/** 回答审批的一方：用户、PermissionRequest Hook（ADR 0013）或无界面运行的自动拒绝（ADR 0019）。缺省为用户。 */
-export const approvalDeciderSchema = Type.Union([Type.Literal('user'), Type.Literal('hook'), Type.Literal('headless')])
+/** approval_decision v3：by 增加 headless（v2 原样迁移）。 */
+const approvalDecisionV3Schema = Type.Object(
+  { ...approvalDecisionFields, by: Type.Optional(Type.Union([Type.Literal('user'), Type.Literal('hook'), Type.Literal('headless')])) },
+  strict,
+)
+
+/**
+ * 回答审批的一方：用户、PermissionRequest Hook（ADR 0013）、无界面运行的自动拒绝（ADR 0019）或 Reviewer（ADR 0029）。缺省为用户。
+ */
+export const approvalDeciderSchema = Type.Union([Type.Literal('user'), Type.Literal('hook'), Type.Literal('headless'), Type.Literal('reviewer')])
 export type ApprovalDecider = Static<typeof approvalDeciderSchema>
 
-/** approval_decision v3：by 增加 headless（v2 原样迁移）。 */
-export const approvalDecisionPayloadSchema = Type.Object({ ...approvalDecisionFields, by: Type.Optional(approvalDeciderSchema) }, strict)
+/** approval_decision v4：by 增加 reviewer，reason 为 Reviewer 放行的理由（只在 by reviewer 时写入；v3 原样迁移）。 */
+export const approvalDecisionPayloadSchema = Type.Object(
+  { ...approvalDecisionFields, by: Type.Optional(approvalDeciderSchema), reason: Type.Optional(Type.String()) },
+  strict,
+)
 export type ApprovalDecisionPayload = Static<typeof approvalDecisionPayloadSchema>
 
 export interface PermissionEntryPayloads {
@@ -134,6 +145,7 @@ export const permissionEntryPayloads = definePayloads({
   approval_decision: [
     { schema: approvalDecisionV1Schema },
     { schema: approvalDecisionV2Schema, migrate: (previous: EntryJson) => previous },
+    { schema: approvalDecisionV3Schema, migrate: (previous: EntryJson) => previous },
     { schema: approvalDecisionPayloadSchema, migrate: (previous: EntryJson) => previous },
   ],
 } satisfies Record<keyof PermissionEntryPayloads, unknown>)

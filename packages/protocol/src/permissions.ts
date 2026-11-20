@@ -66,13 +66,20 @@ export type ApprovalOutcome = Static<typeof ApprovalOutcome>
 export const ApprovalScope = Type.Union([Type.Literal('once'), Type.Literal('session'), Type.Literal('workspace'), Type.Literal('global')])
 export type ApprovalScope = Static<typeof ApprovalScope>
 
-/** 回答审批的一方：用户，或 PermissionRequest Hook（ADR 0013）；缺省为用户。 */
-export const ApprovalDecider = Type.Union([Type.Literal('user'), Type.Literal('hook'), Type.Literal('headless')])
+/** 回答审批的一方：用户、PermissionRequest Hook（ADR 0013）、无界面运行（ADR 0019）或 Reviewer（ADR 0029）；缺省为用户。 */
+export const ApprovalDecider = Type.Union([Type.Literal('user'), Type.Literal('hook'), Type.Literal('headless'), Type.Literal('reviewer')])
 export type ApprovalDecider = Static<typeof ApprovalDecider>
 
-/** approval_decision v2：另带回答者 by（v1 原样迁移）。 */
+/** approval_decision v4：回答者 by；reason 为 Reviewer 放行的理由（只在 by reviewer 时有；旧版原样迁移）。 */
 export const ApprovalDecisionPayload = Type.Object(
-  { requestId: Id, outcome: ApprovalOutcome, scope: Type.Optional(ApprovalScope), feedback: Type.Optional(Type.String()), by: Type.Optional(ApprovalDecider) },
+  {
+    requestId: Id,
+    outcome: ApprovalOutcome,
+    scope: Type.Optional(ApprovalScope),
+    feedback: Type.Optional(Type.String()),
+    by: Type.Optional(ApprovalDecider),
+    reason: Type.Optional(Type.String()),
+  },
   strict,
 )
 export type ApprovalDecisionPayload = Static<typeof ApprovalDecisionPayload>

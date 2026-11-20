@@ -74,6 +74,32 @@ export interface PermissionHookPort {
   permissionRequest(call: HookToolCall, signal?: AbortSignal): Promise<HookVerdict>
 }
 
+/** 审查没能给出结论的原因（界面按代码本地化）。 */
+export type ReviewFailureCode = 'timeout' | 'request-failed' | 'invalid-output' | 'no-model' | 'budget' | 'too-long'
+
+export interface ReviewRequest {
+  /** 所属 Run（审查请求记为该 Run 的 model_request）。 */
+  runId: string
+  toolCallId: string
+  toolName: string
+  /** 经 schema 校验后的参数（BeforeToolCallContext.args）。 */
+  input: unknown
+  /** external（MCP）工具的描述（registry 中工具的 description）；其他类不给。 */
+  description?: string
+  /** 本 Run 中此前经过权限 gate 的调用，按到达顺序，不含结果，不论当时结果。 */
+  priorCalls: readonly { toolName: string; input: unknown }[]
+}
+
+export type ReviewOutcome = { verdict: 'allow'; reason: string } | { verdict: 'escalate'; reason: string } | { verdict: 'failed'; code: ReviewFailureCode }
+
+/**
+ * 第 7 步询问的代答者（ADR 0029）。只有放行与转交两种结论，不能拒绝。实现不抛错：失败以 failed 返回；仍然抛出时 gate 按
+ * request-failed 处理。signal 触发后须尽快结束（返回值不再被使用），gate 会等它结束再继续，使它提交的 model_request 排在 Run 结束之前。
+ */
+export interface ReviewerPort {
+  review(request: ReviewRequest, signal?: AbortSignal): Promise<ReviewOutcome>
+}
+
 export interface PermissionGateOptions {
   /** Workspace 目录（按调用时的真实路径判定）。 */
   cwd: string
@@ -105,6 +131,13 @@ export interface PermissionGateOptions {
    * 不按无反馈的拒绝停止 Run。缺省时等待回答。
    */
   unattended?: { deniedText: string }
+  /**
+   * Reviewer（ADR 0029，缺省无）：auto-review 下最终为第 7 步的询问、PermissionRequest Hook 没有决定且不是 automation 类时，先交给它；
+   * 放行时以 by reviewer 的单次允许执行，转交或失败时照常询问。没有端口时 gate 的行为与没有 auto-review 的审查时相同。
+   */
+  reviewer?: ReviewerPort
+  /** 当前 Run 的 runId；没有 Run 时 undefined（不送审，按普通询问）。 */
+  runId?: () => string | undefined
 }
 
 export interface PermissionGate {
@@ -161,6 +194,8 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
   const prepared = new Map<string, string>()
   /** 本 Run 中被沙箱拒绝过的命令（规范空白后）。 */
   const sandboxDenied = new Set<string>()
+  /** 本 Run 中经过 gate 的调用，按到达顺序（审查请求的 priorCalls）。 */
+  const calls: { toolName: string; input: unknown }[] = []
 
   const planning = () => options.planning?.() ?? false
   const subjectOf = (name: string, args: unknown) => options.tool(name)?.permissionSubject?.(args as never)
@@ -362,6 +397,8 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     async beforeToolCall(context, signal) {
       if (options.rejected()) return { block: true, reason: SKIPPED_TEXT }
       const name = context.toolCall.name
+      const priorCalls = [...calls]
+      calls.push({ toolName: name, input: context.args })
       const tool = options.tool(name)
       const subject = subjectOf(name, context.args)
       const isolation = isolationOf(name, context.args)
@@ -438,6 +475,42 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
           return undefined
         }
       }
+      // Reviewer（ADR 0029）：PermissionRequest 没有决定之后、出卡片之前；只回答第 7 步的询问，不能拒绝。
+      const runId = options.runId?.()
+      if (
+        options.reviewer &&
+        runId !== undefined &&
+        options.mode() === 'auto-review' &&
+        combined.by === 'policy' &&
+        combined.step === 'default' &&
+        categoryOf(name) !== 'automation'
+      ) {
+        const description = categoryOf(name) === 'external' ? tool?.description : undefined
+        let outcome: ReviewOutcome
+        try {
+          outcome = await options.reviewer.review(
+            { runId, toolCallId: context.toolCall.id, toolName: name, input: context.args, ...(description === undefined ? {} : { description }), priorCalls },
+            signal,
+          )
+        } catch {
+          outcome = { verdict: 'failed', code: 'request-failed' }
+        }
+        // 停止或暂停：不提交审批条目，迟到的结论不被使用（wiring 把暂停改写为暂停前未批准）。
+        if (signal?.aborted) return { block: true, reason: OPERATION_ABORTED_TEXT }
+        // ponytail: 结论生效前按当时的模式与规则复核（设计稿第 4 节）属于票 07；转交与失败的原因进入请求（review 字段）属于票 04。
+        if (outcome.verdict === 'allow') {
+          try {
+            await options.broker.recordReviewerAllowed(
+              { toolCallId: context.toolCall.id, toolName: name, kind: 'tool', subject: subject ?? '', suggestions: combined.decision.suggestions },
+              outcome.reason,
+            )
+          } catch (error) {
+            return { block: true, reason: failed(error) }
+          }
+          remember(undefined)
+          return undefined
+        }
+      }
       const reason = await askTool(
         context.toolCall.id,
         name,
@@ -472,6 +545,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     reset() {
       prepared.clear()
       sandboxDenied.clear()
+      calls.length = 0
     },
   }
 }
