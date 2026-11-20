@@ -1,0 +1,19 @@
+.scratch/plan-lifecycle/issues/10-complete-plan-report.md
+  s_e66561215efab5::t_fb557ae3f6e750 36-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "0d0c191ef989b77c03a84a3fdc685b6c00c82268",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
