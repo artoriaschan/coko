@@ -1,0 +1,24 @@
+apps/desktop/src/renderer/features/right-panel/plan-tab.tsx
+  s_e66561215efab5::t_61086b7332aafe 116
+tests/integration/headless.test.ts
+  s_e66561215efab5::t_61086b7332aafe 57
+apps/desktop/e2e/desktop-shell.e2e.test.ts
+  s_e66561215efab5::t_caa020f9750e8c 190,222-223,225,234-238
+  s_e66561215efab5::t_9fdfb192eec502 292-297,320-326
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "cc9ca22c4ae91672a38f548da721bfc091a4c773",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
