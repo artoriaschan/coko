@@ -5,12 +5,14 @@ export const commands = defineDomain(
   {
     menuLabel: '命令',
     source: { builtin: '内置', project: '项目', user: '用户', skill: 'Skill', mcp: 'MCP' },
+    pluginGroup: '插件',
     chipLabel: '命令 {name}',
     showExpanded: '展开后的提示',
   },
   {
     menuLabel: 'Commands',
     source: { builtin: 'Built-in', project: 'Project', user: 'User', skill: 'Skill', mcp: 'MCP' },
+    pluginGroup: 'Plugin',
     chipLabel: 'Command {name}',
     showExpanded: 'Expanded prompt',
   },

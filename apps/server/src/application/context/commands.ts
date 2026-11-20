@@ -57,6 +57,7 @@ const toInfo = (command: CatalogEntry & { enabled: boolean }): CommandInfo => ({
   description: command.description,
   ...(command.argumentHint === undefined ? {} : { argumentHint: command.argumentHint }),
   source: command.source,
+  ...(command.plugin === undefined ? {} : { plugin: command.plugin }),
   ...(command.path === undefined ? {} : { path: command.path }),
   enabled: command.enabled,
 })
