@@ -1,0 +1,77 @@
+docs/subsystems/plan-mode.md
+  s_e66561215efab5::t_7fc878e036ea16 3,76,78-79
+  s_e66561215efab5::t_1d59c470343027 29,31-32,62
+docs/README.md
+  s_e66561215efab5::t_b17aa6275c1673 50
+  s_e66561215efab5::t_48cd8ad9ea56b4 47
+tests/integration/sidecar-handoff.test.ts
+  s_e66561215efab5::t_5ccf4569309e04 8,148-159
+packages/agent/src/agents/handoff.test.ts
+  s_e66561215efab5::t_a17bb06352ca6c 112-116,118-119,121-122
+  s_e66561215efab5::t_bf39996695c348 117,120,133
+apps/server/src/application/sessions.ts
+  s_e66561215efab5::t_9fbba583152be2 152
+.scratch/plan-lifecycle/issues/05-review-card-permission.md
+  s_e66561215efab5::t_107253a31e9700 25
+  s_e66561215efab5::t_93d4abea563080 11-24,26-35
+packages/agent/src/agents/fork.ts
+  s_e66561215efab5::t_e6d8fb7a1d4765 78
+  s_e66561215efab5::t_30095aee41bc37 12,77
+apps/desktop/src/renderer/features/conversation/plan-review-panel.tsx
+  s_e66561215efab5::t_10f65ed8666863 9,19,90-92,102-112,114,205-212
+  s_e66561215efab5::t_c9bfee2e572783 2-8,10,99-100
+apps/desktop/src/renderer/features/conversation/approval-panel.tsx
+  s_e66561215efab5::t_81e443140b6d37 7
+  s_e66561215efab5::t_7c580f96c0629c 195-196,204-206
+tests/integration/sidecar-plan.test.ts
+  s_e66561215efab5::t_1812f2499f4689 30,32-33,70-73,79,592-663
+  s_e66561215efab5::t_bfad7ae619d2e5 69,75
+  s_e66561215efab5::t_ca889647b777ee 2-3,367,383-384
+  s_e66561215efab5::t_fe27a9b2de0578 11,74
+  s_e66561215efab5::t_a147ac1f03d686 346-347,359-361,368-382
+  s_e66561215efab5::t_a0b89e730001ad 348-358,362-366
+docs/subsystems/handoff.md
+  s_e66561215efab5::t_497cff9bc25932 75
+  s_e66561215efab5::t_c40c12082ad6d5 48
+docs/subsystems/workbench.md
+  s_e66561215efab5::t_e9b2c145b3bc33 199
+apps/server/src/application/session-permissions.ts
+  s_e66561215efab5::t_9fbba583152be2 7,42,158-160,167,177-188
+.scratch/plan-lifecycle/issues/06-rewind-fork-handoff.md
+  s_e66561215efab5::t_638ef68d4fd1ee 11-35
+  s_e66561215efab5::t_e6d8fb7a1d4765 36-44
+packages/agent/src/agents/fork.test.ts
+  s_e66561215efab5::t_469be58331aa13 207-209,214-218,233-234,237-239
+  s_e66561215efab5::t_e6d8fb7a1d4765 219-230
+  s_e66561215efab5::t_30095aee41bc37 235-236
+apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx
+  s_e66561215efab5::t_5350a5c77813d4 17
+  s_e66561215efab5::t_c250f695467ccf 463-583
+  s_e66561215efab5::t_bf39996695c348 374-412
+  s_e66561215efab5::t_6436b5aedbcf7b 2
+apps/server/src/application/checkpoints.ts
+  s_e66561215efab5::t_9fbba583152be2 30-31,109,136
+tests/integration/sidecar-rewind.test.ts
+  s_e66561215efab5::t_9278b7a900dcaf 81
+  s_e66561215efab5::t_e6d8fb7a1d4765 84-89
+  s_e66561215efab5::t_38794b617b0267 79-80,93-108,112-115
+packages/i18n/src/dictionaries/domains/plan.ts
+  s_e66561215efab5::t_8b433f1dd2b1ae 36
+  s_e66561215efab5::t_e634bbae524728 75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "7cc98dd0d2fc3d4528c2892150daf6022edbb0d6",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
