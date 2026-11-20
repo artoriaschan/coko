@@ -466,6 +466,33 @@ describe('对手用例：审查应答恒为放行', () => {
     expect(await h.reviews()).toEqual([])
   })
 
+  it('项目设置中的拒绝与询问规则照常收紧，且没有审查请求', async () => {
+    const root = await realpath(await tempDir())
+    await mkdir(join(root, '.coko'))
+    await writeFile(join(root, '.coko', 'settings.json'), JSON.stringify({ permissions: { deny: ['Bash(rm *)'], ask: ['Bash(printf *)'] } }))
+    await writeFile(join(root, 'keep.txt'), 'keep')
+    const h = await boot(
+      [
+        ...Array.from({ length: 2 }, () => allow()),
+        { content: [bash('x1', 'rm -f keep.txt')] },
+        { content: [bash('a1', 'printf a > a.txt')] },
+        { content: 'ok' },
+      ],
+      { root },
+    )
+    const sessionId = await h.open()
+    await h.send(sessionId)
+    const asked = await waitApproval(h.stream, sessionId)
+    expect(asked).toMatchObject({ toolCallId: 'a1', suggestions: [] })
+    expect(asked).not.toHaveProperty('review')
+    await h.answer(sessionId, asked.requestId, { decision: 'deny', feedback: 'no' })
+    await h.runEnds(sessionId, 1)
+    expect(text(toolResults(h.entries(sessionId)).find((r) => r.toolCallId === 'x1'))).toBe('Permission denied by rule Bash(rm *).')
+    expect(await readFile(join(root, 'keep.txt'), 'utf8')).toBe('keep')
+    expect(existsSync(join(root, 'a.txt'))).toBe(false)
+    expect(await h.reviews()).toEqual([])
+  })
+
   it.skipIf(!darwin)('审查放行的越界写入命令被 Seatbelt 拒绝；带提权参数的重试出 Escalation 卡且不送审', async () => {
     const outside = await realpath(await tempDir('coko-outside-'))
     const escalated = { sandbox_permissions: 'danger-full-access', justification: 'outside the workspace' }
@@ -551,6 +578,23 @@ describe('审查中与切换时序', () => {
     expect(text(toolResults(h.entries(h.sessionId))[0])).toBe('Operation aborted')
     expect(existsSync(join(h.root, 'a.txt'))).toBe(false)
     expect(approvalEntries(h.entries(h.sessionId))).toEqual([])
+  })
+
+  it('切换到 auto-review 时已在等待的请求保持等待（不送审），用户允许后执行', async () => {
+    // 放行应答在前：若切换后被重新送审，它会被取走、调用不经用户就执行。
+    const h = await boot([allow(), { content: [bash('b1', 'printf a > a.txt')] }, { content: 'ok' }])
+    const sessionId = await h.open('default')
+    await h.send(sessionId)
+    const asked = await waitApproval(h.stream, sessionId)
+    expect((await h.api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'auto-review' })).status).toBe(200)
+    expect((await h.answer(sessionId, asked.requestId, { decision: 'allow' })).status).toBe(204)
+    await h.runEnds(sessionId, 1)
+    expect(await readFile(join(h.root, 'a.txt'), 'utf8')).toBe('a')
+    expect(approvalEntries(h.entries(sessionId)).map((e) => [e.kind, (e.payload as { by?: string }).by])).toEqual([
+      ['approval_request', undefined],
+      ['approval_decision', undefined],
+    ])
+    expect(await h.reviews()).toEqual([])
   })
 
   it('Sidecar 在审查途中退出：重启后按未执行调用恢复（补错误结果、Run 中断），不自动重审', async () => {
@@ -742,11 +786,11 @@ describe('Goal、定时任务与预算', () => {
     await h.send(sessionId, 'write the files')
     // b1：审查失败而转交；允许后执行。
     const first = await waitApproval(h.stream, sessionId, 1)
-    expect(first).toMatchObject({ toolCallId: 'b1' })
+    expect(first).toMatchObject({ toolCallId: 'b1', review: { outcome: 'failed', code: 'request-failed' } })
     expect((await h.answer(sessionId, first.requestId, { decision: 'allow' })).status).toBe(204)
     // b2：Goal 已用 11 + 500（审查）+ 500 = 1011 ≥ 1000，请求前检查不通过：不发审查请求，直接转交用户，调用未执行。
     const second = await waitApproval(h.stream, sessionId, 2)
-    expect(second).toMatchObject({ toolCallId: 'b2' })
+    expect(second).toMatchObject({ toolCallId: 'b2', review: { outcome: 'failed', code: 'budget' } })
     expect(existsSync(join(h.root, 'b.txt'))).toBe(false)
     expect((await h.api.get(apiPaths.session(sessionId))).body.session).toMatchObject({ activity: 'awaiting-approval' })
     expect(await h.reviews()).toHaveLength(1)

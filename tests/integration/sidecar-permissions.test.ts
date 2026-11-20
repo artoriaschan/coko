@@ -402,7 +402,7 @@ describe('auto-review 的取值与入口（判定与 accept-edits 相同；Revie
     await sidecar.stop()
   })
 
-  it('旧数据：permission_mode v3 读回为 v4（四档原样），库中行不改写', async () => {
+  it('旧数据：permission_mode v3、approval_request v1、approval_decision v3 原样读回为新版本，库中行不改写', async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const before = await boot(root, dirs, [])
@@ -421,7 +421,11 @@ describe('auto-review 的取值与入口（判定与 accept-edits 相同；Revie
       const { SESSION_ENTRY_PAYLOADS } = await import(process.argv[5]);
       const store = await openSqliteStore({ path: process.argv[2], payloads: createPayloadRegistry(SESSION_ENTRY_PAYLOADS) });
       try {
-        await store.sessions.appendEntries(process.argv[3], [{ kind: 'permission_mode', payloadVersion: 3, payload: { mode: 'accept-edits' } }]);
+        await store.sessions.appendEntries(process.argv[3], [
+          { kind: 'permission_mode', payloadVersion: 3, payload: { mode: 'accept-edits' } },
+          { kind: 'approval_request', payloadVersion: 1, payload: { requestId: 'r-old', toolCallId: 't-old', toolName: 'bash', kind: 'tool', subject: 'ls', suggestions: [] } },
+          { kind: 'approval_decision', payloadVersion: 3, payload: { requestId: 'r-old', outcome: 'denied', by: 'headless' } },
+        ]);
       } finally { await store.close(); }
     `,
         new URL('../../packages/session/src/sqlite/index.ts', import.meta.url).href,
@@ -439,6 +443,10 @@ describe('auto-review 的取值与入口（判定与 accept-edits 相同；Revie
     expect(entries.filter((e) => e.kind === 'permission_mode').map((e) => [e.payloadVersion, e.payload])).toEqual([
       [4, { mode: 'default' }],
       [4, { mode: 'accept-edits' }],
+    ])
+    expect(entries.filter((e) => e.kind === 'approval_request' || e.kind === 'approval_decision').map((e) => [e.kind, e.payloadVersion, e.payload])).toEqual([
+      ['approval_request', 2, { requestId: 'r-old', toolCallId: 't-old', toolName: 'bash', kind: 'tool', subject: 'ls', suggestions: [] }],
+      ['approval_decision', 4, { requestId: 'r-old', outcome: 'denied', by: 'headless' }],
     ])
     const db = new DatabaseSync(join(dirs.dataDir, 'coko.db'), { readOnly: true })
     try {
