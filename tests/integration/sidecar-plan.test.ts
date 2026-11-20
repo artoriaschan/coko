@@ -2,7 +2,7 @@
 // 沙箱且不能提权，其余调用按当前模式）、Run 中途进入与退出、exit_plan_mode 的提交与审阅（编辑后批准、带反馈继续规划，批准后执行中，审阅等待中切换模式后
 // 按新模式执行）、回答的校验、complete_plan 的完成报告（同一 Run 与跨 Run、错误情形、完成后的清空与回退）、执行中的放弃与重新规划、压缩后的
 // <approved_plan> 与分叉。
-// 本票不新增文件读取（没有读取根或注入点涉及路径），不需要符号链接越界用例。
+// Plan Mode 不新增文件读取（没有读取根或注入点涉及路径），不需要符号链接越界用例。
 import { execFileSync } from 'node:child_process'
 import { access, readFile, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -1010,7 +1010,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'planning', plan: null })
     expect((await rewind(first!.seq)).status).toBe(200)
     expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'none', plan: null })
-    // Permission Mode 的回退行为保持现状：回退区间内切换的 accept-edits 仍生效（另开问题，不在本票范围）。
+    // Permission Mode 的回退行为保持现状：回退区间内切换的 accept-edits 仍生效（ADR 0028 只规定计划阶段的回退，不改变 Permission Mode 的回退）。
     expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'accept-edits', rules: [] })
 
     await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'write now' })

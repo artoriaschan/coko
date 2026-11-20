@@ -133,7 +133,7 @@ describe('tool search keywords and visibility through Sidecar', () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  // Since ticket 04 (ADR 0028) planning keeps the Permission Mode: the former plan-mode case now plans under default.
+  // Planning keeps the Permission Mode (ADR 0028), so this case plans under default rather than a separate plan mode.
   it('Plan Mode can search while disabled and unapproved tools are unknown', async () => {
     const h = await setup([call('search', 'select:mcp__demo__query_cn,mcp__demo__hidden,mcp__unapproved__echo'), { content: 'done' }], {
       mode: 'default',

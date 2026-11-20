@@ -1,6 +1,6 @@
 // Todo List：真实 Sidecar（faux 模型）经协议驱动。todo_write 整表替换并提交 todo_list 条目（生成的 id、去掉空白）；有未完成项时下一个 Run
 // 的请求含 <todo_list> section，全部完成后不再注入；不合规则的调用是错误结果、不提交条目；default 与 read-only 模式都不询问；
-// 压缩后（todo_write 的调用已被摘要）<todo_list> 仍在。本票不读取文件，不涉及符号链接越界。
+// 压缩后（todo_write 的调用已被摘要）<todo_list> 仍在。这里不读取文件，不涉及符号链接越界。
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'

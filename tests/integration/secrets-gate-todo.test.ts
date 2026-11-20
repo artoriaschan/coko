@@ -1,6 +1,6 @@
 // 秘密不外泄总闸的 Todo 通道（ADR 0004、0007）：模型把登记的 Secret 明文写进 todo 的 content 与 result。Todo 引入的通道——todo_list 条目
 // （WebSocket 帧、HTTP 响应、库文件）、todo_write 的工具结果、之后每个 Run 的 <todo_list> system section（faux requestLog）——以及日志中
-// 都不得出现明文；保存的表带脱敏占位。本票不读取文件，不涉及符号链接越界。
+// 都不得出现明文；保存的表带脱敏占位。这里不读取文件，不涉及符号链接越界。
 import { randomBytes } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 import { readFile, writeFile } from 'node:fs/promises'

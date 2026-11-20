@@ -37,7 +37,7 @@ import { useDeleteProject } from '../projects/project-delete-dialog.tsx'
 import { SidebarActivity, sessionExecuting } from './sidebar-activity.tsx'
 import { SessionMenuIcon } from './session-menu.tsx'
 
-/** Lifecycle ticket 15 supplies the destructive item after the common commands. */
+/** Slot for the destructive item shown after the common commands. */
 export interface ProjectMenuSlots {
   delete?: React.ReactNode
 }
