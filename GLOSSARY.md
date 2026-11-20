@@ -82,6 +82,14 @@ _Avoid_: transfer、继续会话（泛指时）
 Session 的执行授权档位，同时决定哪些调用无需审批与命令的沙箱档位。
 _Avoid_: preset、policy
 
+**Auto Review**：
+一个 Permission Mode（界面名“自动审查”）：模式与规则都没有放行的最后一步询问先由 Reviewer 代答，其余与“帮我批准”相同。“帮我批准”是 accept-edits 的界面名，只自动放行文件编辑，不是 Auto Review 的同义词。
+_Avoid_: auto mode、AI 审批、帮我批准（指本模式时）
+
+**Reviewer**：
+Auto Review 下代答一次询问的独立模型请求，只能放行或转交用户，不能拒绝。
+_Avoid_: classifier、审批模型
+
 **Permission Rule**：
 按工具及其路径或命令匹配调用的一条允许、询问或拒绝规定，带作用域。
 _Avoid_: whitelist、grant

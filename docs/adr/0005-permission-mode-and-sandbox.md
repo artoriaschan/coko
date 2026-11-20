@@ -17,7 +17,7 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 
 ## 决定
 
-以下模式、审批与提权决定继续有效。2026-11-20 的 [ADR 0028](0028-plan-phase-not-permission-mode.md) 局部替代 `plan` 作为模式取值的部分（下文“后果与验证”中 Plan 模式的加入与 M4 实施记录）：计划改为独立的 Session 状态，Permission Mode 回到下表四档，规划期约束由计划流程施加；其两个阶段（规划从 Permission Mode 剥离；执行中、完成报告与放弃）均已实施，当前行为见 [Plan Mode](../subsystems/plan-mode.md)。2026-11-05 的 [ADR 0026](0026-standalone-session-write-roots.md) 局部替代托管独立会话的 workspace-write 根集合：其显式写根仅为 `work/` 与 `outputs/`，不自动追加临时目录；项目与旧会话的默认集合不变。2026-11-20 的 [ADR 0029](0029-auto-review-delegates-final-ask.md)（已接受，未实施）细化判定的最后一步：新增模式 `auto-review`（模式放行与沙箱同 accept-edits），在该模式下模式放行之后的最后一步询问可由用户委托给 Reviewer（一次独立的模型请求，只能放行或转交用户）；判定顺序、前四步的硬边界、审批与沙箱叠加、单次提权与本页其余决定继续有效。
+以下模式、审批与提权决定继续有效。2026-11-20 的 [ADR 0028](0028-plan-phase-not-permission-mode.md) 局部替代 `plan` 作为模式取值的部分（下文“后果与验证”中 Plan 模式的加入与 M4 实施记录）：计划改为独立的 Session 状态，Permission Mode 回到下表四档，规划期约束由计划流程施加；其两个阶段（规划从 Permission Mode 剥离；执行中、完成报告与放弃）均已实施，当前行为见 [Plan Mode](../subsystems/plan-mode.md)。2026-11-05 的 [ADR 0026](0026-standalone-session-write-roots.md) 局部替代托管独立会话的 workspace-write 根集合：其显式写根仅为 `work/` 与 `outputs/`，不自动追加临时目录；项目与旧会话的默认集合不变。2026-11-20 的 [ADR 0029](0029-auto-review-delegates-final-ask.md)（已接受，已实施）细化判定的最后一步：新增模式 `auto-review`（模式放行与沙箱同 accept-edits），在该模式下模式放行之后的最后一步询问可由用户委托给 Reviewer（一次独立的模型请求，只能放行或转交用户）；判定顺序、前四步的硬边界、审批与沙箱叠加、单次提权与本页其余决定继续有效。
 
 - 每个 Session 有一个权限模式，取值 read-only、default、accept-edits、full-access；新 Session 使用设置中的默认模式（缺省 default）。模式切换记为 Session Entry，重启后由回放恢复。
 - 模式同时决定免审批范围和命令的沙箱档位：
@@ -68,4 +68,4 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 
 - [ADR 0028](0028-plan-phase-not-permission-mode.md)（2026-11-20 接受，阶段一与阶段二均已实施）是 `plan` 作为模式取值这一部分的后继：计划是独立的 Session 状态，规划中文件写入直接拒绝（判定顺序中紧随拒绝规则之后）、命令在 read-only 沙箱中运行且不能提权，批准不改变模式。本页的四档模式表、判定顺序的其余各步、审批与沙箱叠加、单次提权与受保护路径继续有效。
 
-- [ADR 0029](0029-auto-review-delegates-final-ask.md)（2026-11-20 接受，未实施）细化本页判定的最后一步（其余询问由用户回答）：新增第五档 `auto-review`，其第 7 步询问先由 PermissionRequest Hook、再由 Reviewer 回答，Reviewer 不放行或失败时仍交给用户；拒绝规则、询问规则、受保护路径、越出可写根、Escalation 与计划审阅不可委托。本页其余决定继续有效，实施后四档模式表随当前行为文档扩展为五档。
+- [ADR 0029](0029-auto-review-delegates-final-ask.md)（2026-11-20 接受并实施）细化本页判定的最后一步（其余询问由用户回答）：新增第五档 `auto-review`，其第 7 步询问先由 PermissionRequest Hook、再由 Reviewer 回答，Reviewer 不放行或失败时仍交给用户；拒绝规则、询问规则、受保护路径、越出可写根、Escalation 与计划审阅不可委托。本页其余决定继续有效；本页的四档模式表是当时的决定，当前五档见 [权限判定与审批](../subsystems/permissions.md#模式)。

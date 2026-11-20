@@ -85,6 +85,8 @@ Goal Round 中用户照常可以追加指令、停止与回答审批；提交新
 
 已用 ≥ 上限即耗尽；多维同时耗尽时按上表顺序取第一个。
 
+自动审查的审查请求（`model_request { purpose: review }`，[ADR 0029](../adr/0029-auto-review-delegates-final-ask.md)）带所属 Run 的 runId，按请求事实计入 Token 与费用（含失败、超时与被取消的请求），不计轮次与工具调用数。审查请求发出前同样经请求前检查（下文）：返回 stop 时不发审查请求，该调用以失败代码 `budget` 转交用户，Run 不因此停止，下一次对话请求前的检查照常停止 Run。Goal Round 中被转交的调用使 Session 等待审批、Goal 保持 running，与其他审批等待相同。
+
 子代理的用量计入 Goal：派发它的 Run 属于 Goal 时（`agent_start.goalId`），子 Session 的全部 Run 经 `goalUsage` 的 `children` 计入工具调用、Token、费用与时间，不计轮次；`GET …/goal`、goal State Update 与各检查点都用这个总量。子 Run 的请求前与工具调用前同样检查父 Session 的 Goal（含其他子 Session 的已用），耗尽时子 Run 停止，父级在下一个检查点停止。取消 Goal 先停止它的 Run 派发的子代理，`cleanup.agentsStopped` 为停止的数量。见 [子代理](subagents.md#预算并行与取消)。
 
 **检查点**（只对 running 的 Goal 与属于它的 Run）：
@@ -177,6 +179,7 @@ Renderer 只读条目与上述接口，不新增协议字段、条目、注入�
 
 ## 验证
 
+- 自动审查：`tests/integration/sidecar-auto-review.test.ts` 的“Goal、定时任务与预算”（审查用量计入 Goal 的 Token 与费用、Run 与 Session 合计而不计轮次与工具调用，预算耗尽后不发审查请求、以 `budget` 转交，Goal Round 中的放行与转交）与“授权来源”（Goal 的目标与 Success Criterion 在用户授权分区，Goal Round 的继续提示在委派分区）。
 - `packages/agent/src/goals/goals.test.ts`：转换表每一行与每个非法组合、resume 与 edit 的 resumedAtRound、budget-exhausted 恢复须有余量、创建的校验、完成证据（缺条件、空文本、未知条件、引用不存在或出错的调用）、各动作在 user / 本 Goal 的轮 / 其他 Goal 的轮 / none 四种 Run 中的授权、blocked 的 3 轮阈值、revision 过期、`runAuthority`、`<goal>` 与 `<goal_round>` 文本。
 - `tests/integration/sidecar-goal.test.ts`：create_goal 之后 Goal Round 依次开始直到完整证据的 complete；轮次耗尽、POST 动作与 409；Goal Round 中的审批、停止为 waiting-input、用户提交后回到 running、追加指令授权 edit 与同一轮不重复；用户的 Run 中调用 wait_input 后不立即唤醒；Goal Round 中的计划审阅为 waiting-input（plan-review）；wait_jobs 后 Job 结束时下一轮开始；取消停止 Run 与 Job 并记 cleanup；取消进行中 resume 为 409；`/goal` 的动作；分叉与回退。
 - `apps/server/src/application/goal-driver.test.ts`：Goal Round 没能开始时按错误码为 blocked、waiting-input 或保持 running。

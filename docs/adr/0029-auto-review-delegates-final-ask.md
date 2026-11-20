@@ -2,7 +2,7 @@
 kind: decision
 description: "新增 Permission Mode auto-review：用户可以把判定第 7 步（模式与规则都没有放行的询问）委托给一次独立的模型请求（Reviewer），硬边界不可委托；Reviewer 只能放行或转交用户，失败一律转交，审查请求计入 Run 用量与 Goal Budget。细化 ADR 0005 的“审批是用户的决定”。修改权限模式、第 7 步的回答者、Reviewer 的输入与失败语义，或 Hook、无界面运行与审查的关系时回看。"
 status: accepted
-implementation: not-started
+implementation: implemented
 lifecycle: active
 category: feature
 ---
@@ -51,11 +51,19 @@ category: feature
 - **承担。** 每次送审增加一次模型请求的延迟与费用；`permission_mode`、审批请求、审批决定三个条目各升一版，旧版本应用读不到新写入的这些条目；审查提示、输入的分区格式与输出格式是模型可见契约；只靠 Reviewer 判断的网络外发与读取需要用户用拒绝或询问规则做确定性约束。压缩之后更早的用户消息不再作为授权，Reviewer 会更多地转交。
 - **验证要求。** 以真实 Sidecar 集成测试为主（faux 按审查提示中的标记应答）：放行与转交的条目顺序；硬边界的对手用例中审查应答恒为放行时仍出审批卡且请求日志中没有对应的审查请求；`schedule_create`、Hook 的决定与强制询问不经审查；各失败路径出带原因的审批卡且调用未执行；审查请求不含工具结果与助手正文，注入文本只在数据部分；Secret 不出现在审查请求与保存的理由中；审查用量计入 Goal 且耗尽后不再送审；子代理的授权取根 Session；审查途中切换模式与停止 Run；无界面运行的放行与拒绝。判定表中 `auto-review` 与 `accept-edits` 逐项相同。真实模型的审查质量不在门槛内，交付时如实报告。
 - **重新审视的条件。** 需要按项目或用户定制审查策略；需要更便宜的独立审查模型；Reviewer 的误放行在实际使用中成为问题；网络或读取沙箱落地后，Reviewer 的职责范围需要重新核对。
-- **implementation：not-started。** 实施后在本页补实现与验证证据，并把状态改为 implemented。
+- **implementation：implemented（2026-11-20）。** 实现与验证证据见下节。
+
+## 实施证据
+
+- **模式与判定。** `auto-review` 加入 Permission Mode 的取值与宽窄顺序（`packages/agent/src/session-entries/permissions.ts`、`packages/protocol/src/permissions.ts`、`packages/agent/src/agents/definitions.ts`）；`decide` 与沙箱档位对它的处理与 accept-edits 相同（`policy/decide.ts`、`policy/sandbox.ts`）。`permission_mode` 升到 v4、`approval_request` 升到 v2（可选 `review`）、`approval_decision` 升到 v4（`by: reviewer` 与 `reason`），旧版本恒等迁移。
+- **Reviewer。** 权限 gate 的 `ReviewerPort` 与调用条件、结论生效前的复核、`review_start` 通知（`packages/agent/src/policy/gate.ts`）；固定审查提示、输入分区与上限、输出解析（`policy/review.ts`）；宿主实现 `SessionReviews`（`apps/server/src/application/session-reviews.ts`），经 `session-runs.ts` 接到每个运行时，请求前检查与对话请求同一入口。
+- **界面与入口。** 模式菜单、Shift+Tab、设置页默认模式、工具卡与审批卡（`apps/desktop/src/renderer/features/conversation/`）；无界面运行的 `--permission-mode auto-review`（`apps/server/src/headless/args.ts`）；追踪的 `purpose: review` 与 `approvalBy: reviewer`。
+- **验证。** 运行时与单元：`policy/gate-review.test.ts`、`policy/review.test.ts`、`policy/gate-unattended.test.ts`、`policy/decide.test.ts`、`session-entries/session-entries.test.ts`、`apps/server/src/application/session-reviews.test.ts`。真实 Sidecar（faux）：`tests/integration/sidecar-auto-review.test.ts`、`sidecar-subagents-auto-review.test.ts`、`secrets-gate-auto-review.test.ts`、`headless-auto-review.test.ts`，覆盖上文“验证要求”的各项；Seatbelt 用例仅在 darwin 运行。界面：`mode-picker`、`approval-panel`、`tool-cards`、`permission-states` 的 Browser Mode 测试与 `apps/desktop/e2e/permissions.e2e.test.ts` 的自动审查用例。真实模型的审查质量未验证。
+- **与决定的差异。** 无。实施中补充：子 Session 的“自动审查中”只在子 Session 的视图中显示，父视图的 agent 卡不显示。当前行为见 [权限判定与审批](../subsystems/permissions.md#自动审查reviewer)。
 
 ## 来源与后继
 
 - 确认主体：用户；日期：2026-11-20；依据：上述设计讨论中三轮 22 个问题的答复与完整清单的确认，以及同日对规格的确认与拆票。必要结论已提炼于本页。
 - 细化 [ADR 0005](0005-permission-mode-and-sandbox.md)：在它的四档模式之上加入 `auto-review`，并把“模式放行之后的最后一步询问由用户回答”细化为“可由用户委托给 Reviewer”；ADR 0005 的判定顺序、受保护路径、审批与沙箱叠加、单次提权继续有效。
 - 相关：[ADR 0013](0013-external-hooks-tighten-only.md)（Hook 先于 Reviewer，Hook 的决定不被它越过）；[ADR 0014](0014-subagents-as-child-sessions.md)（子 Session 的有效模式取窄，审查授权取根 Session）；[ADR 0019](0019-headless-runs-deny-approvals.md)（没有审批者时转交即拒绝）；[ADR 0011](0011-goal-state-as-session-entries.md)（预算从条目派生，审查请求按请求事实计入）；[ADR 0028](0028-plan-phase-not-permission-mode.md)（计划阶段与模式正交，计划审阅不经审查）。
-- 当前行为见 [权限判定与审批](../subsystems/permissions.md)，实施后随之更新；术语表随实施新增 Auto Review 与 Reviewer。
+- 当前行为见 [权限判定与审批](../subsystems/permissions.md#自动审查reviewer)；术语见 [GLOSSARY](../../GLOSSARY.md) 的 Auto Review 与 Reviewer。

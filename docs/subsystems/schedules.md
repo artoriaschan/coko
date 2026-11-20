@@ -65,7 +65,9 @@ lifecycle: active
 | `schedule_update { id, title?, prompt?, <规则>?, status?: active \| paused }` | automation | 新规则替换旧规则 |
 | `schedule_delete { id }` | session-state | |
 
-只作用于本 Session 的任务（其他 Session 的 id 为错误结果）。能力开关 `schedules.enabled` 关闭时不注册。拒绝与询问规则照常生效：`Schedule` 的拒绝规则在 full-access 下同样拒绝。
+只作用于本 Session 的任务（其他 Session 的 id 为错误结果）。能力开关 `schedules.enabled` 关闭时不注册。拒绝与询问规则照常生效：`Schedule` 的拒绝规则在 full-access 下同样拒绝。automation 类在 auto-review 下不经 Reviewer，`schedule_create` / `schedule_update` 始终直接问用户（[ADR 0029](../adr/0029-auto-review-delegates-final-ask.md)）。
+
+定时任务触发的 Run 在 auto-review 下与其他 Run 一样送审（见 [权限判定与审批](permissions.md#自动审查reviewer)）；`<scheduled_task>` 的提示词只作为“助手委派的任务”交给 Reviewer，不算用户授权。
 
 ## 修改与恢复
 
@@ -116,6 +118,7 @@ main 在主窗口聚焦且可见时不显示；否则显示 Electron `Notificati
 ## 验证
 
 - `packages/agent/src/tasks/schedules/schedules.test.ts`：cron 每段语法与拒绝项、日 / 周的任一匹配、`Asia/Shanghai` 与 `America/New_York` 的下次时间（夏令时跳过与重复取较早）、时区校验、every 的对齐、at 必须在将来、补跑只取最近一次并计 missed（含封顶）、工具参数与授权（伪造的 `<scheduled_task>` 不改变判定）。
+- `tests/integration/sidecar-auto-review.test.ts`：定时任务触发的 Run 中未被规则覆盖的命令经审查放行、`schedule_create` 不送审；提示词在审查请求的委派分区。
 - `tests/integration/sidecar-schedules.test.ts`：四种规则到期的 `trigger: schedule` Run 与 requestLog 中的 `<scheduled_task>`、一次性任务 inactive、`lastFire` 与进度；暂停与恢复；挂起与只投递一次；准入跳过原因（session-archived、disabled、workspace-missing、budget、model-not-configured），包括归档后从外部恢复启用的任务仍只记录跳过、不请求模型；对手用例（定时 Run 中 `schedule_create` 与 `create_goal` 为错误结果、`/goal resume` 不恢复 Goal、伪造的标签不改变 trigger、read-only 询问（规划中相同，按当前模式）、full-access 放行、`Schedule` 拒绝规则；规划中的 Session 上到期的 Run 注入 `<plan_mode>` 且写入被拒）；HTTP；`notify` 与设置关闭。
 - `tests/integration/sidecar-schedules-restart.test.ts`：停机跨越 5 个发生次后只投递 1 次且 `missed: 4`；`recordFire` 之后 SIGKILL，重启后不重投。
 - `tests/integration/secrets-gate-schedules.test.ts`、`secrets-gate-notifications.test.ts`：title 与 prompt 中登记的 Secret 不出现在表行、条目、HTTP、WebSocket、requestLog、`notify` 控制消息与日志中。
