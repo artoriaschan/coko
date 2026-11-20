@@ -1,0 +1,37 @@
+.scratch/auto-review/issues/02-auto-review-mode-value.md
+  s_d1e837811db462::t_762a612b5cdd16 11-12,49-52
+.scratch/auto-review/issues/10-acceptance-and-docs.md
+  s_d1e837811db462::t_762a612b5cdd16 11-12,15,110-113
+.scratch/auto-review/issues/01-design-and-adr.md
+  s_d1e837811db462::t_762a612b5cdd16 11-12,34-37
+.scratch/auto-review/issues/05-authorization-sources-and-injection.md
+  s_d1e837811db462::t_762a612b5cdd16 11-12,48-51
+.scratch/auto-review/issues/04-escalation-reason-and-failures.md
+  s_d1e837811db462::t_762a612b5cdd16 11-12,47-50
+.scratch/auto-review/issues/08-subagent-review.md
+  s_d1e837811db462::t_762a612b5cdd16 11-12,47-50
+.scratch/auto-review/issues/03-reviewer-allow-and-escalate.md
+  s_d1e837811db462::t_762a612b5cdd16 11-12,52-54
+.scratch/auto-review/issues/06-goal-schedules-and-budget.md
+  s_d1e837811db462::t_762a612b5cdd16 11-12,30-33
+.scratch/auto-review/issues/09-headless.md
+  s_d1e837811db462::t_762a612b5cdd16 11-12,39-42
+.scratch/auto-review/issues/07-reviewing-state-and-timing.md
+  s_d1e837811db462::t_762a612b5cdd16 11-12,54-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "56f3f94e4e16efd9399640907544590f66257c1e",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
