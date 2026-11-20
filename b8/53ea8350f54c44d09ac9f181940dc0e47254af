@@ -1,0 +1,43 @@
+apps/desktop/e2e/plan.e2e.test.ts
+  s_e66561215efab5::t_f033f5d40afcff 44,161,169,175,184,194
+  s_e66561215efab5::t_f1221634eff173 146-160,162-168,170-174,176-183,185-193,195-208
+  s_e66561215efab5::t_9438ca083764aa 71,103
+docs/adr/0005-permission-mode-and-sandbox.md
+  s_e66561215efab5::t_2c48a2206aa1d2 20,69
+docs/adr/README.md
+  s_e66561215efab5::t_b6b72e25e52e2f 40
+.scratch/plan-lifecycle/evidence/phase-one-acceptance.md
+  s_e66561215efab5::t_e8c7408b198964 1-23,25-43,45-115
+  s_e66561215efab5::t_afe9ff97036376 24,44
+GLOSSARY.md
+  s_e66561215efab5::t_f5413f167b3088 142-143
+docs/subsystems/plan-mode.md
+  s_e66561215efab5::t_0c978077866af9 78
+  s_e66561215efab5::t_955ce439937600 62,79
+docs/adr/0028-plan-phase-not-permission-mode.md
+  s_e66561215efab5::t_a79b611ba8ea80 59,66-74
+  s_e66561215efab5::t_b6b72e25e52e2f 5
+tests/integration/sidecar-plan.test.ts
+  s_e66561215efab5::t_21ac20b12fc43b 247-268
+  s_e66561215efab5::t_f1221634eff173 12-22
+  s_e66561215efab5::t_9438ca083764aa 159,185,287,624,758
+.scratch/plan-lifecycle/issues/08-phase-one-acceptance-and-docs.md
+  s_e66561215efab5::t_ba9a8d71bf947f 11-18,20-36,38
+  s_e66561215efab5::t_dc43f3397cbc0f 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "b853ea8350f54c44d09ac9f181940dc0e47254af",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
