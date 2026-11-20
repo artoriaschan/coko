@@ -1,13 +1,13 @@
 // 子代理的自动审查（ADR 0014、0029，票 08）：根为 auto-review 时子 Session 的调用经 Reviewer；审查请求的用户授权取自根 Session，派发说明
 // 只在委派分区（对手用例：说明中写“用户已授权”）；团队消息不算授权；转交的调用在子 Session 回答，“本会话总是允许”写入根 Session；定义上限
 // default / accept-edits 不送审，上限 auto-review 在根为 full-access 时送审且命令在 workspace-write 沙箱中；审查用量计入子 Run 与根 Goal，
-// 只计一次。faux 的审查应答放在脚本最前（match COKO_PERMISSION_REVIEW），请求明细日志用于断言哪些调用送审。
+// 只计一次；根 Session 在审查途中切换模式时结论按复核作废。faux 的审查应答放在脚本最前（match COKO_PERMISSION_REVIEW），请求明细日志用于断言哪些调用送审。
 import { existsSync } from 'node:fs'
 import { readFile, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { apiPaths, goalPaths, type ApprovalRequestEntry } from '@coko/protocol'
-import { tempDir } from './sidecar-harness.ts'
+import { apiPaths, goalPaths, permissionPaths } from '@coko/protocol'
+import { advanceClock, tempDir, type ApprovalRequestEntry } from './sidecar-harness.ts'
 import { bootAgents, call, of, runEnds, starts } from './sidecar-subagents-harness.ts'
 
 const MARKER = 'COKO_PERMISSION_REVIEW'
@@ -27,11 +27,11 @@ interface ReviewInput {
   actions: { earlier_calls: unknown[]; pending_call: { tool: string; arguments: Record<string, unknown> } }
 }
 
-async function boot(responses: unknown[], agents: Record<string, string> = {}) {
+async function boot(responses: unknown[], agents: Record<string, string> = {}, bootEnv: Record<string, string> = {}) {
   const logs = await realpath(await tempDir('coko-sub-review-'))
   const requestDetailsLog = join(logs, 'details.jsonl')
   await writeFile(requestDetailsLog, '')
-  const env = await bootAgents(responses, { script: { requestDetailsLog } })
+  const env = await bootAgents(responses, { script: { requestDetailsLog }, env: bootEnv })
   for (const [name, mode] of Object.entries(agents))
     await writeFile(
       join(env.wsPath, '.coko', 'agents', `${name}.md`),
@@ -118,6 +118,36 @@ describe('子代理的自动审查', { timeout: 120_000 }, () => {
     ])
     expect((await env.entriesOf(child)).filter((e) => e.kind === 'permission_rule')).toEqual([])
     expect(env.decisions(child)).toEqual(['user'])
+  })
+
+  it('根 Session 在子 Session 审查途中切到 default：放行结论作废，子 Session 出现不带审查结果的普通审批请求', async () => {
+    // 测试时钟下审查应答在拨钟前不返回；明细日志中出现审查请求即为“审查进行中”的屏障。
+    const held = 1_000
+    const env = await boot(
+      [
+        { ...allow(), delayMs: held },
+        { match: 'PARENT-S', content: [call('agent', 'a1', { description: 'write', prompt: 'CHILD-S write s.txt', subagent_type: 'general' })] },
+        { match: 'CHILD-S', content: [bash('b1', 'printf s > s.txt')] },
+        { match: 'CHILD-S', content: 'stopped' },
+        { match: 'PARENT-S', content: 'ok' },
+      ],
+      {},
+      { COKO_TEST_CLOCK: '1' },
+    )
+    const parent = await env.open('auto-review')
+    await env.submit(parent, 'PARENT-S go')
+    const child = await env.child(parent)
+    await expect.poll(async () => (await env.reviews()).length, { timeout: 20_000 }).toBe(1)
+    expect((await env.api.put(permissionPaths.sessionPermissionMode(parent), { mode: 'default' })).status).toBe(200)
+    await advanceClock(env.api, held)
+    const asked = await env.approval(child)
+    expect(asked).toMatchObject({ toolCallId: 'b1', toolName: 'bash' })
+    expect(asked).not.toHaveProperty('review')
+    expect(of(env.stream, child, 'approval_decision')).toEqual([])
+    expect((await env.api.post(apiPaths.sessionApproval(child, asked.requestId), { decision: 'deny', feedback: 'no' })).status).toBe(204)
+    await env.stream.waitFor(() => runEnds(env.stream, parent).length >= 1, 30_000)
+    expect(existsSync(join(env.wsPath, 's.txt'))).toBe(false)
+    expect(await env.reviews()).toHaveLength(1)
   })
 
   it('定义上限 default 与 accept-edits 的子代理在根为 auto-review 时不送审，命令照旧询问', async () => {

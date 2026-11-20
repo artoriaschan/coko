@@ -99,3 +99,29 @@ it.each([
   // 根 Session 清空了模型时不再解析它的模型引用。
   expect(contextModel.mock.calls.length).toBe(root ? 0 : 1)
 })
+
+it('子 Session 的审查使用根 Session 的模型，不用子 Session（子代理定义）的模型；model_request 记在子 Session', async () => {
+  const rootModel = { ...model, id: 'root-model' } as Model<any>
+  const contextModel = vi.fn<SessionReviewsOptions['models']['contextModel']>(async (ref) => (ref?.modelId === 'root-model' ? rootModel : model))
+  const streamSimple = vi.fn<(used: Model<any>) => ReturnType<typeof createAssistantMessageEventStream>>((used) => {
+    const stream = createAssistantMessageEventStream()
+    const final: AssistantMessage = { ...partial, model: used.id, content: [{ type: 'text', text: '{"decision":"allow","reason":"ok"}' }] }
+    queueMicrotask(() => stream.push({ type: 'done', reason: 'stop', message: final }))
+    return stream
+  })
+  const commit = vi.fn<SessionReviewsOptions['runtimes']['commit']>(async () => ({}) as never)
+  const root = { id: 'root', model: { providerId: 'p', modelId: 'root-model' } }
+  const reviews = new SessionReviews({
+    store: { sessions: { getSession: async () => root, listEntries: async () => [] } } as unknown as SessionStore,
+    models: { contextModel },
+    registry: { models: { streamSimple } } as unknown as ModelRegistry,
+    clock: { now: () => 0, setTimer: () => () => {} },
+    runtimes: { commit },
+    rootSessionId: () => 'root',
+  })
+  const child = { id: 'child', parentSessionId: 'root', model: { providerId: 'p', modelId: 'child-model' } } as unknown as StoredSession
+  expect(await reviews.review({ session: child, request })).toEqual({ verdict: 'allow', reason: 'ok' })
+  expect(contextModel.mock.calls).toEqual([[root.model]])
+  expect(streamSimple.mock.calls[0]![0]).toBe(rootModel)
+  expect(commit.mock.calls.map(([id, entry]) => [id, (entry.payload as { model: string }).model])).toEqual([['child', 'root-model']])
+})
