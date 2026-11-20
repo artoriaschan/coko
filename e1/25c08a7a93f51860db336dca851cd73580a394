@@ -1,0 +1,34 @@
+.scratch/session-reference/issues/02-attach-session-transcript.md
+  s_171661b5c71d73::t_c155b088af1f0b 1-33
+.scratch/session-reference/grilling.md
+  s_171661b5c71d73::t_e734f2b02051ab 1-104
+.scratch/session-reference/issues/06-acceptance-and-docs.md
+  s_171661b5c71d73::t_f9969a12bf534b 1-23
+.scratch/session-reference/issues/05-timeline-session-chip.md
+  s_171661b5c71d73::t_0e1cc7edf6df93 1-25
+.scratch/session-reference/issues/03-shared-quota-and-edge-cases.md
+  s_171661b5c71d73::t_3bb2d315707338 1-29
+.scratch/session-reference/issues/04-session-group-and-draft-chip.md
+  s_171661b5c71d73::t_b3c522230990a9 1-31
+.scratch/session-reference/spec.md
+  s_171661b5c71d73::t_c0fab45c3bb922 1-4,6-274
+  s_171661b5c71d73::t_a741820a1ffad8 5
+.scratch/session-reference/issues/01-plugin-group-in-command-menu.md
+  s_171661b5c71d73::t_ad579eb7962525 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "e125c08a7a93f51860db336dca851cd73580a394",
+  "prompts": {},
+  "sessions": {
+    "s_171661b5c71d73": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08f3a4f9-ec6f-4fff-b690-90e909855fb8",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
