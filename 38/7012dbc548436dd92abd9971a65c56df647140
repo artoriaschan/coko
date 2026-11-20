@@ -1,0 +1,29 @@
+.scratch/auto-review/issues/06-goal-schedules-and-budget.md
+  s_d1e837811db462::t_495841161f8020 11-20,23-27
+apps/server/src/application/session-reviews.ts
+  s_d1e837811db462::t_1b0d388e5c855f 104-105,107-111,131-138
+apps/server/src/application/session-reviews.test.ts
+  s_d1e837811db462::t_5b44bcdceac2eb 1-46,52-75
+  s_d1e837811db462::t_f4ef2693291e10 47-51
+tests/integration/sidecar-auto-review.test.ts
+  s_d1e837811db462::t_f4f586d8ced548 10,15,23,45,50,379-441
+  s_d1e837811db462::t_f4ef2693291e10 499-503,510
+  s_d1e837811db462::t_22370f271b0d5b 488-498,504-509,511-524
+  s_d1e837811db462::t_e1c983aadbb032 443-487
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "387012dbc548436dd92abd9971a65c56df647140",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
