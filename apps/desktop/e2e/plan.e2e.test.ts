@@ -1,5 +1,6 @@
 // Plan Mode：真实 Electron + 真实 Sidecar（faux）。/plan 进入、Plan chip 出现且关闭后退出规划（Permission Mode 始终不变，ADR 0028）；提交计划后审阅
 // 接管输入区、右栏自动打开一次；"继续规划"带反馈后模型提交新修订；在右栏编辑后"批准并执行"，模式不变且时间线有计划卡。
+// 完全访问权限下规划：模式菜单仍勾选该模式；chip × 退出与审阅卡上切换权限后批准，都从协议读回计划阶段与模式。
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -40,7 +41,7 @@ async function setup(script: unknown) {
   await app.window.reload()
   await app.window.locator(`[data-session-id="${session.id}"]`).click()
   await waitConnected(app.window)
-  return { app, workspace }
+  return { app, workspace, sessionId: session.id as string }
 }
 
 const composer = (app: LaunchedApp) => app.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
@@ -67,7 +68,7 @@ describe('Plan Mode', () => {
     })
     await expect.poll(() => modeButton(app).getAttribute('data-permission-mode')).toBe('default')
     await choosePlan(app)
-    // 票 04 起进入规划不改变模式（原先断言为 plan）。
+    // ADR 0028 起进入规划不改变模式（原先断言为 plan）。
     expect(await modeButton(app).getAttribute('data-permission-mode')).toBe('default')
     await composer(app).fill('keep this draft ')
     await stubDirectoryPicker(app.app, [await realpath(join(workspace, 'notes.txt'))])
@@ -99,7 +100,7 @@ describe('Plan Mode', () => {
     await planTab(app).waitFor({ timeout: 10_000 })
     expect(await app.window.getByRole('tab', { name: /^(Plan|计划)$/ }).getAttribute('aria-selected')).toBe('true')
     expect(await planTab(app).getAttribute('data-revision')).toBe('1')
-    // 票 04 起审阅卡不再标出将恢复的模式（原先断言 data-restores 为 default）。
+    // ADR 0028 起审阅卡不再标出将恢复的模式（原先断言 data-restores 为 default）。
     expect(
       await review(app)
         .getByRole('button', { name: /(Approve and run|批准并执行)/ })
@@ -142,4 +143,67 @@ describe('Plan Mode', () => {
     expect(await app.window.locator('[data-slot="plan-card"][data-status="rejected"]').textContent()).toContain('add tests first')
     await expect.poll(() => planTab(app).getAttribute('data-status')).toBe('approved')
   })
+  it(
+    '完全访问权限下规划：模式菜单仍勾选该模式；chip × 退出后读回不在规划中、模式不变；审阅卡上改为 accept-edits 后批准：读回改后的模式、计划卡已批准',
+    { timeout: 120_000 },
+    async () => {
+      const { app, sessionId } = await setup({ responses: [exit('e1', '# Plan C\n\n- inspect the code'), { content: 'Running with accept-edits.' }] })
+      const read = () =>
+        app.window.evaluate(async (id) => {
+          const plan = (await (await fetch(`/api/sessions/${id}/plan`)).json()) as { phase: string; plan: { status: string } | null }
+          const { mode } = (await (await fetch(`/api/sessions/${id}/permission-rules`)).json()) as { mode: string }
+          return { phase: plan.phase, plan: plan.plan?.status ?? null, mode }
+        }, sessionId)
+      await modeButton(app).click()
+      await app.window.locator('[role="menuitemradio"][data-mode="full-access"]').click()
+      await app.window.getByRole('button', { name: /^(Turn on anyway|仍要开启)$/ }).click()
+      await expect.poll(() => modeButton(app).getAttribute('data-permission-mode')).toBe('full-access')
+
+      await choosePlan(app)
+      expect(await read()).toEqual({ phase: 'planning', plan: null, mode: 'full-access' })
+      // 规划中模式菜单照常显示并勾选当前模式。
+      expect(await modeButton(app).getAttribute('data-permission-mode')).toBe('full-access')
+      await modeButton(app).click()
+      expect(await app.window.locator('[role="menuitemradio"][data-mode="full-access"]').getAttribute('aria-checked')).toBe('true')
+      await app.window.keyboard.press('Escape')
+
+      // chip 的 × 退出规划：协议读回不在规划中，模式不变。
+      await app.window.locator('[role="menu"]').waitFor({ state: 'detached' })
+      await chip(app).click()
+      await expect.poll(() => chip(app).count()).toBe(0)
+      expect(await read()).toEqual({ phase: 'none', plan: null, mode: 'full-access' })
+
+      await choosePlan(app)
+      await composer(app).click()
+      await composer(app).fill('plan the change')
+      await composer(app).press('Enter')
+      await review(app).waitFor({ timeout: 30_000 })
+      await planTab(app).waitFor({ timeout: 10_000 })
+      expect(await app.window.getByRole('tab', { name: /^(Plan|计划)$/ }).getAttribute('aria-selected')).toBe('true')
+      expect(await read()).toEqual({ phase: 'planning', plan: 'proposed', mode: 'full-access' })
+
+      // 审阅卡上标出执行权限，并用同一个模式菜单改为 accept-edits。
+      const cardMode = review(app).locator('[data-slot="plan-review-permission"] [data-permission-mode]')
+      expect(await cardMode.getAttribute('data-permission-mode')).toBe('full-access')
+      await cardMode.click()
+      await app.window.locator('[role="menuitemradio"][data-mode="accept-edits"]').click()
+      await expect.poll(() => cardMode.getAttribute('data-permission-mode')).toBe('accept-edits')
+      await app.window.locator('[role="menu"]').waitFor({ state: 'detached' })
+      await expect.poll(async () => (await read()).mode).toBe('accept-edits')
+      expect(await review(app).isVisible()).toBe(true)
+
+      await review(app)
+        .getByRole('button', { name: /(Approve and run|批准并执行)/ })
+        .click()
+      await expect
+        .poll(() => app.window.locator('[data-slot="assistant-message-body"]').last().textContent(), { timeout: 30_000 })
+        .toBe('Running with accept-edits.')
+      await app.window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
+      expect(await read()).toEqual({ phase: 'none', plan: null, mode: 'accept-edits' })
+      expect(await modeButton(app).getAttribute('data-permission-mode')).toBe('accept-edits')
+      expect(await chip(app).count()).toBe(0)
+      await app.window.locator('[data-slot="plan-card"][data-status="approved"]').waitFor()
+      await expect.poll(() => planTab(app).getAttribute('data-status')).toBe('approved')
+    },
+  )
 })

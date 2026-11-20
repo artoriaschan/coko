@@ -2,7 +2,7 @@
 kind: decision
 description: "计划是独立的 Session 状态（无、规划中、执行中），不是 Permission Mode：规划期间文件写入直接拒绝、命令在只读沙箱中运行且不能提权，由计划流程施加；批准不改变 Permission Mode；计划延伸到执行中，以 complete_plan 的完成报告或用户放弃结束。局部替代 ADR 0005 中 plan 作为模式取值的部分。修改 Plan Mode、计划的生命周期、规划期约束或 Permission Mode 的取值时回看。"
 status: accepted
-implementation: not-started
+implementation: partial
 lifecycle: active
 category: architecture
 ---
@@ -56,11 +56,19 @@ Plan Mode 于 M4 以 [ADR 0005](0005-permission-mode-and-sandbox.md) 中的一�
 - **分两个阶段交付。** 阶段一把规划从 Permission Mode 剥离（规划期约束、入口、审阅卡切换权限、回退与分叉、旧数据读取）；阶段二加入执行中、完成报告与放弃。阶段一中批准后计划阶段回到“无”，此期间批准的计划与升级前的历史计划一样不算执行中。
 - **验证要求。** 以真实 Sidecar 集成测试为主：四种模式下进入规划后模式读回不变、命令与 MCP 的询问与否和未规划时相同；规划中的写入为拒绝、不产生审批、目标文件逐字节不变，允许规则与 Hook allow 不能放行；darwin 上被放行的写文件命令因只读沙箱失败、提权直接出错；子代理同样受约束；回退、分叉与交接后的计划阶段；旧数据读取；`complete_plan` 与放弃的条目、提醒的送达与清空。判定表扩展为“Permission Mode × 是否规划中 × 工具类型”。真实模型是否遵守新的提示文本不在门槛内，交付时如实报告。
 - **重新审视的条件。** 规划期跑测试受阻成为常态；需要模型主动进入规划；移除 read-only 模式或改由模型审核审批落地后，规划期约束与 Permission Mode 的组合需要重新核对。
-- **implementation：not-started。** 阶段一交付后改为 partial，阶段二交付后改为 implemented，并链接实现与验证证据。
+- **implementation：partial。** 阶段一已实施，阶段二未开始；阶段二交付后改为 implemented，并链接实现与验证证据。实施状态见下一节。
 
 ## 来源与后继
 
 - 确认主体：用户；日期：2026-11-20；依据：上述设计讨论中四轮 24 个问题的“全部采用推荐”与最终清单确认，以及同日对规格与拆票的“确认”。必要结论已提炼于本页。
 - 前继：[ADR 0005](0005-permission-mode-and-sandbox.md)。本页替代其中“`plan` 作为 Permission Mode 取值”（Plan 模式 M4 加入的模式放行、沙箱档位、`prior` 与批准时恢复或收窄模式）的部分；ADR 0005 的四档模式表、判定顺序、审批与沙箱叠加、单次提权与受保护路径继续有效，本页只在判定顺序中插入“规划中拒绝写入”一步。
 - 相关：[ADR 0013](0013-external-hooks-tighten-only.md)（Hook 的 allow 不越过规划中的写入拒绝）；[ADR 0014](0014-subagents-as-child-sessions.md)（子 Session 的有效模式与根 Session 的计划阶段）；[ADR 0019](0019-headless-runs-deny-approvals.md)（无界面运行不提供规划入口）；[ADR 0024](0024-session-state-as-state-updates.md)（执行中的提醒走 State Update）；[ADR 0011](0011-goal-state-as-session-entries.md)（Goal 不因计划改变）。
-- 当前行为（实施前仍为 plan 模式）见 [Plan Mode](../subsystems/plan-mode.md)；术语随实施更新 [GLOSSARY](../../GLOSSARY.md) 的 Plan Mode 与 Plan。
+- 当前行为见 [Plan Mode](../subsystems/plan-mode.md)；术语随实施更新 [GLOSSARY](../../GLOSSARY.md)：Plan Mode 已随阶段一改为 Session 的规划阶段，Plan 的定义随阶段二修改。
+
+## 实施状态与证据
+
+2026-11-20，阶段一（规划从 Permission Mode 剥离）在集成分支 `feat/plan-lifecycle` 上实施完成，`implementation` 为 partial；阶段二（执行中、`complete_plan` 的完成报告与放弃）未开始。
+
+- **已落地。** `plan_phase` 条目与 `plan` v2（阶段一只写入 planning 与 none）；`permission_mode` v3 只有四档，v2 的 `plan` 在读取时迁移为 `prior`（缺省 default），库中行不改写；判定中紧随拒绝规则的规划步、规划中的 read-only 沙箱、提权与固定档位的拒绝；Session 计划接口 `GET` / `POST /api/sessions/:id/plan`，`/plan`、`/plan off` 与 Plan chip 经它进入与退出；批准只结束规划；审阅卡上的执行权限与模式菜单；回退、分叉与交接按有效条目或边界处的计划阶段。机制见 [Plan Mode](../subsystems/plan-mode.md)、[权限判定与审批](../subsystems/permissions.md) 与 [子代理](../subsystems/subagents.md)。
+- **验证。** 真实 Sidecar 集成测试 [`sidecar-plan.test.ts`](../../tests/integration/sidecar-plan.test.ts) 等（清单见 [Plan Mode 的验证](../subsystems/plan-mode.md#验证)），判定表 [`decide.test.ts`](../../packages/agent/src/policy/decide.test.ts)，Browser Mode [`plan.browser.test.tsx`](../../apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx)，以及后台模式的真实 Electron [`plan.e2e.test.ts`](../../apps/desktop/e2e/plan.e2e.test.ts)：完全访问权限下 `/plan` 进入后模式菜单仍勾选该模式，chip 的 × 退出后协议读回不在规划中、模式不变，审阅卡上改为自动接受编辑后批准，读回的模式为改后的一档。
+- **未验证。** 真实模型是否遵守新的 `<plan_mode>`、拒绝与批准结果文本（只经 faux 请求日志验证链路）；非 darwin 平台上规划中命令的沙箱行为（相关断言按 `sandbox-unavailable` 分支书写，未在其他平台执行）；需要真实指针或原生层的界面交互。

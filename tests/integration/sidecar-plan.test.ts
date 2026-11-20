@@ -9,7 +9,17 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import { getCurrentTools, type Context } from '@earendil-works/pi-ai'
-import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, planPaths, tracePaths, type SessionEntryRecord, type TraceResponse } from '@coko/protocol'
+import {
+  API_ROUTES,
+  apiPaths,
+  checkpointPaths,
+  permissionPaths,
+  planPaths,
+  runPaths,
+  tracePaths,
+  type SessionEntryRecord,
+  type TraceResponse,
+} from '@coko/protocol'
 import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval as waitRequest, type Stream } from './sidecar-harness.ts'
 
 const darwin = process.platform === 'darwin'
@@ -146,7 +156,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
       { content: 'implementing now' },
     ])
     expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan 调研 X' })).status).toBe(202)
-    // 票 04（ADR 0028）起进入规划不提交 permission_mode：只有创建时的初始模式（原先断言切到 plan 并记下 prior）。
+    // ADR 0028 起进入规划不提交 permission_mode：只有创建时的初始模式（原先断言切到 plan 并记下 prior）。
     expect(h.modes()).toEqual([{ mode: 'default' }])
     expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'default', rules: [] })
     expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'planning', plan: null })
@@ -172,7 +182,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(proposed).toEqual([{ planId: expect.any(String), revision: 1, markdown: PLAN, status: 'proposed' }])
     expect(review).toMatchObject({ planId: proposed[0]!.planId, revision: 1 })
 
-    // 回答的校验：批准不再接受 mode（票 04），editedPlan 须以 # 标题开头，只能允许一次；都不改变请求。
+    // 回答的校验：批准不再接受 mode（ADR 0028），editedPlan 须以 # 标题开头，只能允许一次；都不改变请求。
     for (const body of [
       { decision: 'allow', mode: 'full-access' },
       { decision: 'allow', mode: 'plan' },
@@ -234,6 +244,28 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
+  it.each(['abort', 'pause'] as const)('无反馈拒绝后 Run 结束、仍在规划中；%s 时待审阅的计划审批 cancelled，计划保持 proposed、仍在规划中', async (how) => {
+    const h = await boot([exit('e1', PLAN), exit('e2', EDITED), { content: 'should not be used' }])
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan look around' })).status).toBe(202)
+    const first = await waitApproval(h.stream, h.sessionId, 1)
+    expect((await h.answer(first.requestId, { decision: 'deny' })).status).toBe(204)
+    await h.runEnds(1)
+    expect(h.plans().map((p) => p.status)).toEqual(['proposed', 'rejected'])
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'planning', plan: null })
+
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'try again' })).status).toBe(202)
+    const second = await waitApproval(h.stream, h.sessionId, 2)
+    expect(second).toMatchObject({ kind: 'plan', revision: 2 })
+    const path = how === 'abort' ? apiPaths.sessionAbort(h.sessionId) : runPaths.sessionPause(h.sessionId)
+    expect((await h.api.post(path)).status).toBeLessThan(300)
+    await h.runEnds(2)
+    const decisions = h.entries().filter((e) => e.kind === 'approval_decision')
+    expect(decisions.at(-1)?.payload).toEqual({ requestId: second.requestId, outcome: 'cancelled' })
+    expect(h.plans().at(-1)).toMatchObject({ revision: 2, status: 'proposed', markdown: EDITED })
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toMatchObject({ phase: 'planning', plan: { revision: 2, status: 'proposed' } })
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
   it('带反馈拒绝 → rejected 与反馈、Run 继续规划；再次提交为同一计划的新 revision；accept-edits 下进入与批准模式都不变；切换接口拒绝 plan；editedPlan 与 mode 不能用于工具审批', async () => {
     const h = await boot([
       call('bash', 'b0', { command: 'ls' }),
@@ -252,7 +284,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     await h.runEnds(1)
 
     expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'accept-edits' })).status).toBe(200)
-    // 切换 Permission Mode 的接口不再接受 plan（票 04）：400，模式不变。
+    // 切换 Permission Mode 的接口不再接受 plan（ADR 0028）：400，模式不变。
     const refused = await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'plan' })
     expect([refused.status, refused.body.error?.code]).toEqual([400, 'bad-request'])
     expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'enter' })).body).toEqual({ phase: 'planning', plan: null })
@@ -589,7 +621,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  // 票 06：计划阶段按有效条目回放，回退后重新计算；Permission Mode 的回退口径不变（仍按原始条目，回退区间内的切换照常生效）。
+  // ADR 0028：计划阶段按有效条目回放，回退后重新计算；Permission Mode 的回退口径不变（仍按原始条目，回退区间内的切换照常生效）。
   it('回退到 /plan 消息本身仍在规划中；回退到进入规划之前：读回无，下一个 Run 没有 <plan_mode> 与提交工具，写入按 Permission Mode；模式不随回退还原', async () => {
     const h = await boot([{ content: 'one' }, { content: 'researching' }, call('write', 'w1', { path: 'notes.md', content: 'x' }), { content: 'written' }])
     await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'first' })
@@ -723,7 +755,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     const forkId = forked.body.sessionId as string
     const detail = (await h.api.get(apiPaths.session(forkId))).body.entries as SessionEntryRecord[]
     expect(detail.filter((e) => e.kind === 'plan')).toEqual([])
-    // 票 04 起进入规划不改模式：复制的 permission_mode 为 default（原先断言 plan 与 prior）。
+    // ADR 0028 起进入规划不改模式：复制的 permission_mode 为 default（原先断言 plan 与 prior）。
     expect(detail.filter((e) => e.kind === 'permission_mode').at(-1)!.payload).toEqual({ mode: 'default' })
     expect((await h.api.get(permissionPaths.sessionPermissionRules(forkId))).body).toEqual({ mode: 'default', rules: [] })
     // 分叉得到“规划中”，待审阅的计划不随分叉复制。
