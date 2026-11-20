@@ -17,7 +17,7 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 
 ## 决定
 
-以下模式、审批与提权决定继续有效。2026-11-20 的 [ADR 0028](0028-plan-phase-not-permission-mode.md) 局部替代 `plan` 作为模式取值的部分（下文“后果与验证”中 Plan 模式的加入与 M4 实施记录）：计划改为独立的 Session 状态，Permission Mode 回到下表四档，规划期约束由计划流程施加；其阶段一（规划从 Permission Mode 剥离）已实施，当前行为见 [Plan Mode](../subsystems/plan-mode.md)。2026-11-05 的 [ADR 0026](0026-standalone-session-write-roots.md) 局部替代托管独立会话的 workspace-write 根集合：其显式写根仅为 `work/` 与 `outputs/`，不自动追加临时目录；项目与旧会话的默认集合不变。
+以下模式、审批与提权决定继续有效。2026-11-20 的 [ADR 0028](0028-plan-phase-not-permission-mode.md) 局部替代 `plan` 作为模式取值的部分（下文“后果与验证”中 Plan 模式的加入与 M4 实施记录）：计划改为独立的 Session 状态，Permission Mode 回到下表四档，规划期约束由计划流程施加；其两个阶段（规划从 Permission Mode 剥离；执行中、完成报告与放弃）均已实施，当前行为见 [Plan Mode](../subsystems/plan-mode.md)。2026-11-05 的 [ADR 0026](0026-standalone-session-write-roots.md) 局部替代托管独立会话的 workspace-write 根集合：其显式写根仅为 `work/` 与 `outputs/`，不自动追加临时目录；项目与旧会话的默认集合不变。
 
 - 每个 Session 有一个权限模式，取值 read-only、default、accept-edits、full-access；新 Session 使用设置中的默认模式（缺省 default）。模式切换记为 Session Entry，重启后由回放恢复。
 - 模式同时决定免审批范围和命令的沙箱档位：
@@ -66,4 +66,4 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 
 - [ADR 0027](0027-memory-follows-project-writes-without-approval.md)（2026-11-19 接受，已实施）把 memory-write 权限类改为在所有模式下由模式放行，记忆写入不再审批；本页的判定顺序、其余模式放行与沙箱档位不变。
 
-- [ADR 0028](0028-plan-phase-not-permission-mode.md)（2026-11-20 接受，阶段一已实施、阶段二未开始）是 `plan` 作为模式取值这一部分的后继：计划是独立的 Session 状态，规划中文件写入直接拒绝（判定顺序中紧随拒绝规则之后）、命令在 read-only 沙箱中运行且不能提权，批准不改变模式。本页的四档模式表、判定顺序的其余各步、审批与沙箱叠加、单次提权与受保护路径继续有效。
+- [ADR 0028](0028-plan-phase-not-permission-mode.md)（2026-11-20 接受，阶段一与阶段二均已实施）是 `plan` 作为模式取值这一部分的后继：计划是独立的 Session 状态，规划中文件写入直接拒绝（判定顺序中紧随拒绝规则之后）、命令在 read-only 沙箱中运行且不能提权，批准不改变模式。本页的四档模式表、判定顺序的其余各步、审批与沙箱叠加、单次提权与受保护路径继续有效。
