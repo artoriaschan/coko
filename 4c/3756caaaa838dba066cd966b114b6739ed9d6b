@@ -1,0 +1,37 @@
+packages/agent/src/context/references/expand.test.ts
+  s_085ed727045dd9::t_f0f6335461012e 233-261,263-291,293-308
+packages/agent/src/checkpoints/rewind.test.ts
+  s_085ed727045dd9::t_945579dc9ede0b 152-157,159-166
+packages/agent/src/context/compaction/prompt.ts
+  s_085ed727045dd9::t_e16637d7d1b0b7 2
+  s_085ed727045dd9::t_208654356d88b3 91-92,98-99
+tests/integration/headless.test.ts
+  s_085ed727045dd9::t_d8c3df670f49a2 89-123
+packages/agent/src/checkpoints/rewind.ts
+  s_085ed727045dd9::t_9dc31ea41000ad 64-70,76-79
+tests/integration/sidecar-session-references.test.ts
+  s_085ed727045dd9::t_ed28212ae995d5 259,429-430,432-481,508
+  s_085ed727045dd9::t_6439f69b4d2f4a 504-505
+  s_085ed727045dd9::t_dde7cc5a9d9045 260-317,320-324,327-350
+  s_085ed727045dd9::t_c8ccaba801c5c8 482-503,506-507
+packages/agent/src/context/compaction/compaction.test.ts
+  s_085ed727045dd9::t_0e4c7e892314da 254-270
+.scratch/session-reference/issues/03-shared-quota-and-edge-cases.md
+  s_085ed727045dd9::t_4041e4017fc8f3 47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "4c3756caaaa838dba066cd966b114b6739ed9d6b",
+  "prompts": {},
+  "sessions": {
+    "s_085ed727045dd9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d626f66c-4285-483b-b8a1-1e40637e2a6c",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
