@@ -36,7 +36,7 @@ Answer "allow" only when the call is clearly within what the user authorized and
 Reply with one JSON object and nothing else:
 {"decision":"allow" or "escalate","reason":"one sentence, at most 300 characters, in the language of the user's messages"}`
 
-/** 字符数上限（String.length，即 UTF-16 码元）。 */
+/** 字符数上限（String.length，即 UTF-16 码元）；单项与总长都按 JSON 序列化（转义）后的长度计。 */
 export const REVIEW_INPUT_MAX_CHARS = 32_000
 export const REVIEW_CALL_MAX_CHARS = 8000
 export const REVIEW_DESCRIPTION_MAX_CHARS = 1000
@@ -50,8 +50,21 @@ type DelegatedItem = { source: string; text: string }
 /** 无人值守与宿主派生的 Run（UNATTENDED_TRIGGERS）中的 user message 在委派分区中的来源名。 */
 const DELEGATED_SOURCE: Record<string, string> = { schedule: 'scheduled_task', subagent: 'subagent_task', handoff: 'handoff' }
 
-/** 截断保留开头，末尾标注截掉的字符数。 */
-const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}…[truncated ${text.length - max} chars]` : text)
+/** 文本在输入 JSON 中占的字符数（引号、换行等转义后变长）：单项上限按它计，保留项合计才必然放得下总上限。 */
+const escapedLength = (text: string) => JSON.stringify(text).length - 2
+
+/** 截断保留开头（不切开代理对），转义后不超过 max；末尾标注截掉的字符数。 */
+function truncate(text: string, max: number): string {
+  if (escapedLength(text) <= max) return text
+  let kept = 0
+  let used = 0
+  for (const char of text) {
+    used += escapedLength(char)
+    if (used > max) break
+    kept += char.length
+  }
+  return `${text.slice(0, kept)}…[truncated ${text.length - kept} chars]`
+}
 
 /**
  * user message 中不属于宿主的文本：去掉配对的 state_update 块；Hook 上下文只在输入之后、作为最后一块追加（withSubmitContext、子代理
@@ -124,7 +137,7 @@ function goalAuthority(goal: GoalPayload | undefined): { objective: string; succ
   let left = REVIEW_ITEM_MAX_CHARS
   const take = (text: string) => {
     const kept = truncate(text, left)
-    left -= Math.min(text.length, left)
+    left -= Math.min(escapedLength(text), left)
     return kept
   }
   return { objective: take(goal.objective), success_criteria: goal.criteria.map((c) => take(c.text)) }

@@ -18,7 +18,7 @@ import {
 } from '@coko/agent'
 import { getLogger, redactSecretsDeep } from '@coko/logging'
 import type { SessionModel } from '@coko/protocol'
-import type { Session as StoredSession, SessionStore } from '@coko/session'
+import type { SessionStore } from '@coko/session'
 import type { AssistantMessage, Model } from '@earendil-works/pi-ai'
 import type { ClockPort } from '../adapters/clock.ts'
 import type { SessionRuntimes } from './session-runtimes.ts'
@@ -42,7 +42,8 @@ export class SessionReviews {
   }
 
   async review(options: {
-    session: StoredSession
+    /** 按 id 取：模型在 Run 之间可切换，审查时从存储读当前值（与会话标题请求同一取法）。 */
+    sessionId: string
     request: ReviewRequest
     signal?: AbortSignal
     /** 与对话请求相同的请求前检查（Goal 预算）；返回 stop 时不发请求、转交用户，不停止 Run。 */
@@ -51,6 +52,9 @@ export class SessionReviews {
     const startedAt = this.#options.clock.now()
     const outcome = await this.#review(options)
     log.info('review finished', {
+      sessionId: options.sessionId,
+      runId: options.request.runId,
+      toolCallId: options.request.toolCallId,
       durationMs: Math.max(0, this.#options.clock.now() - startedAt),
       outcome: outcome.verdict,
       ...(outcome.verdict === 'failed' ? { code: outcome.code } : {}),
@@ -58,18 +62,18 @@ export class SessionReviews {
     return outcome
   }
 
-  async #review({ session, request, signal, beforeRequest }: Parameters<SessionReviews['review']>[0]): Promise<ReviewOutcome> {
+  async #review({ sessionId, request, signal, beforeRequest }: Parameters<SessionReviews['review']>[0]): Promise<ReviewOutcome> {
     const { store, registry, clock, runtimes } = this.#options
     const failed = (code: ReviewFailureCode): ReviewOutcome => ({ verdict: 'failed', code })
-    const rootId = this.#options.rootSessionId(session.id)
-    const root = rootId === session.id ? session : await store.sessions.getSession(rootId)
+    const rootId = this.#options.rootSessionId(sessionId)
+    const root = await store.sessions.getSession(rootId)
     const model = root && !root.modelCleared ? await this.#options.models.contextModel(root.model) : undefined
     if (!model) return failed('no-model')
 
     let entries, rootEntries
     try {
-      entries = await store.sessions.listEntries(session.id)
-      rootEntries = rootId === session.id ? undefined : await store.sessions.listEntries(rootId)
+      entries = await store.sessions.listEntries(sessionId)
+      rootEntries = rootId === sessionId ? undefined : await store.sessions.listEntries(rootId)
     } catch {
       return failed('request-failed')
     }
@@ -146,7 +150,7 @@ export class SessionReviews {
     })
     if (timedOut) payload.errorCode = 'timeout'
     // 提交失败时抛给 gate（按 request-failed 转交）。
-    await runtimes.commit(session.id, { kind: 'model_request', runId: request.runId, payload })
+    await runtimes.commit(sessionId, { kind: 'model_request', runId: request.runId, payload })
 
     if (signal?.aborted) return failed('request-failed')
     if (timedOut) return failed('timeout')

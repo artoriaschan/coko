@@ -845,7 +845,7 @@ export class SessionRuns {
         reviewer: {
           review: (request, signal) =>
             this.#options.reviews.review({
-              session,
+              sessionId: session.id,
               request,
               ...(signal ? { signal } : {}),
               beforeRequest: async (state) => (context.beforeRequest ? ((await context.beforeRequest(state, runContext.scope)) ?? undefined) : undefined),

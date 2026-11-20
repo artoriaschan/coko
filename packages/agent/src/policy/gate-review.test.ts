@@ -136,17 +136,27 @@ describe('Reviewer 放行', () => {
 
   it('同一批的多个调用按顺序逐个审查；先前经过 gate 的调用（不论结果）进入 priorCalls', async () => {
     const order: string[] = []
+    const held = { b1: heldReview(), b3: heldReview() }
     const h = harness({
       rules: [{ behavior: 'deny', tool: 'Bash', content: 'rm *' }],
-      review: async (request) => {
+      review: async (request, signal) => {
         order.push(`start ${request.toolCallId}`)
-        await new Promise((resolve) => setTimeout(resolve, 5))
+        const outcome = await held[request.toolCallId as keyof typeof held].review(request, signal)
         order.push(`end ${request.toolCallId}`)
-        return allow
+        return outcome
       },
     })
     h.script(bash('b1', 'printf a > a.txt'), bash('b2', 'rm -f a.txt'), bash('b3', 'printf b > b.txt'))
-    await h.runtime.run('go')
+    const pending = h.runtime.run('go')
+    // b1 的结论放出之前，b3 的审查没有开始。
+    await held.b1.started
+    await settled()
+    expect(order).toEqual(['start b1'])
+    held.b1.release(allow)
+    await held.b3.started
+    expect(order).toEqual(['start b1', 'end b1', 'start b3'])
+    held.b3.release(allow)
+    await pending
     expect(order).toEqual(['start b1', 'end b1', 'start b3', 'end b3'])
     expect(h.reviews.map((r) => [r.toolCallId, r.priorCalls.map((c) => (c.input as { command: string }).command)])).toEqual([
       ['b1', []],
@@ -247,7 +257,8 @@ describe('迟到的审查结果', () => {
     const asked = await h.approval()
     expect(asked.payload.review).toEqual({ outcome: 'failed', code: 'timeout' })
     late(allow)
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await answered
+    await settled()
     expect(h.runtime.pendingApprovals.map((p) => p.requestId)).toEqual([asked.payload.requestId])
     expect(decisions(h.entries)).toEqual([])
     expect(await exists(ws.path('out.txt'))).toBe(false)
@@ -344,6 +355,9 @@ function deferred<T>() {
   const promise = new Promise<T>((r) => (resolve = r))
   return { promise, resolve }
 }
+
+/** 已到达的结论都已处理：等当前排队的微任务与 I/O 回调跑完（不以时长代表完成）。 */
+const settled = () => new Promise<void>((resolve) => setImmediate(resolve))
 
 /** 审查端口被调用时通知测试，结论由测试放出（不理会 signal：迟到的结论也会到达）。 */
 function heldReview() {

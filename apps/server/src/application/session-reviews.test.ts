@@ -38,7 +38,7 @@ function setup() {
   } as unknown as ModelRegistry
   const session = { id: 's1', model: { providerId: 'p', modelId: 'm' } } as unknown as StoredSession
   const reviews = new SessionReviews({
-    store: { sessions: { listEntries: async () => [] } } as unknown as SessionStore,
+    store: { sessions: { getSession: async () => session, listEntries: async () => [] } } as unknown as SessionStore,
     models: { contextModel: async () => model },
     registry,
     clock,
@@ -47,7 +47,7 @@ function setup() {
   })
   const review = (signal?: AbortSignal) =>
     reviews.review({
-      session,
+      sessionId: session.id,
       request: { runId: 'r1', toolCallId: 't1', toolName: 'bash', input: { command: 'ls' }, priorCalls: [] },
       ...(signal ? { signal } : {}),
     })
@@ -87,14 +87,14 @@ it.each([
   const listEntries = vi.fn<() => Promise<never[]>>(async () => [])
   const contextModel = vi.fn<() => Promise<undefined>>(async () => undefined)
   const reviews = new SessionReviews({
-    store: { sessions: { getSession: async () => root, listEntries } } as unknown as SessionStore,
+    store: { sessions: { getSession: async (id: string) => (id === session.id ? session : root), listEntries } } as unknown as SessionStore,
     models: { contextModel },
     registry: { models: { streamSimple } } as unknown as ModelRegistry,
     clock: { now: () => 0, setTimer: () => () => {} },
     runtimes: { commit },
     rootSessionId: () => root?.id ?? session.id,
   })
-  expect(await reviews.review({ session: session as unknown as StoredSession, request })).toEqual({ verdict: 'failed', code: 'no-model' })
+  expect(await reviews.review({ sessionId: session.id, request })).toEqual({ verdict: 'failed', code: 'no-model' })
   expect([streamSimple.mock.calls, commit.mock.calls, listEntries.mock.calls]).toEqual([[], [], []])
   // 根 Session 清空了模型时不再解析它的模型引用。
   expect(contextModel.mock.calls.length).toBe(root ? 0 : 1)
@@ -119,9 +119,30 @@ it('子 Session 的审查使用根 Session 的模型，不用子 Session（子�
     runtimes: { commit },
     rootSessionId: () => 'root',
   })
-  const child = { id: 'child', parentSessionId: 'root', model: { providerId: 'p', modelId: 'child-model' } } as unknown as StoredSession
-  expect(await reviews.review({ session: child, request })).toEqual({ verdict: 'allow', reason: 'ok' })
+  expect(await reviews.review({ sessionId: 'child', request })).toEqual({ verdict: 'allow', reason: 'ok' })
   expect(contextModel.mock.calls).toEqual([[root.model]])
   expect(streamSimple.mock.calls[0]![0]).toBe(rootModel)
   expect(commit.mock.calls.map(([id, entry]) => [id, (entry.payload as { model: string }).model])).toEqual([['child', 'root-model']])
+})
+
+it('切换模型后再审查：使用 Session 当前（已存储）的模型，不用 Run 创建时的模型', async () => {
+  const contextModel = vi.fn<SessionReviewsOptions['models']['contextModel']>(async (ref) => ({ ...model, id: ref!.modelId }) as Model<any>)
+  const streamSimple = vi.fn<(used: Model<any>) => ReturnType<typeof createAssistantMessageEventStream>>((used) => {
+    const stream = createAssistantMessageEventStream()
+    const final: AssistantMessage = { ...partial, model: used.id, content: [{ type: 'text', text: '{"decision":"allow","reason":"ok"}' }] }
+    queueMicrotask(() => stream.push({ type: 'done', reason: 'stop', message: final }))
+    return stream
+  })
+  const stored = { id: 's1', model: { providerId: 'p', modelId: 'switched' } }
+  const reviews = new SessionReviews({
+    store: { sessions: { getSession: async (id: string) => (id === 's1' ? stored : undefined), listEntries: async () => [] } } as unknown as SessionStore,
+    models: { contextModel },
+    registry: { models: { streamSimple } } as unknown as ModelRegistry,
+    clock: { now: () => 0, setTimer: () => () => {} },
+    runtimes: { commit: async () => ({}) as never },
+    rootSessionId: (id) => id,
+  })
+  expect(await reviews.review({ sessionId: 's1', request })).toEqual({ verdict: 'allow', reason: 'ok' })
+  expect(contextModel.mock.calls).toEqual([[stored.model]])
+  expect(streamSimple.mock.calls[0]![0].id).toBe('switched')
 })

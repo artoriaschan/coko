@@ -372,6 +372,24 @@ describe('审查输入：动作、上限、截断与丢弃', () => {
     expect(one.user_authorization.user_messages).toEqual(['only'])
   })
 
+  it('单项上限按 JSON 转义后的长度计：满是引号与换行的 Plan、用户消息、工具描述不会把输入撑过总上限', () => {
+    const command = big(8000 - '{"tool":"bash","arguments":{"command":""}}'.length)
+    const entries = [
+      start('r', 'submit'),
+      user('r', `a${big(3999, '\n')}z`),
+      entry('plan_phase', { phase: 'executing', planId: 'p1' }),
+      plan('approved', big(8000, '"')),
+    ]
+    const result = buildReviewInput({ entries, call: { toolName: 'bash', input: { command }, description: big(1000, '"') }, priorCalls: [] })
+    if (!('text' in result)) throw new Error('expected text')
+    expect(result.text.length).toBeLessThanOrEqual(32_000)
+    const input = inputOf(result)
+    // 引号转义后各占两个字符：上限 8000 内放得下 4000 个，其余标注截掉。
+    expect(input.user_authorization.approved_plan).toBe(`${big(4000, '"')}…[truncated 4000 chars]`)
+    expect(input.user_authorization.user_messages).toEqual([`a${big(1999, '\n')}…[truncated 2001 chars]`])
+    expect(input.actions.pending_call).toEqual({ tool: 'bash', arguments: { command }, tool_description: `${big(500, '"')}…[truncated 500 chars]` })
+  })
+
   it('待审调用（工具名与参数）放不下时不构建输入', () => {
     expect(REVIEW_CALL_MAX_CHARS).toBe(8000)
     const sized = (n: number) => ({ toolName: 'bash', input: { command: big(n - '{"tool":"bash","arguments":{"command":""}}'.length) } })
