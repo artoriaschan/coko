@@ -1,0 +1,90 @@
+packages/protocol/src/planning.ts
+  s_e66561215efab5::t_1cca126e40201a 3,8-16,19-22,29-49,69
+  s_e66561215efab5::t_d7cae64924b21c 24
+tests/integration/sidecar-plan.test.ts
+  s_e66561215efab5::t_8db2dc2cdaf69b 7
+  s_e66561215efab5::t_3ef109d2425d7e 372-374
+  s_e66561215efab5::t_1c03527dd53834 238-310
+packages/agent/src/agents/handoff.test.ts
+  s_e66561215efab5::t_22e3751916cd71 96-113
+apps/server/src/application/sessions.ts
+  s_e66561215efab5::t_e9970ca5a441dd 479-482
+  s_e66561215efab5::t_518f680d2b77a9 586-587
+  s_e66561215efab5::t_217b359ee7599a 16
+packages/agent/src/planning/exit-plan-mode.ts
+  s_e66561215efab5::t_a0347577034420 48
+apps/server/src/http/routes/plans.ts
+  s_e66561215efab5::t_50b8d4cfda720b 1-9
+apps/server/src/application/context/plan.ts
+  s_e66561215efab5::t_47da74a5614795 1,3,10,20-21,43,50
+  s_e66561215efab5::t_a0347577034420 22,24
+packages/agent/src/agents/fork.ts
+  s_e66561215efab5::t_c5362e3ebdf6d2 77
+  s_e66561215efab5::t_37d127fe51d5d9 8
+  s_e66561215efab5::t_d7cae64924b21c 78-79
+  s_e66561215efab5::t_49e1120042053e 12
+packages/agent/src/planning/state.ts
+  s_e66561215efab5::t_12d7d448bf97e2 1,6,9-11,20-21,28-29
+apps/server/src/http/routes/index.ts
+  s_e66561215efab5::t_8e4d0724a0e986 36
+  s_e66561215efab5::t_087ff808d4c14b 14
+packages/agent/src/agents/fork.test.ts
+  s_e66561215efab5::t_f37716852e68df 179-219
+packages/protocol/README.md
+  s_e66561215efab5::t_529e3fe512a4bd 93,205
+packages/agent/src/observability/audit.ts
+  s_e66561215efab5::t_6fc4394b11bf8c 1,29,94-95
+packages/agent/src/session-entries/session-entries.test.ts
+  s_e66561215efab5::t_a62b747da6ba4d 27
+  s_e66561215efab5::t_7d40f0d433fd3b 40,139-155
+packages/agent/src/planning/planning.test.ts
+  s_e66561215efab5::t_a13ff91817cae1 6,28,36-41,44-46,53,59-63,65-78
+  s_e66561215efab5::t_7d3c7664980482 64
+  s_e66561215efab5::t_d7cae64924b21c 42
+packages/agent/src/entries/plan-phase.ts
+  s_e66561215efab5::t_d7cae64924b21c 31-33
+  s_e66561215efab5::t_3e976d7d0ebcd9 1-30,34-37
+packages/protocol/src/trace.ts
+  s_e66561215efab5::t_6fc4394b11bf8c 139
+docs/subsystems/plan-mode.md
+  s_e66561215efab5::t_49f3805103b587 3,9,16,18-21,29-32,36,45,48,66-68
+  s_e66561215efab5::t_1ad0f717f47966 76
+packages/agent/README.md
+  s_e66561215efab5::t_529e3fe512a4bd 71
+packages/agent/src/agents/handoff.ts
+  s_e66561215efab5::t_5a78470c53ee12 50-51
+  s_e66561215efab5::t_a50a8bcf498d69 4
+  s_e66561215efab5::t_f6e347a665512a 43
+packages/agent/src/session-entries/planning.ts
+  s_e66561215efab5::t_2b9525b9086223 1,3,8-26,29,31,36-47,50,54-55
+packages/agent/src/observability/trace.test.ts
+  s_e66561215efab5::t_7d39a627b7d67e 284-297
+docs/subsystems/tracing.md
+  s_e66561215efab5::t_0d26802da440e2 54
+apps/server/src/application/session-permissions.test.ts
+  s_e66561215efab5::t_2ab71330f348fe 32-52
+.scratch/plan-lifecycle/issues/02-plan-phase-entry.md
+  s_e66561215efab5::t_ebbe33717d644b 11-23
+  s_e66561215efab5::t_ac4e52622936f2 24-36,38-41
+  s_e66561215efab5::t_226bfe7029bca9 37
+packages/agent/src/entries/index.ts
+  s_e66561215efab5::t_12d7d448bf97e2 38-39
+apps/server/src/application/session-permissions.ts
+  s_e66561215efab5::t_cab4f6188c1a50 2,10-11,22,35,42-43,162,173,214-215,221-222,231,238-251,259-260,283
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "75ca6e691926ec9c6ef6b4725e35457bbee1e76e",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
