@@ -14,7 +14,7 @@ React 订阅在 app 层通过 `useSyncExternalStore` 接入；store 模块保持
 
 组件统一基于 shadcn/ui，源码纳入仓库并使用本地设计 token；新增组件和现有组件的适配沿用同一套约定。类名合并通过 `extendTailwindMerge` 识别 `text-ui-*` 及项目圆角类，见 [设计系统规格](ui-design-system.md#档位)；模型与供应商品牌图标由 `ProviderIcon` 提供，仅深导入 @lobehub/icons 的 Mono / Color SVG 组件（品牌入口会连带 `@lobehub/ui`，因此按包内组件路径引用），按模型 ID、接口地址、供应商 ID 与名称依次识别，未收录的品牌回退通用图标；供应商列表使用品牌色，模型选择浮层使用跟随前景色的单色变体。
 
-消息输入采用 Lexical，编辑区通过 @lexical/react 接入 React，工具栏、菜单和弹层沿用 shadcn/ui。草稿保存 Lexical EditorState JSON；composer 为纯文本（File Reference 节点序列化为 `@path` 文本），支持富文本时再引入 @lexical/markdown。会话消息和静态文档统一通过 Streamdown 展示。lexical 与实际引入的 @lexical/* 包统一精确锁定为 0.52.0。[Lexical React 集成](https://lexical.dev/docs/getting-started/react)、[Lexical 版本元数据](https://registry.npmjs.org/lexical/0.52.0)
+消息输入采用 Lexical，编辑区通过 @lexical/react 接入 React，工具栏、菜单和弹层沿用 shadcn/ui。草稿保存 Lexical EditorState JSON；composer 为纯文本（File Reference 节点序列化为 `@path` 文本，Session Reference 节点序列化为 `@session:<id>` 文本），支持富文本时再引入 @lexical/markdown。会话消息和静态文档统一通过 Streamdown 展示。lexical 与实际引入的 @lexical/* 包统一精确锁定为 0.52.0。[Lexical React 集成](https://lexical.dev/docs/getting-started/react)、[Lexical 版本元数据](https://registry.npmjs.org/lexical/0.52.0)
 
 侧栏分类排序使用 **@dnd-kit/core 6.3.1**：指针传感器绑定分类拖拽手柄，`useDroppable` 按指针位置判定目标分类（指针离开分类区域时取最近分类），`DragOverlay` 渲染跟随指针的小卡片，蓝色插入指示线表达落点；顺序仍写入列表 store 的 `categoryOrder`。跟随卡片为 H32、R12 的浮层表面（`--popover` + `shadow-panel`，前导 14px 手柄图标、13px/20px 中等字重标题），以指针抓取点为中心跟随；插入指示器由 2px 圆角蓝色横线和左端 8px 空心圆点组成，画在目标分类的起始边界。
 

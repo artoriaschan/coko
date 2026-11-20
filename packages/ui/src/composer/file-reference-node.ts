@@ -14,8 +14,8 @@ export function formatFileReference(path: string): string {
 
 export type SerializedFileReferenceNode = Spread<{ path: string }, SerializedTextNode>
 
-// 行内引用的外观：小号圆角底色与链接色文字（R4，细小元素档）。
-const chipClass = ['rounded-xs', 'bg-muted', 'px-0.5', 'font-medium', 'text-link']
+// 行内引用的外观：小号圆角底色与链接色文字（R4，细小元素档）；Session Reference 节点共用。
+export const chipClass = ['rounded-xs', 'bg-muted', 'px-0.5', 'font-medium', 'text-link']
 
 export class FileReferenceNode extends TextNode {
   __path: string

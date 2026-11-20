@@ -36,6 +36,27 @@ import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
 const unescapeAttribute = (value: string) =>
   value.replace(/&(quot|lt|gt|apos|#39|amp);/g, (_, name: string) => ({ quot: '"', lt: '<', gt: '>', apos: "'", '#39': "'", amp: '&' })[name] ?? '')
 
+/** 用户消息附上的 Session Reference：title 是提交那一刻被引用会话的标题（docs/subsystems/context.md）。 */
+export interface SessionReference {
+  sessionId: string
+  title: string
+}
+const SESSION_REFERENCE = /^<session_reference id="([^"]*)" title="([^"]*)">/
+// 与 Sidecar 的解析（@coko/agent 的 parseSessionReferences）同一 token 规则：@ 在词首，id 在空白或中文标点处结束，不含结尾标点。
+const SESSION_TOKEN = /(?<!\S)@session:([^\s，。；：！？、）】」』》]+)/gu
+const TRAILING_PUNCTUATION = /[.,;:!?'")\]}>]+$/u
+
+/** 气泡显示用的文本：`@session:<id>` 在消息带有对应的会话引用块时显示为 `@标题`，没有对应块时原样保留。复制与回退仍用原文。 */
+export function withSessionTitles(text: string, references: readonly (string | SessionReference)[] | undefined, untitled: string): string {
+  const titles = new Map(references?.flatMap((ref) => (typeof ref === 'string' ? [] : [[ref.sessionId, ref.title.trim() || untitled] as const])))
+  if (titles.size === 0) return text
+  return text.replace(SESSION_TOKEN, (token, raw: string) => {
+    const id = raw.replace(TRAILING_PUNCTUATION, '')
+    const title = titles.get(id)
+    return title === undefined ? token : `@${title}${raw.slice(id.length)}`
+  })
+}
+
 /** <scheduled_task> 包装的 title 属性（属性值由宿主转义）；不是包装时 undefined。 */
 function scheduledTaskTitle(text: string): string | undefined {
   if (!text.startsWith(SCHEDULED_TASK_TAG)) return undefined
@@ -81,7 +102,8 @@ type TimelineContent =
   /**
    * seq：用户消息条目（Checkpoint 锚点）；checkpoint：在有效上下文中，可以回退到此处或从这里分叉。
    * command：这条消息由命令展开而来（text 为展开后的全文），invocation 为原始调用 "/name 参数"（回退时放回输入区）。
-   * references：随消息附上的 File Reference（<file_reference> 文本块的 path，按出现顺序）；块本身不进入 text。
+   * references：随消息附上的引用，按出现顺序：File Reference 为 <file_reference> 文本块的 path，Session Reference 为
+   * <session_reference> 文本块的 id 与提交时的标题（未附上的说明块同样计入）；块本身不进入 text。
    */
   | {
       kind: 'user'
@@ -91,7 +113,7 @@ type TimelineContent =
       checkpoint: boolean
       command?: CommandPayload
       invocation?: string
-      references?: string[]
+      references?: (string | SessionReference)[]
       attachments?: AttachmentReference[]
       images?: { data: string; mimeType: string }[]
     }
@@ -396,7 +418,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       if (message.role === 'user') {
         const command = pendingCommand
         pendingCommand = null
-        const references: string[] = []
+        const references: (string | SessionReference)[] = []
         const attachments: AttachmentReference[] = []
         // 后台任务的完成通知（<job-notification> 文本块）由 job_notification 行显示，不进入用户气泡；只有通知的消息不成气泡。
         // UserPromptSubmit Hook 追加的上下文（<hook-context> 文本块）由 hook_run 行显示，同样不进入气泡（也不随回退放回输入区）。
@@ -449,6 +471,11 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
           const attachment = attachmentReferenceFromText(b.text)
           if (attachment) {
             attachments.push(attachment)
+            return false
+          }
+          const session = SESSION_REFERENCE.exec(b.text)
+          if (session) {
+            references.push({ sessionId: unescapeAttribute(session[1]!), title: unescapeAttribute(session[2]!) })
             return false
           }
           const path = fileReferencePath(b.text)
