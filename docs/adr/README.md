@@ -37,4 +37,4 @@ ADR 的状态、实施字段与替代规则见 [文档体系](../DOCUMENTATION_S
 | [0025](0025-system-data-root.md) | 主数据根独立于 Electron userData，跨平台统一 COKO_HOME | accepted | implemented |
 | [0026](0026-standalone-session-write-roots.md) | 托管独立会话分离读取根、写根与 cwd | accepted | implemented |
 | [0027](0027-memory-follows-project-writes-without-approval.md) | 记忆跟随项目归属，写入不经审批，局部替代 ADR 0020 的记忆条款 | accepted | implemented |
-| [0028](0028-plan-phase-not-permission-mode.md) | 计划是独立的 Session 状态，不是 Permission Mode；局部替代 ADR 0005 的 plan 取值 | accepted | partial |
+| [0028](0028-plan-phase-not-permission-mode.md) | 计划是独立的 Session 状态，不是 Permission Mode；局部替代 ADR 0005 的 plan 取值 | accepted | implemented |

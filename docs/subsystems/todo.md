@@ -43,6 +43,10 @@ lifecycle: active
 - **队列卡**（dock 最后一张）：本窗口在 Run 中发出、尚未送达的追加指令（chat-store 的 `steering`），标题"待送达 n"与说明"当前步骤结束后送达"；每条单行截断，悬停或聚焦时 HoverCard 显示全文。送达后由 user 条目替代并消失；Run 结束时未送达的追加指令照旧退回输入区。不能撤回。时间线中不再另显示待送达气泡，队列卡是唯一呈现。
 - dock 的顺序为待办 → Goal → 队列；Goal 卡见 [Goal](goal.md#界面)。
 
+## 与计划的关系
+
+批准计划的工具结果要求模型先用 `todo_write` 把计划拆成步骤（见 [Plan Mode](plan-mode.md#提交与审阅)），拆出的仍是普通的 Todo List：同一张表、同样的校验、送达与待办卡，不带 planId，也不与计划条目关联。宿主不检查执行中是否拆了待办，不调用 `todo_write` 的写入照常按 Permission Mode 判定；`complete_plan`、放弃与重新规划都不改动当前表，待办中未完成的项不阻止完成报告。规划中 `todo_write` 按当前 Permission Mode 判定，不受写入拒绝影响。
+
 ## 验证
 
 - `packages/agent/src/tasks/todo/todo.test.ts`：每条校验规则一例（违反时抛出、端口没有被调用）、边界值、id 生成、结果文本、section 的有无、结果取自端口保存的表。

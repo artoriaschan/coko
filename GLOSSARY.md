@@ -143,7 +143,7 @@ Session 的规划阶段：只调研与规划，不改动 Workspace；不是 Perm
 _Avoid_: plan 权限模式、dry run
 
 **Plan**：
-Agent 在 Plan Mode 中提交给用户审阅的执行方案，按修订保留。
+Agent 在 Plan Mode 中提交、经用户批准后执行，并以对照方案的完成报告反馈结果的方案，按修订保留；状态为待审阅、已拒绝、执行中、已完成与已放弃，一个 Session 同一时刻至多一份进行中的 Plan。
 _Avoid_: proposal、spec
 
 **Todo List**：

@@ -57,6 +57,8 @@ lifecycle: active
 **Goal Round 中的计划审阅。** Goal Round 中提交 kind plan 的审批请求（`exit_plan_mode`）时 Goal 进入 waiting-input（`plan-review`），界面显示在等用户；回答（批准或带反馈拒绝）后同一 Run 中回到 running。审阅被停止取消时保持 waiting-input，按上面的规则等用户提交。
 - 之后 Goal 为 running 且该 Run 正常结束、没有退回用户写的追加指令时发起下一轮。
 
+**与计划不新增关联。** Goal 与 [Plan](plan-mode.md) 各自独立：批准计划不创建 Goal，执行中的计划不会使宿主发起 Run（没有 Goal 时 Run 结束后不自动继续），`complete_plan` 与放弃不改变 Goal 的阶段；Goal 的推进条件与完成证据也不看计划的状态。需要 Coko 自动推进一份已批准的计划时由用户另建 Goal。
+
 ## 推进
 
 `GoalDriver.advance` 在 Session 的锁内执行，因此同一 Session 的推进串行：Session 有 Run 时不发起；重读当前 Goal，不是 running 时不发起；轮次 = 该 Goal 的 `run_start.goal.round` 的最大值；检查五维（[预算](#预算)），任一维度用尽时提交 budget-exhausted，设了费用上限而模型未定价时提交 blocked（`cost-unpriced`），都不开始 Run；否则以 `trigger: goal`、`goal { goalId, round: n + 1 }` 调用统一入口 `startRun`。下一轮的轮次取自已提交的 `run_start`，同一轮不会开始两次；用户先开始了 Run（`run-in-progress`）或回退、分叉进行中（`session-busy`）时放弃这次发起，Goal 保持 running，那个 Run 结束后再判定；不会自然再判定的原因不让 Goal 停在 running：模型未配置或须重新选择（`model-not-configured`、`model-required`）提交 blocked，有未回答的结果确认（`confirmation-pending`）提交 waiting-input，`reason.code` 都是该错误码。Goal 正在取消时不发起。挂起的 Job 通知（`pendingInput`）照常合并在 `<goal_round>` 之前。

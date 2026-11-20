@@ -51,7 +51,7 @@ lifecycle: active
 | --- | --- | --- |
 | `approval` | `approval_request` + `approval_decision` | 在回答时给出（seq 为决定条目）：`requestId`、`toolCallId`、`toolName`、`approvalKind`、`subject`（已脱敏的命令或路径）、`requestedAt`、`outcome`、`by`（缺省 `user`）、`scope?`；没有回答的以请求的位置给出 `outcome: pending` |
 | `permission_mode`、`permission_rule` | 同名条目 | 模式（四档；旧数据的 plan 已在读取时迁移，不带 `prior`）；规则的增删 |
-| `plan_phase` | 同名条目 | 计划阶段的转换（`phase`；执行中带 `planId`） |
+| `plan_phase` | 同名条目 | 计划阶段的转换（`phase`；执行中带 `planId`）。完成与放弃表现为转换到 `none`；`plan` 条目（含完成报告）不进入审计 |
 | `hook` | `hook_run` | 事件、hookId、来源（含插件名）、结论、退出码、耗时、`message?`（入库时已脱敏，≤ 2 KB） |
 | `confirmation` | `confirmation_answer` | 结果确认的回答 |
 | `schedule_fire` | 同名条目 | 到期时刻、started / skipped、原因、合并次数 |
