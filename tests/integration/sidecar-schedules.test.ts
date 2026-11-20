@@ -5,7 +5,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DATE_TEST_BLOCK as dateBlock, DATE_TEST_ENV } from './date-state-fixture.ts'
-import { API_ROUTES, apiPaths, goalPaths, permissionPaths, schedulePaths } from '@coko/protocol'
+import { API_ROUTES, apiPaths, goalPaths, permissionPaths, planPaths, schedulePaths } from '@coko/protocol'
 import {
   advanceClock,
   client,
@@ -22,7 +22,7 @@ import {
 } from './sidecar-harness.ts'
 
 type Fire = { scheduleId: string; occurrence: number; status: string; reason?: string; missed?: number }
-type Logged = { role: string; content: unknown }[]
+type Logged = { role: string; content: unknown; sections?: Record<string, string> }[]
 
 const call = (name: string, id: string, args: Record<string, unknown>) => ({ type: 'toolCall', name, id, arguments: args })
 const texts = (content: unknown) => (typeof content === 'string' ? [content] : (content as { type: string; text?: string }[]).map((b) => b.text ?? ''))
@@ -392,7 +392,7 @@ describe('定时任务：授权（对手用例）', { timeout: 120_000 }, () => 
     expect(await env.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('read-only 与 plan 下 schedule_create 询问；full-access 放行；Schedule 拒绝规则在 full-access 下生效', async () => {
+  it('read-only 下 schedule_create 询问（规划中相同：按当前模式）；full-access 放行；Schedule 拒绝规则在 full-access 下生效', async () => {
     const create = (id: string, title: string) => ({ content: [call('schedule_create', id, { title, prompt: 'p', after_seconds: 600 })] })
     const env = await boot([
       { match: 'in read-only', ...create('r', 'ro') },
@@ -403,11 +403,14 @@ describe('定时任务：授权（对手用例）', { timeout: 120_000 }, () => 
       { match: 'with deny', content: 'denied' },
     ])
     const { api, stream, open } = env
-    for (const [mode, text] of [
-      ['read-only', 'in read-only'],
-      ['plan', 'in plan'],
+    // 票 04（ADR 0028）起规划不改变模式：原先的 plan 模式用例改为 read-only 下进入规划，询问与否按 read-only。
+    for (const [mode, text, planning] of [
+      ['read-only', 'in read-only', false],
+      ['read-only', 'in plan', true],
     ] as const) {
       const sessionId = await open(undefined, mode)
+      const entered = planning ? await api.post(planPaths.sessionPlan(sessionId), { action: 'enter' }) : undefined
+      if (entered && entered.status !== 200) throw new Error(`entering planning failed: ${entered.status}`)
       await api.post(apiPaths.sessionMessages(sessionId), { text })
       const approval = await waitApproval(stream, sessionId)
       expect(approval).toMatchObject({ toolName: 'schedule_create', kind: 'tool' })
@@ -434,6 +437,37 @@ describe('定时任务：授权（对手用例）', { timeout: 120_000 }, () => 
     expect(of(stream, denied, 'approval_request')).toEqual([])
     expect(toolResults(stream, denied).map((r) => [r.toolName, r.isError])).toEqual([['schedule_create', true]])
     expect((await api.get(schedulePaths.list(denied))).body).toEqual([])
+    expect(await env.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('规划中的 Session 上到期的定时任务：Run 照常注入 <plan_mode>，写入直接拒绝（无审批、文件不存在），模式不变', async () => {
+    const env = await boot([
+      { match: 'prompt-plan', content: [call('write', 'w', { path: 'scheduled.txt', content: 'x' })] },
+      { match: 'prompt-plan', content: 'planned' },
+    ])
+    const { api, stream, open, requests, main } = env
+    const sessionId = await open(undefined, 'full-access')
+    expect((await api.post(planPaths.sessionPlan(sessionId), { action: 'enter' })).status).toBe(200)
+    expect(
+      (await api.post(schedulePaths.sessionSchedules(sessionId), { title: 'plan', prompt: 'prompt-plan', rule: { kind: 'after', seconds: 30 } })).status,
+    ).toBe(201)
+    await advanceClock(api, 30_000)
+    await waitKind(stream, sessionId, 'run_end', 1)
+    expect(of(stream, sessionId, 'run_start').map((e) => (e.payload as { trigger: string }).trigger)).toEqual(['schedule'])
+    expect(of(stream, sessionId, 'approval_request')).toEqual([])
+    expect(toolResults(stream, sessionId).map((r) => [r.toolName, r.isError, texts(r.content).join('')])).toEqual([
+      [
+        'write',
+        true,
+        'Refused: plan mode is active, so file writes are blocked until the user approves a plan. Do not retry or work around this; describe the intended change in the plan (or in your report to the parent agent) instead.',
+      ],
+    ])
+    await expect(readFile(join(main.path, 'scheduled.txt'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    const logged = await requests()
+    expect(logged).toHaveLength(2)
+    for (const request of logged) expect(request.find((m) => m.role === 'system')?.sections?.plan_mode).toMatch(/^<plan_mode>\nPlan mode is active\./)
+    expect(lastUserTexts(logged[0]!).at(-1)).toContain('prompt-plan')
+    expect((await api.get(permissionPaths.sessionPermissionRules(sessionId))).body).toEqual({ mode: 'full-access', rules: [] })
     expect(await env.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 })

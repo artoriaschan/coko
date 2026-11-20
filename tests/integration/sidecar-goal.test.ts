@@ -5,7 +5,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { API_ROUTES, apiPaths, checkpointPaths, goalPaths, jobPaths, permissionPaths, runPaths, type SessionEntryRecord } from '@coko/protocol'
+import { API_ROUTES, apiPaths, checkpointPaths, goalPaths, jobPaths, permissionPaths, planPaths, runPaths, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval, type Stream } from './sidecar-harness.ts'
 
 type Api = ReturnType<typeof client>
@@ -422,7 +422,8 @@ describe('Goal', { timeout: 120_000 }, () => {
       { content: 'r1 done' },
     ])
     const sessionId = await newSession(api, stream, workspaceId)
-    expect((await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'plan' })).status).toBe(200)
+    // 票 04 起经计划接口进入规划（模式不变）。
+    expect((await api.post(planPaths.sessionPlan(sessionId), { action: 'enter' })).status).toBe(200)
     await submit(api, sessionId, 'go')
     const review = await waitApproval(stream, sessionId, 1)
     expect(review).toMatchObject({ kind: 'plan', toolName: 'exit_plan_mode' })

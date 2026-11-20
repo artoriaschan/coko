@@ -382,6 +382,7 @@ export const zh = {
     approvalFailed: '审批回答没有送达，请重试',
     approvalNotPending: '这个请求已经结束，无需再回答',
     permissionsFailed: '权限设置没有保存',
+    planFailed: '没能退出规划',
     steerFailed: '追加指令没有送达，内容已保留在输入区',
     pauseFailed: '暂停失败',
     continueFailed: '继续失败',

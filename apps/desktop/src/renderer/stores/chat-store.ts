@@ -8,6 +8,7 @@ import {
   type PermissionMode,
   type PermissionRule,
   type ProgressEvent,
+  type StandardPermissionMode,
   type RewindMode,
   type RewindResponse,
   type RunStatus,
@@ -78,7 +79,21 @@ export interface Conversation {
 }
 
 export type ChatFailure = {
-  kind: 'send' | 'stop' | 'retry' | 'workspace' | 'model' | 'approval' | 'permissions' | 'steer' | 'pause' | 'continue' | 'confirmation' | 'rewind' | 'fork'
+  kind:
+    | 'send'
+    | 'stop'
+    | 'retry'
+    | 'workspace'
+    | 'model'
+    | 'approval'
+    | 'permissions'
+    | 'plan'
+    | 'steer'
+    | 'pause'
+    | 'continue'
+    | 'confirmation'
+    | 'rewind'
+    | 'fork'
   error: ApiError
 }
 
@@ -236,8 +251,10 @@ export interface ChatActions {
    * 已不在等待（not-found）时不再重发。返回是否已被接受。
    */
   answerConfirmation(toolCallId: string, answer: ConfirmationAnswer): Promise<boolean>
-  /** 当前会话经协议切换 Permission Mode（立即显示，失败时撤回）；草稿中只记下选择。 */
-  setPermissionMode(mode: PermissionMode): Promise<void>
+  /** 当前会话经协议切换 Permission Mode（立即显示，失败时撤回）；草稿中只记下选择。不改变计划阶段。 */
+  setPermissionMode(mode: StandardPermissionMode): Promise<void>
+  /** 会话退出规划（不改变 Permission Mode）；计划阶段随条目到达而变化，不乐观显示。失败时报告并返回 false。 */
+  exitPlan(sessionId: string): Promise<boolean>
   /** 删除当前会话的一条 Session 规则。 */
   removeSessionRule(rule: PermissionRule): Promise<boolean>
   /** 回退当前会话的预览（dryRun）：将恢复、删除、Agent 之外改过与未追踪的文件。失败时报告并返回 undefined。 */
@@ -495,7 +512,8 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
             ...(files?.length ? { files } : {}),
             ...(model ? { model } : {}),
             thinkingLevel: draft.thinkingLevel,
-            ...(draft.permissionMode ? { permissionMode: draft.permissionMode } : {}),
+            // 草稿中残留的 plan（规划不再是 Permission Mode，ADR 0028）按未设置处理：首次发送只接受四档。
+            ...(draft.permissionMode && draft.permissionMode !== 'plan' ? { permissionMode: draft.permissionMode } : {}),
           })
           await lists.getState().load()
           // A title can finish while the first-send response or list refresh is in flight.
@@ -621,12 +639,10 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         }
         const current = get().conversations[sessionId]
         if (current && (current.pendingMode ?? sessionPermissionMode(current.entries)) === mode) return Promise.resolve()
-        const leavingPlan = current && (current.pendingMode ?? sessionPermissionMode(current.entries)) === 'plan'
-        if (!leavingPlan) updateConversation(sessionId, (c) => ({ ...c, pendingMode: mode }))
+        updateConversation(sessionId, (c) => ({ ...c, pendingMode: mode }))
         const send = async () => {
           try {
             await api.setPermissionMode(sessionId, mode)
-            if (leavingPlan) updateConversation(sessionId, (c) => ({ ...c, pendingMode: sessionPermissionMode(c.entries) === mode ? undefined : mode }))
             // 条目可能先于响应到达，也可能没有条目（与当时模式相同）：此时按条目即可。
             updateConversation(sessionId, (c) => (c.pendingMode === mode && sessionPermissionMode(c.entries) === mode ? { ...c, pendingMode: undefined } : c))
           } catch (error) {
@@ -638,6 +654,16 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         const next = (modeChains.get(sessionId) ?? Promise.resolve()).then(send)
         modeChains.set(sessionId, next)
         return next
+      },
+
+      async exitPlan(sessionId) {
+        try {
+          await api.planAction(sessionId, 'exit')
+          return true
+        } catch (error) {
+          onFailure?.({ kind: 'plan', error: toApiError(error) })
+          return false
+        }
       },
 
       async removeSessionRule(rule) {

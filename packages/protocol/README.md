@@ -90,7 +90,7 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 | `src/artifacts.ts` | `artifactPaths` | 会话 outputs 文件树与操作前路径校验 |
 | `src/config.ts` | `configPaths` | 能力配置 |
 | `src/goal.ts` | `goalPaths` | Goal |
-| `src/planning.ts` | `planPaths` | Session 的计划阶段与活动 Plan（`GET` → `SessionPlanResponse`） |
+| `src/planning.ts` | `planPaths` | Session 的计划阶段与活动 Plan（`GET` → `SessionPlanResponse`）；进入与退出规划（`POST` `PlanActionRequest` → `SessionPlanResponse`） |
 | `src/jobs.ts` | `jobPaths` | 后台任务 |
 | `src/agents.ts` | `agentPaths` | 子代理 |
 | `src/schedules.ts` | `schedulePaths` | 定时任务（含测试时钟） |

@@ -139,9 +139,10 @@ export interface ContextActionInput {
 
 /**
  * 动作的执行。whileRunning：Run 进行中也可执行（例如 /goal pause、/goal cancel），按参数判断；Run 进行中提交时只查内置命令表
- * （不展开输入、不读命令目录），只有 whileRunning(args) 为 true 的动作才执行，其余以 run-in-progress 拒绝。
+ * （不展开输入、不读命令目录），只有 whileRunning(args) 为 true 的动作才执行，其余以 run-in-progress 拒绝。firstSend：新对话的首次发送
+ * 可以展开为它（例如 /plan 消息：进入规划后提交消息），它须开始 Run，否则首次发送以 bad-request 拒绝并回滚；其余动作在首次发送时拒绝。
  */
-export type ContextAction = ((input: ContextActionInput) => Promise<ActionResult>) & { whileRunning?: (args: string) => boolean }
+export type ContextAction = ((input: ContextActionInput) => Promise<ActionResult>) & { whileRunning?: (args: string) => boolean; firstSend?: boolean }
 
 /** 合并到下一个 Run 的 user message 开头的内容（例如后台任务的完成通知）。 */
 export interface PendingInput {

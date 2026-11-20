@@ -7,7 +7,7 @@ import { readFile, realpath, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { API_ROUTES, apiPaths, jobPaths, permissionPaths, type JobSnapshot } from '@coko/protocol'
+import { API_ROUTES, apiPaths, jobPaths, permissionPaths, planPaths, type JobSnapshot } from '@coko/protocol'
 import {
   client,
   connect,
@@ -183,7 +183,7 @@ describe.skipIf(!darwin)('PTY 与 stdin（真实 Sidecar，darwin）', { timeout
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('Job 在较宽档位启动、之后模式收紧：规划中 job_input 被拒绝（不写入终端）；default 下要求一次提权审批（kind escalation）', async () => {
+  it('Job 在较宽档位启动、之后进入规划或模式收紧：规划中（模式仍为 full-access）job_input 被拒绝（不写入终端）；退出规划后 default 下要求一次提权审批（kind escalation）', async () => {
     const h = await setup([
       { content: [tty('b1', 'cat')] },
       { content: 'started' },
@@ -195,7 +195,8 @@ describe.skipIf(!darwin)('PTY 与 stdin（真实 Sidecar，darwin）', { timeout
     await h.turn('start')
     expect(h.result('b1')!.isError).toBe(false)
 
-    await h.setMode('plan')
+    // 票 04（ADR 0028）起经计划接口进入规划，模式不变。
+    expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'enter' })).status).toBe(200)
     await h.turn('touch')
     expect(h.count('approval_request')).toBe(0)
     expect(h.result('i1')).toEqual({
@@ -206,6 +207,7 @@ describe.skipIf(!darwin)('PTY 与 stdin（真实 Sidecar，darwin）', { timeout
       isError: true,
     })
 
+    expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'exit' })).status).toBe(200)
     await h.setMode('default')
     await h.send('echo')
     const approval = await h.allow()

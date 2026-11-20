@@ -129,8 +129,10 @@ describe('effectiveSubagentMode', () => {
     ['default', 'full-access', 'default'],
     ['full-access', 'read-only', 'read-only'],
     ['accept-edits', undefined, 'accept-edits'],
-    ['plan', undefined, 'read-only'],
-    ['plan', 'full-access', 'read-only'],
+    // 票 04（ADR 0028）起不再把 plan 压成 read-only：规划不改变模式，旧数据中残留的 plan 原样传给判定（与 read-only 同判），票 07 删除。
+    ['plan', undefined, 'plan'],
+    ['plan', 'full-access', 'plan'],
+    ['plan', 'read-only', 'plan'],
     ['read-only', 'default', 'read-only'],
     ['full-access', 'accept-edits', 'accept-edits'],
   ] as const)('根 %s、定义 %s → %s', (root, cap, expected) => {

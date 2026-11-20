@@ -117,7 +117,7 @@ describe('子代理：审批与有效权限', { timeout: 120_000 }, () => {
     expect([set.status, set.body.error.code]).toEqual([409, 'child-session'])
   })
 
-  it('根 Session 规划中派发的子代理（ADR 0028）：写入直接拒绝（无审批）、命令在只读沙箱、system 中是子 Session 的 <plan_mode>（不提提交计划）', async () => {
+  it('根 Session 规划中派发的子代理（ADR 0028）：有效模式为根的 full-access（不压成 read-only，命令不询问）；写入直接拒绝（无审批）、命令在只读沙箱、system 中是子 Session 的 <plan_mode>（不提提交计划）', async () => {
     const env = await bootAgents([
       { match: 'PARENT-P', content: [call('agent', 'a1', { description: 'probe', prompt: 'CHILD-P probe', subagent_type: 'general' })] },
       {
@@ -127,13 +127,8 @@ describe('子代理：审批与有效权限', { timeout: 120_000 }, () => {
       { match: 'CHILD-P', content: 'reported' },
       { match: 'PARENT-P', content: 'ok' },
     ])
-    const parent = await env.open('plan')
-    // 根 Session 的允许规则对子 Session 同样有效：命令不询问，写入仍被拒绝。
-    for (const rule of [
-      { behavior: 'allow', tool: 'Edit' },
-      { behavior: 'allow', tool: 'Bash' },
-    ])
-      expect((await env.api.post(permissionPaths.sessionPermissionRules(parent), { rule })).status).toBe(200)
+    // 票 04 起规划不改变模式：根为 full-access 并在规划中，子级有效模式为 full-access（定义没有上限），命令不询问；规划约束照常。
+    const parent = await env.open('full-access', true)
     await env.submit(parent, 'PARENT-P go')
     await env.stream.waitFor(() => runEnds(env.stream, parent).length >= 1, 30_000)
     const child = starts(env.stream, parent)[0]!.agentId

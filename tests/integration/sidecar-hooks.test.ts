@@ -6,7 +6,7 @@ import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { API_ROUTES, apiPaths, configPaths, hookPaths, permissionPaths, type HooksResponse, type SessionEntryRecord } from '@coko/protocol'
+import { API_ROUTES, apiPaths, configPaths, hookPaths, permissionPaths, planPaths, type HooksResponse, type SessionEntryRecord } from '@coko/protocol'
 import {
   client,
   connect,
@@ -63,11 +63,13 @@ async function boot(responses: unknown[], options: { hooks?: Hooks; dirs?: Sidec
     const saved = await api.put(hookPaths.hooks, { hooks: options.hooks, expectedRevision: 0 })
     if (saved.status !== 200) throw new Error(`saving hooks failed: ${saved.status} ${JSON.stringify(saved.body)}`)
   }
-  const open = async (mode?: string) => {
+  /** planning：经计划接口进入规划（不改变 mode，ADR 0028）。 */
+  const open = async (mode?: string, planning = false) => {
     const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
     stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
     await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
     if (mode && (await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode })).status !== 200) throw new Error(`setting mode ${mode} failed`)
+    if (planning && (await api.post(planPaths.sessionPlan(sessionId), { action: 'enter' })).status !== 200) throw new Error('entering planning failed')
     return sessionId
   }
   const runEnds = (sessionId: string, n: number) => stream.waitFor(() => stream.entries(sessionId).filter((e) => e.kind === 'run_end').length >= n)
@@ -476,18 +478,21 @@ describe('对手用例（权限）', () => {
     await h.sidecar.stop()
   })
 
-  it('全局 Hook 的 allow 不免掉规划中的写入（ADR 0028）：直接拒绝、没有审批、文件逐字节不变', async () => {
+  it('全局 Hook 的 allow 不免掉规划中的写入（ADR 0028）：直接拒绝、没有审批、文件逐字节不变；Hook 收到的 permission_mode 是真实模式', async () => {
+    const root = await realpath(await tempDir())
+    const record = join(root, 'stdin.jsonl')
     const h = await boot(
       [
         { content: [{ type: 'toolCall', name: 'edit', id: 'w1', arguments: { path: 'keep.txt', edits: [{ oldText: 'original', newText: 'changed' }] } }] },
         { content: 'ok' },
       ],
       {
-        hooks: allowAll,
+        root,
+        hooks: { PreToolUse: [group(hookCommand('--record', record, '--stdout', pre('allow')))] },
       },
     )
     await writeFile(join(h.root, 'keep.txt'), 'original\n')
-    const sessionId = await h.open('plan')
+    const sessionId = await h.open('accept-edits', true)
     await h.send(sessionId)
     await h.runEnds(sessionId, 1)
     expect(text(await resultOf(h.stream, sessionId, 'w1'))).toMatch(
@@ -495,6 +500,8 @@ describe('对手用例（权限）', () => {
     )
     expect(h.stream.entries(sessionId).filter((e) => e.kind === 'approval_request')).toEqual([])
     expect(await readFile(join(h.root, 'keep.txt'), 'utf8')).toBe('original\n')
+    // 票 04 起进入规划不改变模式：Hook 输入是 Session 的真实 Permission Mode，不是 plan。
+    expect((await lines(record)).map((line) => (JSON.parse(line) as { permission_mode: string }).permission_mode)).toEqual(['accept-edits'])
     await h.sidecar.stop()
   })
 
@@ -521,7 +528,7 @@ describe('对手用例（权限）', () => {
     await h.runEnds(sessionId, 1)
     expect(exists(join(outside, 'f'))).toBe(false)
 
-    const plan = await h.open('plan')
+    const plan = await h.open(undefined, true)
     await h.send(plan)
     const review = await waitApproval(h.stream, plan, 1)
     expect(review).toMatchObject({ toolCallId: 'x1', kind: 'plan' })

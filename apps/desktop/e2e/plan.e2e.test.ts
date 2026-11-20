@@ -1,5 +1,5 @@
-// Plan Mode：真实 Electron + 真实 Sidecar（faux）。/plan 进入、Plan chip 出现且关闭后恢复 prior；提交计划后审阅接管输入区、右栏自动打开一次；
-// "继续规划"带反馈后模型提交新修订；在右栏编辑后"批准并执行"，模式恢复且时间线有计划卡。
+// Plan Mode：真实 Electron + 真实 Sidecar（faux）。/plan 进入、Plan chip 出现且关闭后退出规划（Permission Mode 始终不变，ADR 0028）；提交计划后审阅
+// 接管输入区、右栏自动打开一次；"继续规划"带反馈后模型提交新修订；在右栏编辑后"批准并执行"，模式不变且时间线有计划卡。
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -61,19 +61,20 @@ async function choosePlan(app: LaunchedApp) {
 }
 
 describe('Plan Mode', () => {
-  it('规划 → chip × 退出 → 提交计划、右栏自动打开 → 继续规划 → 右栏编辑后批准并执行：模式恢复、计划卡', { timeout: 120_000 }, async () => {
+  it('规划 → chip × 退出 → 提交计划、右栏自动打开 → 继续规划 → 右栏编辑后批准并执行：模式不变、计划卡', { timeout: 120_000 }, async () => {
     const { app, workspace } = await setup({
       responses: [exit('e1', '# Plan A\n\n- read the code'), exit('e2', '# Plan B\n\n- add tests\n- fix it'), { content: 'Implementing the plan.' }],
     })
     await expect.poll(() => modeButton(app).getAttribute('data-permission-mode')).toBe('default')
     await choosePlan(app)
-    expect(await modeButton(app).getAttribute('data-permission-mode')).toBe('plan')
+    // 票 04 起进入规划不改变模式（原先断言为 plan）。
+    expect(await modeButton(app).getAttribute('data-permission-mode')).toBe('default')
     await composer(app).fill('keep this draft ')
     await stubDirectoryPicker(app.app, [await realpath(join(workspace, 'notes.txt'))])
     await app.window.locator('[data-action="attach"]').click()
     await composer(app).locator('[data-file-reference="notes.txt"]').waitFor()
     const selectedModel = await app.window.locator('[data-model-picker]').textContent()
-    // chip 的 × 回到进入前的模式。
+    // chip 的 × 退出规划，模式不变。
     await chip(app).click()
     await expect.poll(() => chip(app).count()).toBe(0)
     expect(await modeButton(app).getAttribute('data-permission-mode')).toBe('default')
@@ -98,11 +99,12 @@ describe('Plan Mode', () => {
     await planTab(app).waitFor({ timeout: 10_000 })
     expect(await app.window.getByRole('tab', { name: /^(Plan|计划)$/ }).getAttribute('aria-selected')).toBe('true')
     expect(await planTab(app).getAttribute('data-revision')).toBe('1')
+    // 票 04 起审阅卡不再标出将恢复的模式（原先断言 data-restores 为 default）。
     expect(
       await review(app)
         .getByRole('button', { name: /(Approve and run|批准并执行)/ })
         .getAttribute('data-restores'),
-    ).toBe('default')
+    ).toBeNull()
 
     // 继续规划（反馈）。
     await review(app)

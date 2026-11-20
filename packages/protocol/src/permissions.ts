@@ -79,9 +79,8 @@ export type ApprovalDecisionPayload = Static<typeof ApprovalDecisionPayload>
 /**
  * POST /api/sessions/:id/approvals/:requestId：回答待审批请求，204。请求不在等待中时 409 approval-not-pending。
  * feedback 只随拒绝：带反馈的拒绝作为工具错误交给模型，Run 继续；无反馈的拒绝在本批工具结束后以 aborted 结束 Run。
- * editedPlan 与 mode 只用于 kind plan 的请求（否则 400）：editedPlan 为用户编辑后的计划（规则同 exit_plan_mode 的 plan），mode 为批准后
- * 的模式（缺省为进入 plan 之前的模式；可以是 read-only、default 或 accept-edits，不能宽于进入 plan 之前的模式，否则 400）。plan 请求的
- * scope 只能是 once。
+ * editedPlan 只用于 kind plan 的请求（否则 400）：用户编辑后的计划（规则同 exit_plan_mode 的 plan）。批准只结束规划，不改变 Permission
+ * Mode（ADR 0028）；plan 请求的 scope 只能是 once。
  */
 export const AnswerApprovalRequest = Type.Union([
   Type.Object(
@@ -89,7 +88,6 @@ export const AnswerApprovalRequest = Type.Union([
       decision: Type.Literal('allow'),
       scope: Type.Optional(ApprovalScope),
       editedPlan: Type.Optional(Type.String({ minLength: 1, maxLength: PLAN_MAX_CHARS })),
-      mode: Type.Optional(Type.Union([Type.Literal('read-only'), Type.Literal('default'), Type.Literal('accept-edits')])),
     },
     strict,
   ),
@@ -159,8 +157,8 @@ export const UpdatePermissionsRequest = Type.Union([
 ])
 export type UpdatePermissionsRequest = Static<typeof UpdatePermissionsRequest>
 
-/** PUT /api/sessions/:id/permission-mode。切到 plan 时记下当前模式为 prior（已在 plan 时不变）；从 plan 切到其他模式即退出规划（不经审阅）。 */
-export const SetPermissionModeRequest = Type.Object({ mode: PermissionMode }, strict)
+/** PUT /api/sessions/:id/permission-mode：四档之一（plan 为 400；进入与退出规划经 POST …/plan，ADR 0028）。不改变计划阶段。 */
+export const SetPermissionModeRequest = Type.Object({ mode: StandardPermissionMode }, strict)
 export type SetPermissionModeRequest = Static<typeof SetPermissionModeRequest>
 
 /** POST / DELETE /api/sessions/:id/permission-rules：增删一条 Session 规则（已存在 / 不存在时不提交条目）。 */

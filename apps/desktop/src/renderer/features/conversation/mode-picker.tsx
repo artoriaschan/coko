@@ -27,8 +27,8 @@ export const MODE_ICONS: Record<PermissionMode, React.ComponentType<{ className?
   plan: IconClipboardList,
 }
 
-/** Shift+Tab 的下一档：只在前三档之间循环（不含 plan）；从 full-access 或 plan 回到第一档。 */
-export function nextCycledMode(mode: PermissionMode): PermissionMode {
+/** Shift+Tab 的下一档：只在前三档之间循环（只切换 Permission Mode，不影响规划）；从 full-access 或旧数据中的 plan 回到第一档。 */
+export function nextCycledMode(mode: PermissionMode): StandardPermissionMode {
   const index = CYCLED_PERMISSION_MODES.indexOf(mode as (typeof CYCLED_PERMISSION_MODES)[number])
   return CYCLED_PERMISSION_MODES[(index + 1) % CYCLED_PERMISSION_MODES.length]!
 }
@@ -43,19 +43,18 @@ function ShieldTerminalIcon({ className }: { className?: string }) {
 }
 
 export interface ModePickerProps {
+  /** 当前 Permission Mode（规划中照常显示并勾选它，ADR 0028）。plan 只来自升级前的旧数据（票 07 由读取迁移收尾）。 */
   value: PermissionMode
-  prior?: PermissionMode
   disabled?: boolean
-  onChange: (mode: PermissionMode) => void
+  onChange: (mode: StandardPermissionMode) => void
 }
 
-/** 输入区的 Permission Mode 选择（模型选择旁）。full-access 只能在此显式选择，选中时以警示色显示。 */
-export function ModePicker({ value, prior = 'default', disabled, onChange }: ModePickerProps) {
+/** 输入区的 Permission Mode 选择（模型选择旁）。full-access 只能在此显式选择，选中时以警示色显示。规划中切换不退出规划。 */
+export function ModePicker({ value, disabled, onChange }: ModePickerProps) {
   const { t } = useI18n()
-  const shown = value === 'plan' ? (prior === 'plan' ? 'default' : prior) : value
-  const Icon = MODE_ICONS[shown]
-  const label = t(`permissions.modes.${shown}`)
-  const warning = shown === 'full-access'
+  const Icon = MODE_ICONS[value]
+  const label = value === 'plan' ? t('plan.mode') : t(`permissions.modes.${value}`)
+  const warning = value === 'full-access'
   const [open, setOpen] = React.useState(false)
   const [riskOpen, setRiskOpen] = React.useState(false)
   return (
@@ -97,7 +96,7 @@ export function ModePicker({ value, prior = 'default', disabled, onChange }: Mod
             onValueChange={(next) => {
               // 完全访问越出工作区，先确认风险；其余档位立即生效。
               if (next === 'full-access') setRiskOpen(true)
-              else onChange(next as PermissionMode)
+              else onChange(next as StandardPermissionMode)
             }}
           >
             {(['default', 'accept-edits', 'full-access'] as const).map((mode) => {

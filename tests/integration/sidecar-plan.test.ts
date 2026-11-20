@@ -1,5 +1,6 @@
-// Plan Mode（ADR 0005、ADR 0028）：真实 Sidecar（faux 模型）经协议驱动 /plan 进入、规划中的约束（写入拒绝、命令只读沙箱且不能提权）、exit_plan_mode 的提交与审阅
-// （编辑后批准、带反馈继续规划、批准为 accept-edits）、回答的校验、/plan off 与模式菜单退出、压缩后的 <approved_plan> 与分叉。
+// Plan Mode（ADR 0005、ADR 0028）：真实 Sidecar（faux 模型）经协议驱动 /plan 与计划接口进入和退出（不改变 Permission Mode）、规划中的约束（写入拒绝、命令只读
+// 沙箱且不能提权，其余调用按当前模式）、Run 中途进入与退出、exit_plan_mode 的提交与审阅（编辑后批准、带反馈继续规划，批准只结束规划）、回答的校验、压缩后的
+// <approved_plan> 与分叉。
 // 本票不新增文件读取（没有读取根或注入点涉及路径），不需要符号链接越界用例。
 import { access, readFile, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -70,13 +71,13 @@ const exists = (path: string) =>
     () => true,
     () => false,
   )
-/** 模型可见文本（设计稿 T1 过渡版、T3、T4、T5）。 */
+/** 模型可见文本（设计稿 T1 最终版、T3、T4、T5、T7）。 */
 const PLAN_MODE_T1 = [
   '<plan_mode>',
   'Plan mode is active. Research and design only: the user reviews your plan before anything in the Workspace changes.',
   '- File writes (write, edit) are refused while planning. Put the changes you intend to make in the plan instead.',
   '- Commands run in a read-only sandbox and cannot be escalated; a command that writes files fails.',
-  '- Reads and searches are allowed; other calls may need the user’s approval.',
+  "- Other calls (reads, searches, MCP tools, memory, todo and goal tools) follow the session's current permission mode.",
   'When the plan is ready, call exit_plan_mode with the complete plan as Markdown starting with a # heading. If the user sends feedback, keep planning and submit a revised plan. Once the user approves, plan mode ends and the tool result tells you how to proceed.',
   '</plan_mode>',
 ].join('\n')
@@ -85,6 +86,8 @@ const PLANNING_WRITE_REFUSED =
 const PLANNING_ESCALATION_REFUSED =
   'invalid escalation: plan mode is active, so commands run in a read-only sandbox and cannot be escalated. Do not retry; describe the step that needs write access in the plan instead.'
 const PLANNING_SANDBOX_MARKER = '[sandbox: escalation is not available in plan mode]'
+const APPROVED_T7 = (markdown: string) =>
+  `The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions and carry out the plan.\n\n${markdown}`
 
 const PLAN = '# Fix the parser\n\n1. Read src/parse.ts\n2. Add a test'
 const EDITED = '# Fix the parser\n\n1. Add a test first\n2. Then fix src/parse.ts'
@@ -122,7 +125,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('/plan 进入（prior = default）→ <plan_mode> → 写入拒绝、命令只读沙箱 → exit_plan_mode 提交 → 编辑后批准：新 revision、default、结果含编辑后的计划、Run 继续', async () => {
+  it('/plan 进入不改变模式（default 读回不变）→ <plan_mode> 最终版 → 写入拒绝；命令按 default 询问、只读沙箱 → exit_plan_mode 提交 → 带 mode 的批准 400 → 编辑后批准：新 revision、不提交 permission_mode、T7、Run 继续', async () => {
     const h = await boot([
       call('write', 'w1', { path: 'notes.md', content: 'x' }),
       call('bash', 'b1', { command: 'echo hi > touched.txt' }),
@@ -130,14 +133,15 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
       { content: 'implementing now' },
     ])
     expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan 调研 X' })).status).toBe(202)
-    expect(h.modes().at(-1)).toEqual({ mode: 'plan', prior: 'default' })
-    expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'plan', prior: 'default', rules: [] })
+    // 票 04（ADR 0028）起进入规划不提交 permission_mode：只有创建时的初始模式（原先断言切到 plan 并记下 prior）。
+    expect(h.modes()).toEqual([{ mode: 'default' }])
+    expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'default', rules: [] })
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'planning', plan: null })
 
-    // 票 03（ADR 0028）起规划中的写入直接拒绝，不再询问（原先断言写入出审批卡，由用户拒绝）。
     const write = await h.resultOf('w1')
     expect([write.isError, text(write)]).toEqual([true, PLANNING_WRITE_REFUSED])
     expect(await exists(join(h.root, 'notes.md'))).toBe(false)
-    // 命令仍按 plan 模式（与 read-only 相同）询问（票 04 改为按当前权限）。
+    // 命令按当前 Permission Mode（default）询问，与未规划时相同。
     const bash = await waitApproval(h.stream, h.sessionId, 1)
     expect(bash).toMatchObject({ kind: 'tool', toolName: 'bash' })
     expect((await h.answer(bash.requestId, { decision: 'allow' })).status).toBe(204)
@@ -155,10 +159,11 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(proposed).toEqual([{ planId: expect.any(String), revision: 1, markdown: PLAN, status: 'proposed' }])
     expect(review).toMatchObject({ planId: proposed[0]!.planId, revision: 1 })
 
-    // 回答的校验：mode 不能是 full-access，editedPlan 须以 # 标题开头，只能允许一次；都不改变请求。
+    // 回答的校验：批准不再接受 mode（票 04），editedPlan 须以 # 标题开头，只能允许一次；都不改变请求。
     for (const body of [
       { decision: 'allow', mode: 'full-access' },
       { decision: 'allow', mode: 'plan' },
+      { decision: 'allow', mode: 'default' },
       { decision: 'allow', editedPlan: 'no heading' },
       { decision: 'allow', scope: 'session' },
     ])
@@ -170,28 +175,53 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
       [1, 'proposed', PLAN],
       [2, 'approved', EDITED],
     ])
-    expect(h.modes().at(-1)).toEqual({ mode: 'default' })
+    // 批准只结束规划，不恢复也不改变模式（原先断言回到 prior）。
+    expect(h.modes()).toEqual([{ mode: 'default' }])
+    expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'default', rules: [] })
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'none', plan: null })
     const approved = await h.resultOf('e1')
     expect(approved.isError).toBe(false)
-    expect(text(approved)).toBe(
-      `The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions. Proceed under default.\n\n${EDITED}`,
-    )
+    expect(text(approved)).toBe(APPROVED_T7(EDITED))
     expect(h.entries().at(-1)!.payload).toMatchObject({ status: 'completed' })
-    // 顺序：proposed → 审批请求 → 决定 → approved → 恢复的模式 → 工具结果。
-    const order = h.entries().filter((e) => ['approval_request', 'approval_decision', 'plan', 'permission_mode'].includes(e.kind) || kindOf(e) === 'toolResult')
-    expect(order.slice(-6).map(kindOf)).toEqual(['plan', 'approval_request', 'approval_decision', 'plan', 'permission_mode', 'toolResult'])
+    // 顺序：proposed → 审批请求 → 决定 → 工具执行 → approved → 计划阶段“无” → 工具结果；没有 permission_mode。
+    const order = h
+      .entries()
+      .filter(
+        (e) => ['approval_request', 'approval_decision', 'tool_exec', 'plan', 'plan_phase', 'permission_mode'].includes(e.kind) || kindOf(e) === 'toolResult',
+      )
+    expect(order.slice(-7).map(kindOf)).toEqual(['plan', 'approval_request', 'approval_decision', 'tool_exec', 'plan', 'plan_phase', 'toolResult'])
 
-    // 发给模型的请求：plan 模式的 Run 带 <plan_mode>，模型看到了 exit_plan_mode 的结果并继续。
+    // 发给模型的请求：规划中开始的 Run 带 <plan_mode>（最终版），模型看到了 exit_plan_mode 的结果并继续。
     const logged = await h.requests()
     expect(logged).toHaveLength(4)
     for (const request of logged) expect(h.sections(request).map((s) => s.name)).toContain('plan_mode')
     expect(h.sections(logged[0]!).find((s) => s.name === 'plan_mode')!.text).toBe(PLAN_MODE_T1)
-    expect(JSON.stringify(logged[3]!.at(-1))).toContain('Proceed under default.')
+    expect(JSON.stringify(logged[3]!.at(-1))).toContain('carry out the plan.')
     expect(h.stream.invalidEntries).toEqual([])
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('带反馈拒绝 → rejected 与反馈、Run 继续规划；再次提交为同一计划的新 revision；从 accept-edits 进入后批准回到 accept-edits；editedPlan 不能用于工具审批', async () => {
+  it('完全访问权限下规划：命令不逐条询问（只读沙箱）、计划审阅仍询问；批准后模式仍为 full-access', async () => {
+    const h = await boot([call('bash', 'b1', { command: 'ls' }), call('bash', 'b2', { command: 'echo hi > touched.txt' }), exit('e1', PLAN), { content: 'go' }])
+    expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'full-access' })).status).toBe(200)
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan look around' })).status).toBe(202)
+    const review = await waitApproval(h.stream, h.sessionId, 1)
+    expect(review).toMatchObject({ kind: 'plan' })
+    expect((await h.resultOf('b1')).isError).toBe(false)
+    const b2 = await h.resultOf('b2')
+    expect(b2.isError).toBe(true)
+    expect(text(b2)).toContain(darwin ? `[sandbox: file access denied under read-only mode]\n${PLANNING_SANDBOX_MARKER}` : 'sandbox-unavailable')
+    expect(await exists(join(h.root, 'touched.txt'))).toBe(false)
+    expect((await h.answer(review.requestId, { decision: 'allow' })).status).toBe(204)
+    await h.runEnds(1)
+    expect(h.entries().filter((e) => e.kind === 'approval_request')).toHaveLength(1)
+    expect(h.modes().at(-1)).toEqual({ mode: 'full-access' })
+    expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'full-access', rules: [] })
+    expect(text(await h.resultOf('e1'))).toBe(APPROVED_T7(PLAN))
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('带反馈拒绝 → rejected 与反馈、Run 继续规划；再次提交为同一计划的新 revision；accept-edits 下进入与批准模式都不变；切换接口拒绝 plan；editedPlan 与 mode 不能用于工具审批', async () => {
     const h = await boot([
       call('bash', 'b0', { command: 'ls' }),
       { content: 'listed' },
@@ -209,14 +239,14 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     await h.runEnds(1)
 
     expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'accept-edits' })).status).toBe(200)
-    expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'plan' })).body).toEqual({
-      mode: 'plan',
-      prior: 'accept-edits',
-      rules: [],
-    })
-    // 已在 plan 时再进入不改 prior。
+    // 切换 Permission Mode 的接口不再接受 plan（票 04）：400，模式不变。
+    const refused = await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'plan' })
+    expect([refused.status, refused.body.error?.code]).toEqual([400, 'bad-request'])
+    expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'enter' })).body).toEqual({ phase: 'planning', plan: null })
+    // 已在规划中时再进入不提交；模式仍为 accept-edits（原先断言为 plan 且 prior = accept-edits）。
     expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan' })).status).toBe(204)
-    expect(h.modes().at(-1)).toEqual({ mode: 'plan', prior: 'accept-edits' })
+    expect(h.entries().filter((e) => e.kind === 'plan_phase')).toHaveLength(1)
+    expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'accept-edits', rules: [] })
     expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'plan it' })).status).toBe(202)
 
     const first = await waitApproval(h.stream, h.sessionId, 2)
@@ -233,10 +263,8 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
       [true, 2, 'proposed', undefined],
       [true, 2, 'approved', undefined],
     ])
-    expect(h.modes().at(-1)).toEqual({ mode: 'accept-edits' })
-    expect(text(await h.resultOf('e2'))).toBe(
-      'The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions. Proceed under accept-edits.\n\n# Two',
-    )
+    expect(h.modes()).toEqual([{ mode: 'default' }, { mode: 'accept-edits' }])
+    expect(text(await h.resultOf('e2'))).toBe(APPROVED_T7('# Two'))
     expect(
       h
         .entries()
@@ -244,7 +272,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
         .map((e) => (e.payload as { status: string }).status),
     ).toEqual(['completed', 'completed'])
 
-    // 不在 plan 时的 Run 没有 <plan_mode>，也没有 exit_plan_mode。
+    // 不在规划中的 Run 没有 <plan_mode>，也没有 exit_plan_mode。
     expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'go on' })).status).toBe(202)
     await h.runEnds(3)
     const logged = await h.requests()
@@ -252,18 +280,27 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('/plan off 与模式菜单回到 prior；/plan 带消息时随后提交；批准时的模式不能宽于 prior（read-only 下 default / accept-edits 为 400）', async () => {
+  it('/plan off 与计划接口退出不改模式；规划中切换模式不退出规划；审阅等待中退出规划后批准不再提交阶段条目；Run 进行中 /plan 为 409、计划接口照常可用', async () => {
     const h = await boot([exit('e1', '# Plan A'), exit('e2', '# Plan B'), { content: 'done' }])
+    const phases = () =>
+      h
+        .entries()
+        .filter((e) => e.kind === 'plan_phase')
+        .map((e) => (e.payload as { phase: string }).phase)
+    const read = async () => (await h.api.get(planPaths.sessionPlan(h.sessionId))).body as { phase: string }
     expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'read-only' })).status).toBe(200)
     expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan' })).status).toBe(204)
-    expect(h.modes().at(-1)).toEqual({ mode: 'plan', prior: 'read-only' })
+    expect((await read()).phase).toBe('planning')
+    // 规划中切换 Permission Mode：模式变化，仍在规划中。
+    expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'default' })).body).toEqual({ mode: 'default', rules: [] })
+    expect((await read()).phase).toBe('planning')
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan OFF' })).status).toBe(204)
+    expect((await read()).phase).toBe('none')
+    expect(h.modes()).toEqual([{ mode: 'default' }, { mode: 'read-only' }, { mode: 'default' }])
+    // 不在规划中时 /plan off 与 exit 不提交条目；动作都不产生 user message。
     expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan off' })).status).toBe(204)
-    expect(h.modes().at(-1)).toEqual({ mode: 'read-only' })
-    expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'read-only', rules: [] })
-    // /plan off 不在 plan 时不提交条目；动作都不产生 user message。
-    const before = h.modes().length
-    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan off' })).status).toBe(204)
-    expect(h.modes()).toHaveLength(before)
+    expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'exit' })).body).toEqual({ phase: 'none', plan: null })
+    expect(phases()).toEqual(['planning', 'none'])
 
     expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan draft a plan for Y' })).status).toBe(202)
     const review = await waitApproval(h.stream, h.sessionId, 1)
@@ -273,20 +310,66 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
       .map((e) => JSON.stringify(e.payload))
     expect(users).toHaveLength(1)
     expect(users[0]).toContain('draft a plan for Y')
-    for (const mode of ['accept-edits', 'default']) expect([mode, (await h.answer(review.requestId, { decision: 'allow', mode })).status]).toEqual([mode, 400])
-    expect((await h.answer(review.requestId, { decision: 'allow', mode: 'read-only' })).status).toBe(204)
-    expect(text(await h.resultOf('e1'))).toMatch(
-      /^The user approved the plan\. Plan mode has ended: ignore the earlier <plan_mode> instructions\. Proceed under read-only\./,
-    )
-    // 同一 Run 中已不在 plan：再次 exit_plan_mode 直接报错，不再审阅。
+    // Run 进行中：/plan 与 /plan off 以 run-in-progress 拒绝；计划接口照常可用。
+    for (const t of ['/plan', '/plan off'])
+      expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: t })).body.error?.code).toBe('run-in-progress')
+    const proposed = h.plans()[0]!
+    expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'exit' })).body).toEqual({ phase: 'none', plan: null })
+    // 退出不改动待审阅的 plan 条目，也不取消等待中的审批。
+    expect(h.plans()).toEqual([proposed])
+    expect((await h.answer(review.requestId, { decision: 'allow', mode: 'read-only' })).status).toBe(400)
+    expect((await h.answer(review.requestId, { decision: 'allow' })).status).toBe(204)
+    expect(text(await h.resultOf('e1'))).toBe(APPROVED_T7('# Plan A'))
+    // 同一 Run 中已不在规划中：再次 exit_plan_mode 直接报错，不再审阅。
     expect(await h.resultOf('e2')).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^Not in plan mode/) }] })
     await h.runEnds(1)
     expect(h.entries().filter((e) => e.kind === 'approval_request')).toHaveLength(1)
-    expect(h.modes().at(-1)).toEqual({ mode: 'read-only' })
+    expect(h.plans().at(-1)).toMatchObject({ status: 'approved', markdown: '# Plan A' })
+    expect(phases()).toEqual(['planning', 'none', 'planning', 'none'])
+    expect(h.modes().at(-1)).toEqual({ mode: 'default' })
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('计划阶段：每条进入与退出路径提交一条 plan_phase（已在该阶段时不提交），GET …/plan 读回阶段与待审阅的计划；批准的条目顺序；审计；首次发送带 plan', async () => {
+  it('Run 中途进入与退出规划：等待中的写入审批被重新判定为拒绝，之后的写入立即拒绝；退出后写入恢复询问；<plan_mode> 到下一个 Run 才出现', async () => {
+    const h = await boot([
+      call('write', 'w1', { path: 'a.txt', content: 'a' }),
+      call('bash', 'b1', { command: 'ls' }),
+      call('write', 'w2', { path: 'b.txt', content: 'b' }),
+      call('write', 'w3', { path: 'c.txt', content: 'c' }),
+      { content: 'run one done' },
+      { content: 'run two' },
+    ])
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'go' })).status).toBe(202)
+    const w1 = await waitApproval(h.stream, h.sessionId, 1)
+    expect(w1).toMatchObject({ kind: 'tool', toolName: 'write' })
+    expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'enter' })).body).toEqual({ phase: 'planning', plan: null })
+    expect(text(await h.resultOf('w1'))).toBe(PLANNING_WRITE_REFUSED)
+    // 命令在规划中照常按 default 询问；等待期间退出规划，之后的写入恢复询问。
+    const b1 = await waitApproval(h.stream, h.sessionId, 2)
+    expect(b1).toMatchObject({ kind: 'tool', toolName: 'bash' })
+    expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'exit' })).body).toEqual({ phase: 'none', plan: null })
+    expect((await h.answer(b1.requestId, { decision: 'allow' })).status).toBe(204)
+    const w2 = await waitApproval(h.stream, h.sessionId, 3)
+    expect(w2).toMatchObject({ kind: 'tool', toolName: 'write' })
+    // 再进入：w2 被重新判定为拒绝；w3 立即拒绝且不询问。
+    expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'enter' })).status).toBe(200)
+    expect(text(await h.resultOf('w2'))).toBe(PLANNING_WRITE_REFUSED)
+    expect(text(await h.resultOf('w3'))).toBe(PLANNING_WRITE_REFUSED)
+    await h.runEnds(1)
+    expect(h.entries().filter((e) => e.kind === 'approval_request')).toHaveLength(3)
+    for (const f of ['a.txt', 'b.txt', 'c.txt']) expect(await exists(join(h.root, f))).toBe(false)
+    expect(h.modes()).toEqual([{ mode: 'default' }])
+
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'next' })).status).toBe(202)
+    await h.runEnds(2)
+    const logged = await h.requests()
+    // Run 1 开始时不在规划中：它的全部请求没有 <plan_mode>；Run 2 开始时在规划中。
+    for (const request of logged.slice(0, -1)) expect(h.sections(request).map((s) => s.name)).not.toContain('plan_mode')
+    expect(h.sections(logged.at(-1)!).find((s) => s.name === 'plan_mode')!.text).toBe(PLAN_MODE_T1)
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('计划接口：进入与退出各提交一条 plan_phase（已在 / 不在时不提交），切换模式不提交；GET / POST 读回；校验与 404；批准的条目顺序；审计；首次发送拒绝 plan，/plan 消息以规划开始', async () => {
     const h = await boot([exit('e1', PLAN), { content: 'done' }, { content: 'first send reply' }])
     const phases = (id = h.sessionId) =>
       h
@@ -294,40 +377,31 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
         .filter((e) => e.kind === 'plan_phase')
         .map((e) => (e.payload as { phase: string }).phase)
     const read = async (id = h.sessionId) => (await h.api.get(planPaths.sessionPlan(id))).body
-    const setMode = (mode: string) => h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode })
+    const act = (action: unknown, id = h.sessionId) => h.api.post(planPaths.sessionPlan(id), { action })
     const slash = (text: string) => h.api.post(apiPaths.sessionMessages(h.sessionId), { text })
 
     expect(await read()).toEqual({ phase: 'none', plan: null })
-    const missing = await h.api.get(planPaths.sessionPlan('no-such-session'))
-    expect([missing.status, missing.body]).toEqual([404, { error: expect.objectContaining({ code: 'not-found' }) }])
+    for (const [response, status, code] of [
+      [await h.api.get(planPaths.sessionPlan('no-such-session')), 404, 'not-found'],
+      [await act('enter', 'no-such-session'), 404, 'not-found'],
+      [await act('pause'), 400, 'bad-request'],
+      [await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'enter', extra: true }), 400, 'bad-request'],
+    ] as const)
+      expect([response.status, response.body.error?.code]).toEqual([status, code])
 
-    // 切换接口进入（permission_mode 之后）→ /plan 已在规划中不重复 → /plan off 退出（permission_mode 之前）→ 不在规划中时不提交。
-    expect((await setMode('plan')).status).toBe(200)
-    expect(await read()).toEqual({ phase: 'planning', plan: null })
+    expect((await act('enter')).body).toEqual({ phase: 'planning', plan: null })
+    expect((await act('enter')).status).toBe(200)
     expect((await slash('/plan')).status).toBe(204)
     expect(phases()).toEqual(['planning'])
+    for (const mode of ['read-only', 'accept-edits', 'full-access', 'default'])
+      expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode })).body).toEqual({ mode, rules: [] })
+    expect(await read()).toEqual({ phase: 'planning', plan: null })
     expect((await slash('/plan off')).status).toBe(204)
-    expect((await slash('/plan off')).status).toBe(204)
+    expect((await act('exit')).body).toEqual({ phase: 'none', plan: null })
     expect(phases()).toEqual(['planning', 'none'])
-    // 从 plan 选择其他模式即退出；在规划之外切换模式不提交阶段条目。
-    expect((await setMode('plan')).status).toBe(200)
-    expect((await setMode('accept-edits')).status).toBe(200)
-    expect((await setMode('default')).status).toBe(200)
-    expect(phases()).toEqual(['planning', 'none', 'planning', 'none'])
-    const order = h.entries().filter((e) => e.kind === 'plan_phase' || e.kind === 'permission_mode')
-    expect(order.slice(1).map((e) => [e.kind, (e.payload as { mode?: string; phase?: string }).mode ?? (e.payload as { phase: string }).phase])).toEqual([
-      ['permission_mode', 'plan'],
-      ['plan_phase', 'planning'],
-      ['plan_phase', 'none'],
-      ['permission_mode', 'default'],
-      ['permission_mode', 'plan'],
-      ['plan_phase', 'planning'],
-      ['plan_phase', 'none'],
-      ['permission_mode', 'accept-edits'],
-      ['permission_mode', 'default'],
-    ])
+    expect(h.modes()).toEqual([{ mode: 'default' }, { mode: 'read-only' }, { mode: 'accept-edits' }, { mode: 'full-access' }, { mode: 'default' }])
 
-    // /plan 带消息：规划中提交的计划经 GET 读回；批准：approved → plan_phase none → permission_mode → 工具结果。
+    // /plan 带消息：规划中提交的计划经 GET 读回；批准：approved → plan_phase none → 工具结果，没有 permission_mode。
     expect((await slash('/plan draft it')).status).toBe(202)
     const review = await waitApproval(h.stream, h.sessionId, 1)
     const proposed = h.plans()[0]!
@@ -335,31 +409,41 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect((await h.answer(review.requestId, { decision: 'allow' })).status).toBe(204)
     await h.runEnds(1)
     expect(await read()).toEqual({ phase: 'none', plan: null })
-    const tail = h.entries().filter((e) => ['approval_decision', 'plan', 'plan_phase', 'permission_mode'].includes(e.kind) || kindOf(e) === 'toolResult')
-    expect(tail.slice(-5).map(kindOf)).toEqual(['approval_decision', 'plan', 'plan_phase', 'permission_mode', 'toolResult'])
+    const tail = h
+      .entries()
+      .filter((e) => ['approval_decision', 'tool_exec', 'plan', 'plan_phase', 'permission_mode'].includes(e.kind) || kindOf(e) === 'toolResult')
+    expect(tail.slice(-5).map(kindOf)).toEqual(['approval_decision', 'tool_exec', 'plan', 'plan_phase', 'toolResult'])
     expect(phases().slice(-2)).toEqual(['planning', 'none'])
     expect(h.plans().at(-1)).toMatchObject({ planId: proposed.planId, status: 'approved' })
-    // 规划中开始的 Run 带 <plan_mode>（exit_plan_mode 已注册：上面的审阅即由它发起）。
+    expect(h.modes()).toHaveLength(5)
     const logged = await h.requests()
     expect(h.sections(logged[0]!).map((s) => s.name)).toContain('plan_mode')
 
     // 审计序列包含每次阶段转换。
     const audit = (await h.api.get(apiPaths.sessionAudit(h.sessionId))).body as { kind: string; phase?: string }[]
-    expect(audit.filter((e) => e.kind === 'plan_phase').map((e) => e.phase)).toEqual(['planning', 'none', 'planning', 'none', 'planning', 'none'])
+    expect(audit.filter((e) => e.kind === 'plan_phase').map((e) => e.phase)).toEqual(['planning', 'none', 'planning', 'none'])
 
-    // 首次发送带 plan：新 Session 同时得到 plan 模式与规划中。
-    const sent = await h.api.post(API_ROUTES.firstSend, { draftId: 'plan-first-send', text: 'research first', permissionMode: 'plan' })
+    // 首次发送：permissionMode plan 为 400（不创建 Session）；text 为 /plan 消息时以规划开始并提交该消息，模式为所选模式。
+    const refused = await h.api.post(API_ROUTES.firstSend, { draftId: 'plan-first-send-mode', text: 'research first', permissionMode: 'plan' })
+    expect([refused.status, refused.body.error?.code]).toEqual([400, 'bad-request'])
+    const empty = await h.api.post(API_ROUTES.firstSend, { draftId: 'plan-first-send-empty', text: '/plan' })
+    expect([empty.status, empty.body.error?.message]).toEqual([400, 'A message is required'])
+    const sent = await h.api.post(API_ROUTES.firstSend, { draftId: 'plan-first-send', text: '/plan research first', permissionMode: 'accept-edits' })
     expect(sent.status).toBe(201)
     const firstId = sent.body.session.id as string
     expect(await read(firstId)).toMatchObject({ phase: 'planning' })
-    expect((await h.api.get(permissionPaths.sessionPermissionRules(firstId))).body).toMatchObject({ mode: 'plan' })
+    expect((await h.api.get(permissionPaths.sessionPermissionRules(firstId))).body).toEqual({ mode: 'accept-edits', rules: [] })
     const firstEntries = (await h.api.get(apiPaths.session(firstId))).body.entries as SessionEntryRecord[]
-    expect(firstEntries.filter((e) => e.kind === 'permission_mode' || e.kind === 'plan_phase').map((e) => e.kind)).toEqual(['permission_mode', 'plan_phase'])
+    expect(firstEntries.filter((e) => e.kind === 'permission_mode' || e.kind === 'plan_phase').map((e) => [e.kind, e.payload])).toEqual([
+      ['permission_mode', { mode: 'accept-edits' }],
+      ['plan_phase', { phase: 'planning' }],
+    ])
+    expect(JSON.stringify(firstEntries.find((e) => kindOf(e) === 'user')!.payload)).toContain('research first')
     expect(h.stream.invalidEntries).toEqual([])
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('压缩把已批准计划摘要掉后注入 <approved_plan>；分叉 plan 模式的 Session：仍为 plan（permission_mode 被复制），没有 plan 条目', async () => {
+  it('压缩把已批准计划摘要掉后注入 <approved_plan>；分叉规划中的 Session：仍在规划中、模式随 permission_mode 复制（default），没有 plan 条目', async () => {
     // Run 1：提交并批准（两次请求）；Run 2–4 建立历史；/compact 的摘要；Run 6；Run 7 在 plan 中再次提交后停止。
     const h = await boot(
       [
@@ -418,9 +502,10 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     const forkId = forked.body.sessionId as string
     const detail = (await h.api.get(apiPaths.session(forkId))).body.entries as SessionEntryRecord[]
     expect(detail.filter((e) => e.kind === 'plan')).toEqual([])
-    expect(detail.filter((e) => e.kind === 'permission_mode').at(-1)!.payload).toEqual({ mode: 'plan', prior: 'default' })
-    expect((await h.api.get(permissionPaths.sessionPermissionRules(forkId))).body).toEqual({ mode: 'plan', prior: 'default', rules: [] })
-    // 计划阶段与 plan 模式一致：分叉得到“规划中”，待审阅的计划不随分叉复制。
+    // 票 04 起进入规划不改模式：复制的 permission_mode 为 default（原先断言 plan 与 prior）。
+    expect(detail.filter((e) => e.kind === 'permission_mode').at(-1)!.payload).toEqual({ mode: 'default' })
+    expect((await h.api.get(permissionPaths.sessionPermissionRules(forkId))).body).toEqual({ mode: 'default', rules: [] })
+    // 分叉得到“规划中”，待审阅的计划不随分叉复制。
     expect((await h.api.get(planPaths.sessionPlan(forkId))).body).toEqual({ phase: 'planning', plan: null })
     expect(detail.filter((e) => e.kind === 'plan_phase').map((e) => e.payload)).toEqual([{ phase: 'planning' }])
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })

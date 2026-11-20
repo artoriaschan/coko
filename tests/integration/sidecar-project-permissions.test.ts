@@ -3,7 +3,7 @@ import { access, cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile 
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it, onTestFinished } from 'vitest'
-import { API_ROUTES, apiPaths, permissionPaths, hookPaths, mcpPaths, skillPaths, worktreePaths, type SessionEntryRecord } from '@coko/protocol'
+import { API_ROUTES, apiPaths, permissionPaths, planPaths, hookPaths, mcpPaths, skillPaths, worktreePaths, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, waitApproval, type Stream } from './sidecar-harness.ts'
 import { createGitWorkspace } from '../fixtures/git/index.ts'
 
@@ -89,7 +89,8 @@ it('read-only：附加根写入仍需审批', async () => {
 // 票 03（ADR 0028）起规划中的写入由计划阶段直接拒绝（原先与 read-only 一样断言询问）。
 it('规划中：附加根写入直接拒绝，不询问', async () => {
   const h = await boot(({ extra }) => [{ content: [write('w1', join(extra, 'new.txt'))] }, { content: 'done' }])
-  await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'plan' })
+  // 票 04 起经计划接口进入规划（模式不变）。
+  expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'enter' })).status).toBe(200)
   await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'go' })
   await h.stream.waitFor(() => ends(h.stream, h.sessionId) === 1)
   expect(resultText(results(h.stream.entries(h.sessionId))[0]!)).toMatch(/^Refused: plan mode is active/)

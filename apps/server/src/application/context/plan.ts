@@ -1,6 +1,6 @@
 // Plan Mode 的上下文贡献（ADR 0005、ADR 0028）：开始时计划阶段为规划中的 Run 注入 <plan_mode> 并注册 exit_plan_mode；已批准的计划被压缩摘要掉后注入 <approved_plan>；
-// 内置命令 /plan 的动作（/plan [消息] 进入规划，有消息时随后作为普通提交；/plan off 回到进入前的模式）。
-// 模式、计划阶段与计划审阅的状态在 SessionPermissions（session-permissions.ts），它创建时经 bindPlanHost 接到本贡献；没有接上时 /plan 以 bad-request 拒绝。
+// 内置命令 /plan 的动作（/plan [消息] 进入规划，有消息时随后作为普通提交；/plan off 退出规划）：与 POST …/plan 是同一组动作，不改变 Permission Mode。
+// 计划阶段与计划审阅的状态在 SessionPermissions（session-permissions.ts），它创建时经 bindPlanHost 接到本贡献；没有接上时 /plan 以 bad-request 拒绝。
 import {
   approvedPlanSection,
   approvedPlanToReinject,
@@ -13,16 +13,14 @@ import {
 } from '@coko/agent'
 import type { SessionEntry } from '@coko/session'
 import { AppError } from '../errors.ts'
-import type { ContextContribution, ContextContributionOptions } from './types.ts'
+import type { ContextActionInput, ContextContribution, ContextContributionOptions } from './types.ts'
 
 /** 本贡献读写的 Session 权限状态（SessionPermissions 实现）。 */
 export interface PlanHost {
   /** 计划阶段（子 Session 为根 Session 的）。 */
   phase(sessionId: string): Promise<PlanPhase>
-  /** 切到 plan 并进入规划（记下 prior；已在 plan / 规划中时不重复提交）。 */
-  enterPlan(sessionId: string): Promise<void>
-  /** 退出规划并回到 prior（不在 plan 时不变）。 */
-  exitPlan(sessionId: string): Promise<void>
+  /** 进入（enter）或退出（exit）规划；已在 / 不在规划中时不提交。 */
+  planAction(sessionId: string, action: 'enter' | 'exit'): Promise<unknown>
   review(sessionId: string): PlanReview
   entries(sessionId: string): Promise<readonly SessionEntry[]>
 }
@@ -54,17 +52,21 @@ export function planContribution(_options: ContextContributionOptions): ContextC
       return sections
     },
     actions: {
-      async plan({ sessionId, args, session }) {
-        const host = hosts.get(contribution)
-        if (!host) throw new AppError('bad-request', '/plan is not available', { command: 'plan' })
-        const text = args.trim()
-        if (text.toLowerCase() === 'off') {
-          await host.exitPlan(sessionId)
-          return { done: true }
-        }
-        await host.enterPlan(sessionId)
-        return text === '' ? { done: true } : session.submit(text)
-      },
+      plan: Object.assign(
+        async ({ sessionId, args, session }: ContextActionInput) => {
+          const host = hosts.get(contribution)
+          if (!host) throw new AppError('bad-request', '/plan is not available', { command: 'plan' })
+          const text = args.trim()
+          if (text.toLowerCase() === 'off') {
+            await host.planAction(sessionId, 'exit')
+            return { done: true as const }
+          }
+          await host.planAction(sessionId, 'enter')
+          return text === '' ? { done: true as const } : session.submit(text)
+        },
+        // 新对话中的 /plan 消息：首次发送以规划开始并提交该消息（没有消息时首次发送拒绝并回滚）。
+        { firstSend: true },
+      ),
     },
   }
   return contribution

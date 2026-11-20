@@ -385,6 +385,7 @@ export const en: typeof zh = {
     approvalFailed: 'Your answer did not reach Coko. Try again.',
     approvalNotPending: 'This request has already ended',
     permissionsFailed: 'Could not save the permission setting',
+    planFailed: 'Could not exit planning',
     steerFailed: 'The message was not delivered; it is still in the input',
     pauseFailed: 'Could not pause',
     continueFailed: 'Could not continue',

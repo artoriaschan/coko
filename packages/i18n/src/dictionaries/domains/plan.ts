@@ -1,4 +1,4 @@
-// Plan Mode：模式菜单的"规划"、输入区的 Plan chip、审阅卡、右栏 Plan tab 与时间线的计划卡。
+// Plan Mode：输入区的 Plan chip、审阅卡、右栏 Plan tab 与时间线的计划卡；mode 只用于升级前旧数据中的 plan 模式（票 07 删除）。
 import { defineDomain } from './define.ts'
 
 export const plan = defineDomain(
@@ -7,9 +7,7 @@ export const plan = defineDomain(
     tab: '计划',
     chip: '计划',
     mode: '规划',
-    modeDescription: '只调研与设计：读取放行，写入与命令需要批准，命令只读；提交计划后由你审阅',
     exit: '关闭计划模式',
-    exitHint: '回到{mode}',
     status: {
       proposed: '待审阅',
       approved: '已批准',
@@ -20,7 +18,7 @@ export const plan = defineDomain(
     revision: '第 {n} 版',
     revisions: '修订',
     feedback: '反馈',
-    empty: '还没有计划。切换到规划模式后，Agent 提交的计划会显示在这里。',
+    empty: '还没有计划。输入 /plan 进入规划后，Agent 提交的计划会显示在这里。',
     edit: '编辑',
     editLabel: '编辑计划',
     editDone: '完成编辑',
@@ -30,9 +28,6 @@ export const plan = defineDomain(
     review: {
       title: '审阅计划',
       approve: '批准并执行',
-      restores: '恢复为{mode}',
-      more: '更多批准方式',
-      approveAcceptEdits: '批准并允许编辑',
       continue: '继续规划',
       feedbackLabel: '告诉 Agent 需要修改什么',
       feedbackPlaceholder: '例如：先补上测试再改实现',
@@ -51,9 +46,7 @@ export const plan = defineDomain(
     tab: 'Plan',
     chip: 'Planning',
     mode: 'Plan',
-    modeDescription: 'Research and design only: reads are allowed, writes and commands need approval and commands are read-only; you review the plan',
     exit: 'Exit planning',
-    exitHint: 'Back to {mode}',
     status: {
       proposed: 'Awaiting review',
       approved: 'Approved',
@@ -64,7 +57,7 @@ export const plan = defineDomain(
     revision: 'Revision {n}',
     revisions: 'Revisions',
     feedback: 'Feedback',
-    empty: 'No plan yet. In plan mode, the plan the agent submits appears here.',
+    empty: 'No plan yet. After you enter planning with /plan, the plan the agent submits appears here.',
     edit: 'Edit',
     editLabel: 'Edit plan',
     editDone: 'Done editing',
@@ -74,9 +67,6 @@ export const plan = defineDomain(
     review: {
       title: 'Review plan',
       approve: 'Approve and run',
-      restores: 'Restores {mode}',
-      more: 'More approval options',
-      approveAcceptEdits: 'Approve and allow edits',
       continue: 'Keep planning',
       feedbackLabel: 'Tell the agent what to change',
       feedbackPlaceholder: 'For example: add tests before changing the code',

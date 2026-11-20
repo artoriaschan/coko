@@ -228,6 +228,7 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
     continueRun: async () => ({ runId: 'run-3' }),
     answerApproval: async () => undefined,
     setPermissionMode: async (_id, mode) => ({ mode, rules: [] }),
+    planAction: async (_id, action) => ({ phase: action === 'enter' ? 'planning' : 'none', plan: null }),
     removeSessionRule: async () => ({ mode: 'default', rules: [] }),
     listCheckpoints: async () => [],
     rewind: async (_id, request) => ({

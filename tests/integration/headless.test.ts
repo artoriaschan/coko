@@ -100,6 +100,13 @@ describe('headless', { timeout: 120_000 }, () => {
     expect(out.stderr).toMatch(/coko headless: .+\nUsage:/)
   })
 
+  it('--permission-mode plan 是参数错误（规划不是 Permission Mode，ADR 0028）：退出 4，stderr 列出四个合法取值', async () => {
+    const dirs = await sidecarDirs()
+    const out = await runHeadless(dirs, baseArgs(dirs, '--workspace', '/tmp', '--prompt', 'x', '--permission-mode', 'plan'))
+    expect([out.code, out.stdout]).toEqual([4, ''])
+    expect(out.stderr).toContain('coko headless: --permission-mode must be one of read-only, default, accept-edits, full-access\nUsage:')
+  })
+
   it('启动后的参数错误（--session 不存在、Workspace 不存在）：退出 4，json 输出为 failed', async () => {
     const h = await setup([])
     const missingSession = await runHeadless(h.dirs, baseArgs(h.dirs, '--session', 'nope', '--prompt', 'x', '--output', 'json'), h.env)

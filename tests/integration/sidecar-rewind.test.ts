@@ -5,7 +5,7 @@ import { mkdir, readFile, realpath, rename, stat, symlink, writeFile } from 'nod
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DATE_TEST_BLOCK as dateBlock, DATE_TEST_ENV } from './date-state-fixture.ts'
-import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, type SessionEntryRecord } from '@coko/protocol'
+import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, planPaths, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval, type SidecarDirs, type Stream } from './sidecar-harness.ts'
 
 async function boot(options: { mode?: string; responses: unknown[]; requestLog?: string; env?: Record<string, string>; dirs?: SidecarDirs; root?: string }) {
@@ -76,14 +76,15 @@ describe('回退与分叉', () => {
     expect((await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: final.seq, boundary: 'assistant-inclusive' })).status).toBe(201)
   })
 
-  it('从早期助手分支仍继承源当前 plan 权限，不能绕过后续收紧', async () => {
+  it('从早期助手分支仍继承源当前的规划阶段，不能绕过后续收紧', async () => {
     const { api, sessionId, stream, root } = await boot({
       mode: 'accept-edits',
       responses: [{ content: 'old answer' }, { content: [write('restricted-write', 'blocked.txt', 'must not write')] }, { content: 'write denied' }],
     })
     await send(api, stream, sessionId, 'first', 1)
     const target = (await entriesOf(api, sessionId)).find((e) => e.kind === 'message' && textOf(e.payload) === 'old answer')!
-    expect((await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'plan' })).status).toBe(200)
+    // 票 04（ADR 0028）起经计划接口进入规划（切换模式的接口不再接受 plan）。
+    expect((await api.post(planPaths.sessionPlan(sessionId), { action: 'enter' })).status).toBe(200)
     const fork = await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: target.seq, boundary: 'assistant-inclusive' })
     expect(fork.status).toBe(201)
     const id = fork.body.sessionId as string

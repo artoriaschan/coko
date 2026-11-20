@@ -1,6 +1,6 @@
 import type { ForkBoundary } from '@coko/protocol'
 import type { FileAttachment, ImageAttachment } from '@coko/protocol'
-import type { ModelRegistry, PermissionMode, PermissionRule, RewindFiles, RewindMode, SecretProvider, ToolRegistry } from '@coko/agent'
+import type { ModelRegistry, PermissionRule, StandardPermissionMode, RewindFiles, RewindMode, SecretProvider, ToolRegistry } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import type {
   AnswerApprovalRequest,
@@ -14,6 +14,7 @@ import type {
   SessionModel,
   SessionPermissionsResponse,
   SessionPlanResponse,
+  PlanActionRequest,
   ThinkingLevel,
   UpdatePermissionsRequest,
 } from '@coko/protocol'
@@ -472,12 +473,16 @@ export class SessionService {
     return this.#permissions.sessionPermissions(sessionId)
   }
 
-  setPermissionMode(sessionId: string, mode: PermissionMode): Promise<SessionPermissionsResponse> {
+  setPermissionMode(sessionId: string, mode: StandardPermissionMode): Promise<SessionPermissionsResponse> {
     return this.#permissions.setMode(sessionId, mode)
   }
 
   sessionPlan(sessionId: string): Promise<SessionPlanResponse> {
     return this.#permissions.sessionPlan(sessionId)
+  }
+
+  planAction(sessionId: string, action: PlanActionRequest['action']): Promise<SessionPlanResponse> {
+    return this.#permissions.planAction(sessionId, action)
   }
 
   changeSessionRule(sessionId: string, op: 'add' | 'remove', rule: PermissionRule): Promise<SessionPermissionsResponse> {
@@ -560,7 +565,7 @@ export class SessionService {
     directory?: string
     cwd?: string
     projectId?: string | null
-    permissionMode?: PermissionMode
+    permissionMode?: StandardPermissionMode
     title?: string
     model?: SessionModel
     thinkingLevel?: ThinkingLevel
@@ -583,8 +588,6 @@ export class SessionService {
     })
     // 初始模式也是条目：之后默认模式改变不影响已有 Session（ADR 0005）。
     await this.#runtimes.commit(session.id, { kind: 'permission_mode', payload: { mode } })
-    // 过渡期（票 02–03）：以 plan 创建即进入规划。
-    if (mode === 'plan') await this.#runtimes.commit(session.id, { kind: 'plan_phase', payload: { phase: 'planning' } })
     log.info('session created', { sessionId: session.id, workspaceId: session.workspaceId, mode })
     return this.toDto(session)
   }

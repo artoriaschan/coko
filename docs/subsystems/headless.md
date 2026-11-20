@@ -32,7 +32,7 @@ ELECTRON_RUN_AS_NODE=1 <electron> <sidecar>/headless.mjs --data-dir <dir> (--wor
 
 - `--data-dir` 必填；桌面应用的默认数据目录是 `<COKO_HOME>/data`（缺省 `~/.coko/data`），与其相同时共用同一个库（租约互斥：桌面应用开着时 headless 启动失败，以 4 退出）。相对路径按当前目录解析。
 - `--workspace` 不在库中时登记为 Workspace；`--session` 继续已有的根 Session（与 `--workspace` 同时给出时须属于它）；省略 `--session` 时新建 Session（权限模式为默认模式）。
-- `--model` 写入 Session 的模型；`--permission-mode` 提交 `permission_mode` 条目（与界面切换相同）。
+- `--model` 写入 Session 的模型；`--permission-mode` 提交 `permission_mode` 条目（与界面切换相同），合法取值为 `read-only`、`default`、`accept-edits`、`full-access`；`plan` 不是 Permission Mode（[ADR 0028](../adr/0028-plan-phase-not-permission-mode.md)），与其他非法取值一样为参数错误（退出 4，`--permission-mode must be one of read-only, default, accept-edits, full-access`）。无界面运行没有规划入口。
 - `--max-turns`：根 Session 第 n 条 assistant 仍在调用工具时 `stopAfterBatch(max_turns)`，本批完成后以 paused 结束。
 - `--log-dir` 缺省 `<data-dir>/logs`，日志写 `headless.jsonl`（JSONL、脱敏，字段同 Sidecar）。stdout 只有运行结果；console 输出与启动失败的说明写 stderr。
 - `--ripgrep` 缺省：打包产物用随包的 `Resources/ripgrep/rg`（日志 `grep implementation selected { implementation: ripgrep }`），源码运行用内置 grep。

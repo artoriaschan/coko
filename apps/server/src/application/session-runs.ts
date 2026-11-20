@@ -704,20 +704,21 @@ export class SessionRuns {
       }
     }
     if (images.length || files.length) throw new AppError('bad-request', 'Attachments require a message, not an action command')
-    if (waitForInput) throw new AppError('bad-request', 'Send a message to start a new conversation')
     const action = context.action(expanded.name)
+    if (waitForInput && !action?.firstSend) throw new AppError('bad-request', 'Send a message to start a new conversation')
     if (!action) throw new AppError('bad-request', `Unknown action ${expanded.name}`)
     if (runtimes.isRunning(sessionId) && !action.whileRunning?.(expanded.args)) throw new AppError('run-in-progress', 'A Run is in progress')
-    return this.#act(session, action, expanded.args)
+    return this.#act(session, action, expanded.args, waitForInput)
   }
 
-  async #act(session: StoredSession, action: ContextAction, args: string): Promise<ActionResult> {
+  /** waitForInput：首次发送（动作随后提交的消息同样等到输入入库）。 */
+  async #act(session: StoredSession, action: ContextAction, args: string, waitForInput = false): Promise<ActionResult> {
     const sessionId = session.id
     const actions: ContextActionSession = {
       entries: () => this.#options.store.sessions.listEntries(sessionId),
       start: (request) => this.startRun(sessionId, request),
       submit: async (text) => {
-        const result = await this.submit(sessionId, text)
+        const result = await this.submit(sessionId, text, waitForInput)
         if (!('runId' in result)) throw new AppError('bad-request', 'The message did not start a Run')
         return result
       },

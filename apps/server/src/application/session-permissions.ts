@@ -18,6 +18,7 @@ import {
   planMarkdownProblem,
   type AnswerApprovalRequest,
   type PermissionsResponse,
+  type PlanActionRequest,
   type SessionPermissionsResponse,
   type SessionPlanResponse,
   type UpdatePermissionsRequest,
@@ -51,8 +52,8 @@ const view = (state: SessionPermissionState): SessionPermissionsResponse => ({
 
 /**
  * 子 Session 的权限作用域（ADR 0014）：rootSessionId 为规则与"本会话总是允许"所属的根 Session；modeCap 为子代理定义的 permission-mode
- * （SubagentService 给出）。缺省：每个 Session 是自己的根，没有上限。子 Session 的有效模式在每次判定时取根 Session 当前模式（plan 按
- * read-only）与 modeCap 中较窄者（effectiveSubagentMode）；子 Session 没有自己的模式与规则，读写的都是根 Session 的状态。
+ * （SubagentService 给出）。缺省：每个 Session 是自己的根，没有上限。子 Session 的有效模式在每次判定时取根 Session 当前模式与 modeCap
+ * 中较窄者（effectiveSubagentMode）；子 Session 没有自己的模式与规则，读写的都是根 Session 的状态。
  */
 export interface PermissionScopeResolver {
   rootSessionId(sessionId: string): string
@@ -72,11 +73,11 @@ function missingPlan(sessionId: string, toolCallId: string): AppError {
   return new AppError('internal', 'The plan under review was not found')
 }
 
-/** 计划审阅中的一次 exit_plan_mode：提交时的位置与正文，以及批准时用户给出的编辑与模式（回答到达时登记）。 */
+/** 计划审阅中的一次 exit_plan_mode：提交时的位置与正文，以及批准时用户给出的编辑（回答到达时登记）。 */
 interface PendingPlan {
   ref: PlanRef
   markdown: string
-  answer?: { editedPlan?: string; mode?: StandardPermissionMode }
+  answer?: { editedPlan?: string }
 }
 
 /**
@@ -195,7 +196,7 @@ export class SessionPermissions implements PlanHost {
     sessionId: string,
     cwd?: string,
   ): { mode: () => PermissionMode; planning: () => boolean; rules: () => PermissionRule[]; unattended?: { deniedText: string } } {
-    // 子 Session：state 是根 Session 的状态；模式在每次判定时取根当前模式（plan 按 read-only）与定义上限中较窄者。是否规划中同样取根
+    // 子 Session：state 是根 Session 的状态；模式在每次判定时取根当前模式与定义上限中较窄者。是否规划中同样取根
     // Session 的计划阶段（ADR 0028），根中途进入或退出即时生效。
     const child = this.#scopes.rootSessionId(sessionId) !== sessionId || this.#children.has(sessionId)
     return {
@@ -212,29 +213,41 @@ export class SessionPermissions implements PlanHost {
   }
 
   /**
-   * 切换模式：提交 permission_mode 条目（与当前相同时不提交），之后重新判定该 Session 的待审批请求。切到 plan 时记下当前模式为 prior
-   * （已在 plan 时不变）；从 plan 切到其他模式即退出规划（不经审阅）。过渡期（票 02–03）计划阶段随之变化：切到 plan 在 permission_mode
-   * 之后提交 plan_phase planning，切到其他模式在 permission_mode 之前提交 plan_phase none；已在该阶段时不提交。
+   * 切换模式：提交 permission_mode 条目（与当前相同时不提交），之后重新判定该 Session 的待审批请求。不改变计划阶段：规划中切换模式不退出规划
+   * （ADR 0028）。
    */
-  async setMode(sessionId: string, mode: PermissionMode): Promise<SessionPermissionsResponse> {
+  async setMode(sessionId: string, mode: StandardPermissionMode): Promise<SessionPermissionsResponse> {
     const session = await this.#rejectChild(sessionId)
     const result = await this.locked(sessionId, async () => {
       const state = await this.state(session)
-      const planning = state.phase.phase === 'planning'
-      if (mode !== 'plan' && planning) await this.#commitPhase(sessionId, state, { phase: 'none' })
       if (state.mode !== mode) {
-        const prior = mode === 'plan' && state.mode !== 'plan' ? state.mode : undefined
-        await this.#runtimes.commit(sessionId, { kind: 'permission_mode', payload: prior ? { mode, prior } : { mode } })
+        await this.#runtimes.commit(sessionId, { kind: 'permission_mode', payload: { mode } })
         state.mode = mode
-        if (prior) state.prior = prior
-        else delete state.prior
-        log.info('permission mode changed', { sessionId, mode, ...(prior ? { prior } : {}) })
+        delete state.prior
+        log.info('permission mode changed', { sessionId, mode })
       }
-      if (mode === 'plan' && !planning) await this.#commitPhase(sessionId, state, { phase: 'planning' })
       return view(state)
     })
     await this.reevaluate(this.#sameRoot(sessionId))
     return result
+  }
+
+  /**
+   * 计划接口的动作（ADR 0028）：enter 在不在规划中时提交 plan_phase planning，exit 在规划中时提交 plan_phase none，否则不提交；不改变
+   * Permission Mode，不改动待审阅的 plan 条目与等待中的审批。Run 进行中照常可用：写入拒绝与沙箱档位从下一次判定起生效或解除（等待中的
+   * 写入审批随之重新判定），本 Run 的 section 与工具不变。子 Session 409 child-session。
+   */
+  async planAction(sessionId: string, action: PlanActionRequest['action']): Promise<SessionPlanResponse> {
+    const session = await requireSession(this.#store, sessionId)
+    if (session.parentSessionId !== null) throw new AppError('child-session', 'A subagent session uses the plan of its root session')
+    await this.locked(sessionId, async () => {
+      const state = await this.state(session)
+      const planning = state.phase.phase === 'planning'
+      if (action === 'enter' && !planning) await this.#commitPhase(sessionId, state, { phase: 'planning' })
+      else if (action === 'exit' && planning) await this.#commitPhase(sessionId, state, { phase: 'none' })
+    })
+    await this.reevaluate(this.#sameRoot(sessionId))
+    return this.sessionPlan(sessionId)
   }
 
   async #commitPhase(sessionId: string, state: SessionPermissionState, phase: PlanPhasePayload): Promise<void> {
@@ -260,16 +273,6 @@ export class SessionPermissions implements PlanHost {
 
   async phase(sessionId: string): Promise<PlanPhase> {
     return (await this.state(await requireSession(this.#store, sessionId))).phase.phase
-  }
-
-  async enterPlan(sessionId: string): Promise<void> {
-    await this.setMode(sessionId, 'plan')
-  }
-
-  /** 回到进入 plan 之前的模式（没有记录时 default）；不在 plan 时不变。 */
-  async exitPlan(sessionId: string): Promise<void> {
-    const state = await this.state(await requireSession(this.#store, sessionId))
-    if (state.mode === 'plan') await this.setMode(sessionId, state.prior ?? 'default')
   }
 
   entries(sessionId: string) {
@@ -308,12 +311,15 @@ export class SessionPermissions implements PlanHost {
         const edited = pending.answer?.editedPlan
         const final = edited !== undefined && edited !== pending.markdown ? edited : pending.markdown
         const revision = final === pending.markdown ? pending.ref.revision : pending.ref.revision + 1
-        await commitPlan({ planId: pending.ref.planId, revision, markdown: final, status: 'approved' })
-        const state = await this.state(await requireSession(this.#store, sessionId))
-        const mode: PermissionMode = pending.answer?.mode ?? (state.mode === 'plan' ? (state.prior ?? 'default') : state.mode)
-        await this.setMode(sessionId, mode)
-        log.info('plan approved', { sessionId, planId: pending.ref.planId, revision, mode, edited: final !== pending.markdown })
-        return { markdown: final, mode }
+        // 批准只结束规划（审阅等待期间已退出时不再提交），不改变 Permission Mode（ADR 0028）。
+        await this.locked(sessionId, async () => {
+          await commitPlan({ planId: pending.ref.planId, revision, markdown: final, status: 'approved' })
+          const state = await this.state(await requireSession(this.#store, sessionId))
+          if (state.phase.phase === 'planning') await this.#commitPhase(sessionId, state, { phase: 'none' })
+        })
+        await this.reevaluate(this.#sameRoot(sessionId))
+        log.info('plan approved', { sessionId, planId: pending.ref.planId, revision, edited: final !== pending.markdown })
+        return { markdown: final }
       },
     }
   }
@@ -361,12 +367,12 @@ export class SessionPermissions implements PlanHost {
     const runtime: AgentRuntime | undefined = this.#runtimes.get(sessionId)
     if (!runtime) throw new AppError('approval-not-pending', `Approval request ${requestId} is not pending`)
     const scope = answer.decision === 'allow' ? (answer.scope ?? 'once') : 'once'
-    const planAnswer = answer.decision === 'allow' && (answer.editedPlan !== undefined || answer.mode !== undefined)
+    const planAnswer = answer.decision === 'allow' && answer.editedPlan !== undefined
     const request = runtime.pendingApprovals.find((p) => p.requestId === requestId)
     if (request?.kind === 'plan' && answer.decision === 'allow') return this.#answerPlan(sessionId, runtime, request.toolCallId, requestId, answer)
     if (planAnswer) {
       if (!request) throw new AppError('approval-not-pending', `Approval request ${requestId} is not pending`)
-      throw new AppError('bad-request', `editedPlan and mode only apply to plan approvals`)
+      throw new AppError('bad-request', `editedPlan only applies to plan approvals`)
     }
     if (scope !== 'once') {
       if (!request) throw new AppError('approval-not-pending', `Approval request ${requestId} is not pending`)
@@ -392,8 +398,8 @@ export class SessionPermissions implements PlanHost {
   }
 
   /**
-   * 批准计划：只能批准一次（scope once）；editedPlan 须以 # 标题开头。登记编辑与模式后放行，exit_plan_mode 执行时提交 approved 的计划与
-   * 批准后的模式（缺省为进入 plan 之前的模式）。
+   * 批准计划：只能批准一次（scope once）；editedPlan 须以 # 标题开头。登记编辑后放行，exit_plan_mode 执行时提交 approved 的计划并结束规划
+   * （Permission Mode 不变）。
    */
   async #answerPlan(
     sessionId: string,
@@ -407,19 +413,9 @@ export class SessionPermissions implements PlanHost {
       const problem = planMarkdownProblem(answer.editedPlan)
       if (problem) throw new AppError('bad-request', `Invalid editedPlan: ${problem}`)
     }
-    if (answer.mode !== undefined) {
-      // 用户故事：批准后回到进入规划前的模式，或用户选择的较窄模式；不借批准放宽设置。
-      const state = await this.state(await requireSession(this.#store, sessionId))
-      const restores = state.mode === 'plan' ? (state.prior ?? 'default') : state.mode
-      if (narrowerMode(answer.mode, restores) !== answer.mode)
-        throw new AppError('bad-request', `mode ${answer.mode} is wider than ${restores}, the mode before planning`, { mode: answer.mode, restores })
-    }
     const pending = this.#plans.get(`${sessionId}:${toolCallId}`)
     if (!pending) throw missingPlan(sessionId, toolCallId)
-    pending.answer = {
-      ...(answer.editedPlan !== undefined ? { editedPlan: answer.editedPlan } : {}),
-      ...(answer.mode !== undefined ? { mode: answer.mode } : {}),
-    }
+    pending.answer = answer.editedPlan !== undefined ? { editedPlan: answer.editedPlan } : {}
     try {
       await runtime.answerApproval(requestId, { decision: 'allow', scope: 'once' })
     } catch (error) {
@@ -427,7 +423,7 @@ export class SessionPermissions implements PlanHost {
       if (error instanceof ApprovalNotPendingError) throw new AppError('approval-not-pending', error.message)
       throw error
     }
-    log.info('approval answered', { sessionId, approvalId: requestId, decision: 'allow', kind: 'plan', mode: answer.mode ?? 'prior' })
+    log.info('approval answered', { sessionId, approvalId: requestId, decision: 'allow', kind: 'plan' })
   }
 
   /** 让匹配的 Session 的待审批请求按当前模式与规则重新判定（变为 allow / deny 的以 superseded 结束）。 */

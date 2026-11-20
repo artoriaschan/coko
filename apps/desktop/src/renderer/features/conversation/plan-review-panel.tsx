@@ -1,15 +1,7 @@
 import { effectiveEntries } from '@coko/agent/entries'
-import {
-  planMarkdownProblem,
-  planTitle,
-  type AnswerApprovalRequest,
-  type ApprovalRequestPayload,
-  type PermissionMode,
-  type SessionEntry,
-  type StandardPermissionMode,
-} from '@coko/protocol'
-import { Button, cn, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Textarea } from '@coko/ui'
-import { IconChevronDown, IconLayoutSidebarRightExpand } from '@tabler/icons-react'
+import { planMarkdownProblem, planTitle, type AnswerApprovalRequest, type ApprovalRequestPayload, type SessionEntry } from '@coko/protocol'
+import { Button, cn, Textarea } from '@coko/ui'
+import { IconLayoutSidebarRightExpand } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
@@ -34,16 +26,6 @@ export function planHistory(entries: readonly SessionEntry[]): Map<string, PlanR
     plans.set(entry.payload.planId, list)
   }
   return plans
-}
-
-/** 批准后恢复的模式：当前在 plan 时为进入前的模式（没有记录时 default），否则为当前模式。 */
-export function restoredMode(entries: readonly SessionEntry[]): PermissionMode {
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const entry = entries[i]!
-    if (entry.kind !== 'permission_mode') continue
-    return entry.payload.mode === 'plan' ? (entry.payload.prior ?? 'default') : entry.payload.mode
-  }
-  return 'default'
 }
 
 const draftKey = (sessionId: string, planId: string, revision: number) => `${sessionId}:${planId}:${revision}`
@@ -86,12 +68,6 @@ export function PlanMarkdown({ text, className }: { text: string; className?: st
   )
 }
 
-/** 模式的显示名（plan 另在 plan 领域）。 */
-export function useModeLabel(): (mode: PermissionMode) => string {
-  const { t } = useI18n()
-  return (mode) => (mode === 'plan' ? t('plan.mode') : t(`permissions.modes.${mode as StandardPermissionMode}`))
-}
-
 /** 新提交的计划只自动打开右栏一次（按请求）。 */
 const autoOpened = new Set<string>()
 
@@ -107,12 +83,11 @@ export interface PlanReviewPanelProps {
 }
 
 /**
- * 计划审阅接管输入区：主按钮"批准并执行"（标出将恢复的模式）、下拉"批准并允许编辑"、"继续规划"（反馈）与"在右栏查看"。
- * 右栏中的编辑随批准一起提交（editedPlan）。新计划出现时自动打开右栏一次。
+ * 计划审阅接管输入区：主按钮"批准并执行"、"继续规划"（反馈）与"在右栏查看"。批准只结束规划，按 Session 当前的 Permission Mode 执行
+ * （ADR 0028）。右栏中的编辑随批准一起提交（editedPlan）。新计划出现时自动打开右栏一次。
  */
 export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPanel, autoFocus, className }: PlanReviewPanelProps) {
   const { t } = useI18n()
-  const modeLabel = useModeLabel()
   const planId = request.planId
   const revision = request.revision
   const proposed = React.useMemo(
@@ -125,9 +100,6 @@ export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPan
   const draft = usePlanDraft(sessionId, planId, revision)
   const edited = draft !== undefined && proposed !== undefined && draft !== proposed.markdown
   const invalid = edited && planMarkdownProblem(draft) !== undefined
-  const restores = restoredMode(entries)
-  // 批准时只能选比进入前更窄的模式（不借批准放宽设置）：只有进入前为 full-access 时才给出 accept-edits。
-  const narrower = restores === 'full-access'
   const [answered, setAnswered] = React.useState(false)
   const [feedbackOpen, setFeedbackOpen] = React.useState(false)
   const [feedback, setFeedback] = React.useState('')
@@ -149,7 +121,7 @@ export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPan
     if (!ok) setAnswered(false)
     else if (planId && revision) setPlanDraft(sessionId, planId, revision, undefined)
   }
-  const approve = (mode?: 'accept-edits') => void send({ decision: 'allow', ...(edited && !invalid ? { editedPlan: draft } : {}), ...(mode ? { mode } : {}) })
+  const approve = () => void send({ decision: 'allow', ...(edited && !invalid ? { editedPlan: draft } : {}) })
   const keepPlanning = () => {
     const text = feedback.trim()
     if (text === '') return
@@ -226,43 +198,9 @@ export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPan
             {t('plan.review.continue')}
           </Button>
         )}
-        <div className="flex items-center">
-          <Button
-            type="button"
-            size="sm"
-            data-action="approve"
-            data-restores={restores}
-            disabled={answered || invalid}
-            className={narrower ? 'rounded-e-none' : undefined}
-            title={t('plan.review.restores', { mode: modeLabel(restores) })}
-            onClick={() => approve()}
-          >
-            {t('plan.review.approve')}
-            <span className="text-ui-small opacity-80">· {modeLabel(restores)}</span>
-          </Button>
-          {/* 非模态：批准后按钮即禁用，模态菜单关闭时的焦点归还与对其余节点的隐藏不再适用。 */}
-          {narrower && (
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  data-action="approve-more"
-                  disabled={answered || invalid}
-                  aria-label={t('plan.review.more')}
-                  className="rounded-s-none border-s-hairline border-primary-foreground/30"
-                >
-                  <IconChevronDown aria-hidden />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="end">
-                <DropdownMenuItem data-action="approve-accept-edits" onSelect={() => approve('accept-edits')}>
-                  {t('plan.review.approveAcceptEdits')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
+        <Button type="button" size="sm" data-action="approve" disabled={answered || invalid} onClick={approve}>
+          {t('plan.review.approve')}
+        </Button>
       </div>
       {invalid && (
         <p role="alert" className="px-4 pb-3 text-ui-small text-destructive">

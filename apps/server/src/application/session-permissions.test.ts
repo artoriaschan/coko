@@ -1,5 +1,6 @@
 // 计划批准的状态不一致：待审批的 plan 请求没有对应的审阅记录（propose 总在询问之前登记，正常走不到）时，不猜测 revision，以 internal 失败
-// （HTTP 500），不提交新 revision 的 plan 条目，也不放行该请求。Session 计划的读取：子 Session 取根 Session 的阶段与活动 Plan，没有阶段条目时为 none。
+// （HTTP 500），不提交新 revision 的 plan 条目，也不放行该请求。Session 计划的读取：子 Session 取根 Session 的阶段与活动 Plan，没有阶段条目时为 none；
+// 计划接口的动作对子 Session 为 child-session。
 import { SESSION_ENTRY_PAYLOADS, type AgentRuntime } from '@coko/agent'
 import { createPayloadRegistry, type SessionStore } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
@@ -41,6 +42,19 @@ describe('Session 计划的读取', () => {
     expect(await permissions.sessionPlan(child.id)).toEqual({ phase: 'planning', plan: proposed })
     expect(await permissions.sessionPlan(session.id)).toEqual({ phase: 'planning', plan: proposed })
     await expect(permissions.sessionPlan('missing')).rejects.toMatchObject({ code: 'not-found', status: 404 })
+  })
+
+  it('动作：子 Session 409 child-session，不提交条目；未知 Session 为 not-found', async () => {
+    const { session, permissions, store } = await setup()
+    const child = await store.sessions.createSession({ workspaceId: session.workspaceId, title: 'c', model: null, parentSessionId: session.id })
+    await expect(permissions.planAction(child.id, 'enter')).rejects.toMatchObject({
+      code: 'child-session',
+      status: 409,
+      message: 'A subagent session uses the plan of its root session',
+    })
+    expect((await store.sessions.listEntries(child.id)).filter((e) => e.kind === 'plan_phase')).toEqual([])
+    expect((await store.sessions.listEntries(session.id)).filter((e) => e.kind === 'plan_phase')).toEqual([])
+    await expect(permissions.planAction('missing', 'enter')).rejects.toMatchObject({ code: 'not-found', status: 404 })
   })
 
   it('升级前停在 plan 模式、没有阶段条目的 Session：不在规划中（过渡状态，由票 07 收尾）', async () => {

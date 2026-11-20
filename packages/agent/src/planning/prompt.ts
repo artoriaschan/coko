@@ -4,13 +4,13 @@ import type { SystemSection } from '../engine/types.ts'
 /** <approved_plan> 的正文上限（字符）；超出截断并注明。 */
 export const APPROVED_PLAN_MAX_CHARS = 16_000
 
-// 票 03 的过渡版（ADR 0028）：写入与提权由计划阶段拒绝；Permission Mode 仍为 plan，其余调用仍按 read-only 询问（票 04 改为按当前权限处理）。
+// 写入与提权由计划阶段拒绝（ADR 0028）；其余调用按 Session 当前的 Permission Mode 处理（进入规划不改变它）。
 export const PLAN_MODE_TEXT = [
   '<plan_mode>',
   'Plan mode is active. Research and design only: the user reviews your plan before anything in the Workspace changes.',
   '- File writes (write, edit) are refused while planning. Put the changes you intend to make in the plan instead.',
   '- Commands run in a read-only sandbox and cannot be escalated; a command that writes files fails.',
-  '- Reads and searches are allowed; other calls may need the user’s approval.',
+  "- Other calls (reads, searches, MCP tools, memory, todo and goal tools) follow the session's current permission mode.",
   'When the plan is ready, call exit_plan_mode with the complete plan as Markdown starting with a # heading. If the user sends feedback, keep planning and submit a revised plan. Once the user approves, plan mode ends and the tool result tells you how to proceed.',
   '</plan_mode>',
 ].join('\n')

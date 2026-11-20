@@ -1,7 +1,7 @@
 // 子代理集成测试共用：启动带 faux 脚本的 Sidecar 与 Workspace（复制 tests/fixtures/agents 的定义），以及读取父 / 子 Session 条目的辅助。
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { API_ROUTES, apiPaths, permissionPaths } from '@coko/protocol'
+import { API_ROUTES, apiPaths, permissionPaths, planPaths } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, seedProviders, sidecarDirs, startSidecar, tempDir, type SidecarDirs, type Stream } from './sidecar-harness.ts'
 
 export type Logged = { role: string; content: unknown; sections?: Record<string, string>; toolsAdded?: { name: string }[] }[]
@@ -50,10 +50,12 @@ export async function bootAgents(
     stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
     await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
   }
-  const open = async (mode?: string) => {
+  /** planning：经计划接口进入规划（不改变 mode，ADR 0028）。 */
+  const open = async (mode?: string, planning = false) => {
     const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
     const set = mode ? await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode }) : undefined
     if (set && set.status !== 200) throw new Error(`setting mode ${mode} failed: ${set.status}`)
+    if (planning && (await api.post(planPaths.sessionPlan(sessionId), { action: 'enter' })).status !== 200) throw new Error('entering planning failed')
     await subscribe(sessionId)
     return sessionId
   }

@@ -1,8 +1,7 @@
 // exit_plan_mode：Plan Mode 中提交计划交给用户审阅（ADR 0005）。权限类 plan-exit：任何模式都询问、允许规则不生效、拒绝规则生效。
 // 权限 hook 在询问之前经 PlanReview.propose 提交 proposed 的 plan 条目，以 kind plan 的 Approval Request 等待回答；批准后执行本工具，
-// 由宿主提交 approved 的计划与恢复的模式（PlanReview.approved），结果把最终计划交给模型。带反馈的拒绝由 hook 提交 rejected，Run 继续规划。
+// 由宿主提交 approved 的计划并结束规划（PlanReview.approved；不改变 Permission Mode，ADR 0028），结果把最终计划交给模型。带反馈的拒绝由 hook 提交 rejected，Run 继续规划。
 import { Type, type Static } from 'typebox'
-import type { PermissionMode } from '../session-entries/index.ts'
 import type { CokoTool } from '../tools/types.ts'
 import type { PlanRef } from './state.ts'
 
@@ -26,9 +25,9 @@ export function planTitle(markdown: string): string {
 
 export const invalidPlanText = (problem: string) => `Invalid plan: ${problem}. Call exit_plan_mode again with the complete plan.`
 
-/** 批准后交给模型的文本（契约）。 */
-export const planApprovedText = (mode: PermissionMode, markdown: string) =>
-  `The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions. Proceed under ${mode}.\n\n${markdown}`
+/** 批准后交给模型的文本（契约，设计稿 T7）。 */
+export const planApprovedText = (markdown: string) =>
+  `The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions and carry out the plan.\n\n${markdown}`
 
 /** 不在 plan 模式时调用 exit_plan_mode（例如同一 Run 中计划已批准）：不审阅。 */
 export const NOT_IN_PLAN_MODE_TEXT = 'Not in plan mode: the plan was already approved or plan mode was turned off. Continue with the task.'
@@ -43,8 +42,8 @@ export interface PlanReview {
   propose(toolCallId: string, markdown: string): Promise<PlanRef>
   /** 用户拒绝（feedback 为已截断的反馈）：提交 rejected 的 plan 条目。 */
   rejected(toolCallId: string, feedback: string | undefined): Promise<void>
-  /** 用户批准、本工具执行时：提交 approved 的计划（编辑后为新 revision）与批准后的模式，返回最终计划与模式。 */
-  approved(toolCallId: string, markdown: string): Promise<{ markdown: string; mode: PermissionMode }>
+  /** 用户批准、本工具执行时：提交 approved 的计划（编辑后为新 revision）并结束规划，返回最终计划。 */
+  approved(toolCallId: string, markdown: string): Promise<{ markdown: string }>
   /** Session 当前是否在规划中（计划阶段为 planning）；false 时不提交、不询问（工具在 Run 开始时注册，批准后同一 Run 中仍可调用）。 */
   active(): Promise<boolean>
 }
@@ -74,8 +73,8 @@ export function createExitPlanModeTool(review: PlanReview): CokoTool<typeof para
     async execute(toolCallId, params: Static<typeof parameters>) {
       const problem = planMarkdownProblem(params.plan)
       if (problem) throw new Error(invalidPlanText(problem))
-      const { markdown, mode } = await review.approved(toolCallId, params.plan)
-      return { content: [{ type: 'text', text: planApprovedText(mode, markdown) }], details: undefined }
+      const { markdown } = await review.approved(toolCallId, params.plan)
+      return { content: [{ type: 'text', text: planApprovedText(markdown) }], details: undefined }
     },
   }
   reviews.set(tool as CokoTool, review)

@@ -307,9 +307,9 @@ export function subagentTools(parentTools: readonly string[], definition: Pick<A
 }
 
 /**
- * 子 Session 的有效模式：根 Session 当前模式（plan 按 read-only：子级没有 exit_plan_mode）与定义的 permission-mode 中较窄者。
- * 每次判定时调用（根中途收紧，子级的下一次调用即按新模式）。
+ * 子 Session 的有效模式：根 Session 当前模式与定义的 permission-mode 中较窄者（规划中不改变模式，规划约束另由根 Session 的计划阶段施加，
+ * ADR 0028）。每次判定时调用（根中途收紧，子级的下一次调用即按新模式）。
  */
-export function effectiveSubagentMode(rootMode: StandardPermissionMode | 'plan', cap: StandardPermissionMode | undefined): StandardPermissionMode {
-  return narrowerMode(rootMode === 'plan' ? 'read-only' : rootMode, cap)
+export function effectiveSubagentMode(rootMode: PermissionMode, cap: StandardPermissionMode | undefined): PermissionMode {
+  return narrowerMode(rootMode, cap)
 }

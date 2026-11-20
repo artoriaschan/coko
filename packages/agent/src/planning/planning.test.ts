@@ -128,9 +128,11 @@ describe('审阅闭环（createAgentRuntime）', () => {
     const { faux, models, model } = createFauxModels()
     const entries: RunEntry[] = []
     const calls: string[] = []
-    let current: PermissionMode = 'plan'
+    // 进入规划不改变 Permission Mode（ADR 0028）：模式始终为 accept-edits，批准只结束规划。
+    const current: PermissionMode = 'accept-edits'
+    let planning = true
     const review: PlanReview = {
-      active: async () => current === 'plan',
+      active: async () => planning,
       async propose(toolCallId, markdown) {
         calls.push(`propose ${toolCallId} ${planTitle(markdown)}`)
         return { planId: 'p1', revision: calls.filter((c) => c.startsWith('propose')).length }
@@ -140,8 +142,8 @@ describe('审阅闭环（createAgentRuntime）', () => {
       },
       async approved(toolCallId, markdown) {
         calls.push(`approved ${toolCallId}`)
-        current = 'accept-edits'
-        return { markdown: `${markdown}\n(edited)`, mode: current }
+        planning = false
+        return { markdown: `${markdown}\n(edited)` }
       },
     }
     const tools = createToolRegistry()
@@ -153,7 +155,7 @@ describe('审阅闭环（createAgentRuntime）', () => {
       sessionId: 's1',
       tools,
       commit: async () => {},
-      permissions: { mode: () => current, rules: () => [] },
+      permissions: { mode: () => current, planning: () => planning, rules: () => [] },
     })
     const waiters = new Set<() => void>()
     runtime.subscribe((event) => {
@@ -183,7 +185,7 @@ describe('审阅闭环（createAgentRuntime）', () => {
   }
   const exit = (id: string, planText: string) => fauxAssistantMessage(fauxToolCall('exit_plan_mode', { plan: planText }, { id }), { stopReason: 'toolUse' })
 
-  it('批准：proposed 之后以 kind plan 询问；执行时宿主提交批准，结果带最终计划与模式，Run 继续', async () => {
+  it('批准：proposed 之后以 kind plan 询问（模式为 accept-edits 也询问）；执行时宿主提交批准，结果带最终计划、不提模式，Run 继续', async () => {
     const h = harness()
     h.faux.setResponses([exit('e1', '# Fix it\n- a'), fauxAssistantMessage('implementing')])
     const done = h.runtime.run('plan it')
@@ -196,7 +198,7 @@ describe('审阅闭环（createAgentRuntime）', () => {
     expect(h.results()).toEqual([
       {
         isError: false,
-        text: 'The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions. Proceed under accept-edits.\n\n# Fix it\n- a\n(edited)',
+        text: 'The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions and carry out the plan.\n\n# Fix it\n- a\n(edited)',
       },
     ])
   })

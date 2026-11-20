@@ -1,6 +1,6 @@
 // 无界面运行的命令行参数。参数错误为 UsageError（进程以 4 退出）；路径按当前目录解析为绝对路径。
 import { resolve } from 'node:path'
-import type { PermissionMode } from '@coko/agent'
+import type { StandardPermissionMode } from '@coko/agent'
 import type { OnApproval } from './approvals.ts'
 
 export class UsageError extends Error {
@@ -19,7 +19,7 @@ export interface HeadlessArgs {
   providerConfig?: string
   /** <providerId>/<modelId>。 */
   model?: { providerId: string; modelId: string }
-  permissionMode?: PermissionMode
+  permissionMode?: StandardPermissionMode
   output: OutputFormat
   maxTurns?: number
   onApproval: OnApproval
@@ -34,7 +34,7 @@ export const USAGE = `Usage: headless.mjs --data-dir <dir> (--workspace <dir> | 
   [--output text|json|stream-json] [--max-turns <n>] [--on-approval deny|fail] [--log-dir <dir>] [--ripgrep <path>]
 `
 
-const MODES: readonly PermissionMode[] = ['read-only', 'default', 'accept-edits', 'full-access', 'plan']
+const MODES: readonly StandardPermissionMode[] = ['read-only', 'default', 'accept-edits', 'full-access']
 const OUTPUTS: readonly OutputFormat[] = ['text', 'json', 'stream-json']
 const VALUED = new Set([
   '--data-dir',
@@ -80,7 +80,7 @@ export function parseHeadlessArgs(argv: readonly string[], cwd: string): Headles
   const output = values.get('--output') ?? 'text'
   if (!OUTPUTS.includes(output as OutputFormat)) throw new UsageError(`--output must be one of ${OUTPUTS.join(', ')}`)
   const mode = values.get('--permission-mode')
-  if (mode !== undefined && !MODES.includes(mode as PermissionMode)) throw new UsageError(`--permission-mode must be one of ${MODES.join(', ')}`)
+  if (mode !== undefined && !MODES.includes(mode as StandardPermissionMode)) throw new UsageError(`--permission-mode must be one of ${MODES.join(', ')}`)
   const onApproval = values.get('--on-approval') ?? 'deny'
   if (onApproval !== 'deny' && onApproval !== 'fail') throw new UsageError('--on-approval must be deny or fail')
   const maxTurnsText = values.get('--max-turns')
@@ -102,7 +102,7 @@ export function parseHeadlessArgs(argv: readonly string[], cwd: string): Headles
     ...(session ? { session } : {}),
     ...(providerConfig ? { providerConfig } : {}),
     ...(model ? { model } : {}),
-    ...(mode ? { permissionMode: mode as PermissionMode } : {}),
+    ...(mode ? { permissionMode: mode as StandardPermissionMode } : {}),
     output: output as OutputFormat,
     ...(maxTurnsText ? { maxTurns: Number(maxTurnsText) } : {}),
     onApproval,

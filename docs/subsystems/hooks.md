@@ -75,7 +75,7 @@ lifecycle: active
 `/bin/bash -c <command>`，cwd 为 Session 的工作目录，独立进程组，登记为 kind `hook`（带 sessionId），进程组消失后删除登记。不经 Seatbelt：Hook 与已批准的 MCP stdio Server 处于同一信任级别。
 
 - **环境**：Sidecar 的基础环境去掉 `COKO_*` 与凭据形态的变量（与 bash 工具相同），另加 `COKO_PROJECT_DIR`（Session 的工作目录：worktree 会话为该 worktree 中的对应目录，不是原 Workspace）、`COKO_SESSION_ID`、`COKO_HOOK_EVENT`；不注入 Secret。
-- **stdin**：一行 JSON 后关闭。公共字段 `session_id`、`cwd`、`hook_event_name`、`permission_mode`；子 Session 另有 `parent_session_id`、`agent_type`。工具事件另有 `tool_name`（注册名）、`tool_input`、`tool_use_id`，PostToolUse(Failure) 另有 `tool_response`（`{ content, details? }`）与失败时的 `error`。整行按值替换登记明文后写入。
+- **stdin**：一行 JSON 后关闭。公共字段 `session_id`、`cwd`、`hook_event_name`、`permission_mode`（Session 真实的 Permission Mode：规划不改变它，没有“规划中”字段，[ADR 0028](../adr/0028-plan-phase-not-permission-mode.md)）；子 Session 另有 `parent_session_id`、`agent_type`。工具事件另有 `tool_name`（注册名）、`tool_input`、`tool_use_id`，PostToolUse(Failure) 另有 `tool_response`（`{ content, details? }`）与失败时的 `error`。整行按值替换登记明文后写入。
 - **输出**：stdout 与 stderr 各保留前 64 KB。
 - **超时**：缺省 60 秒（Notification 10 秒），配置上限 600 秒。超时或有序关闭时向进程组 SIGTERM，2 秒后仍有进程则 SIGKILL。
 - **生命周期事件的输入**：`permission_mode` 为 Session 当前模式；UserPromptSubmit 另有 `prompt`（用户提交的原文，按值脱敏；`/<skill> 参数` 与命令不展开，不含 SKILL.md 或命令正文），Stop 另有 `stop_hook_active`，PreCompact 另有 `trigger`（`manual` / `auto`）与 `custom_instructions`（`/compact` 的参数，自动压缩为空串），Notification 另有 `notification_type`、`title` 与 `message`。
@@ -201,7 +201,7 @@ Coko 产生桌面通知时运行（`NotificationService.notify` 先通知 Hook�
 - `packages/agent/src/extensions/hooks/hooks.test.ts`：配置解析与每种诊断、matcher、if（复合命令）、输出解释、聚合与组合表每一行（表驱动）。
 - `packages/agent/src/policy/gate-hooks.test.ts`：运行时中的组合（Hook deny 在 full-access 下、allow 免掉第 7 步、对手用例：allow 不免掉询问规则 / 受保护路径 / 越出可写根，ask 不随模式放宽消失）与 PermissionRequest 的三种结论。
 - `apps/server/src/adapters/hook-runner.test.ts`：stdin、环境过滤、输出上限、忽略 SIGTERM 时 2 秒后 SIGKILL 与登记释放（darwin）。
-- `tests/integration/sidecar-hooks.test.ts`：真实 Sidecar 与 Hook 夹具，覆盖上述事件、并行聚合、超时与进程组终止（darwin）、非法输出、项目 Hook 的批准与改动、能力开关与对手用例（含提权与 plan-exit、规划中的写入、伪造的 Hook JSON、`if: Bash(rm *)` 的 guard）。
+- `tests/integration/sidecar-hooks.test.ts`：真实 Sidecar 与 Hook 夹具，覆盖上述事件、并行聚合、超时与进程组终止（darwin）、非法输出、项目 Hook 的批准与改动、能力开关与对手用例（含提权与 plan-exit、规划中的写入与 Hook 收到的真实模式、伪造的 Hook JSON、`if: Bash(rm *)` 的 guard）。
 - `tests/integration/sidecar-hooks-lifecycle.test.ts`：真实 Sidecar 与内联 bash Hook，覆盖 UserPromptSubmit（400 `hook-blocked` 且没有 user message 与 run_start、`<hook-context>` 块、continue: false、定时任务与 Goal Round 不运行）、Stop（继续与 stop_hook_active、第 4 次忽略、伪造的 Hook JSON 不继续、暂停与停止不运行）、PreCompact（手动 400 与 stdout 追加、自动跳过、溢出不运行）、Notification（输入字段、matcher、失败不影响通知）、PreToolUse 的 continue: false（含 Goal Round），以及对手用例：Stop 持续 block 时 Goal 的 maxTokens 在继续的请求前生效、未批准的项目 UserPromptSubmit 不运行、改动后为已改动。
 - `apps/server/src/application/hooks.test.ts`：Stop 与 UserPromptSubmit 在子 Session 中不运行。
 - `tests/integration/sidecar-teams-hooks.test.ts`：TaskCreated exit 2 时没有 `team_task` 条目、TaskCompleted exit 2 时任务保持 in_progress、TeammateIdle 的继续与第 4 次忽略、三个事件的 stdin、未批准的项目 Hook 不运行。

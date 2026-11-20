@@ -38,12 +38,16 @@ export const PlanPhasePayload = Type.Union([
 ])
 export type PlanPhasePayload = Static<typeof PlanPhasePayload>
 
-/** GET /api/sessions/:id/plan 的响应：当前阶段与活动的 Plan（规划中待审阅的计划、执行中被执行的计划，否则 null）。 */
+/** GET / POST /api/sessions/:id/plan 的响应：当前阶段与活动的 Plan（规划中待审阅的计划、执行中被执行的计划，否则 null）。 */
 export const SessionPlanResponse = Type.Object({ phase: PlanPhase, plan: Type.Union([PlanPayload, Type.Null()]) }, strict)
 export type SessionPlanResponse = Static<typeof SessionPlanResponse>
 
+/** POST /api/sessions/:id/plan：enter 进入规划，exit 退出规划；已在 / 不在规划中时不提交条目。不改变 Permission Mode（ADR 0028）。 */
+export const PlanActionRequest = Type.Object({ action: Type.Union([Type.Literal('enter'), Type.Literal('exit')]) }, strict)
+export type PlanActionRequest = Static<typeof PlanActionRequest>
+
 export const planPaths = {
-  /** GET：SessionPlanResponse（子 Session 返回根 Session 的阶段与计划）。 */
+  /** GET：SessionPlanResponse（子 Session 返回根 Session 的阶段与计划）；POST：PlanActionRequest → SessionPlanResponse（子 Session 409 child-session）。 */
   sessionPlan: (sessionId: string) => `/api/sessions/${encodeURIComponent(sessionId)}/plan`,
 }
 
