@@ -1,0 +1,89 @@
+packages/agent/src/session-entries/permissions.ts
+  s_d1e837811db462::t_a8e9dd87cb4374 34
+  s_d1e837811db462::t_7b686d12c8fb5d 8,13,18,33,35,37,41,49-51,124,130
+packages/agent/src/policy/sandbox.test.ts
+  s_d1e837811db462::t_702673eda80955 11,20,36-40
+  s_d1e837811db462::t_a8e9dd87cb4374 22-28
+packages/agent/src/agents/definitions.test.ts
+  s_d1e837811db462::t_769981aa5967d6 51-57,136-149
+tests/integration/sidecar-handoff.test.ts
+  s_d1e837811db462::t_a5d961d9f12fd8 89,136
+packages/agent/src/planning/planning.test.ts
+  s_d1e837811db462::t_a8e9dd87cb4374 296-302
+packages/agent/src/agents/definitions.ts
+  s_d1e837811db462::t_459caf5417a6f2 35-36,161
+.scratch/auto-review/issues/02-auto-review-mode-value.md
+  s_d1e837811db462::t_4a3f9885820fac 11-28
+  s_d1e837811db462::t_93dbb72e782e81 31-46
+apps/server/src/headless/args.ts
+  s_d1e837811db462::t_60874f931cf1bb 32-33,35
+packages/agent/src/policy/decide.ts
+  s_d1e837811db462::t_459caf5417a6f2 272
+packages/agent/src/policy/sandbox.ts
+  s_d1e837811db462::t_459caf5417a6f2 13
+apps/desktop/e2e/permissions.e2e.test.ts
+  s_d1e837811db462::t_0808d865eadfc0 1,53,63,68
+packages/protocol/src/permissions.ts
+  s_d1e837811db462::t_93c3518ca56a82 9,14,19,32,182-183
+  s_d1e837811db462::t_d07b627faffdc1 161
+tests/evals/case.ts
+  s_d1e837811db462::t_93c3518ca56a82 9
+packages/agent/src/policy/decide.test.ts
+  s_d1e837811db462::t_e1ea1fdd039936 205,311,443,473,495,525
+  s_d1e837811db462::t_b449bee264d086 114,130,148,152,164,166,198,207,221,232-233,271,296,325,341,433,444-445,467,480,485,507,528,539-540
+  s_d1e837811db462::t_a8e9dd87cb4374 115-121
+  s_d1e837811db462::t_2dff5fdb101bd1 358,387-395
+apps/desktop/src/renderer/stores/new-chat-store.test.ts
+  s_d1e837811db462::t_d07b627faffdc1 1,25-27
+packages/agent/src/policy/paths.ts
+  s_d1e837811db462::t_459caf5417a6f2 40
+tests/integration/headless.test.ts
+  s_d1e837811db462::t_7b11257ef4877c 103,107-110,112-114,117-118
+  s_d1e837811db462::t_009465ee197fb5 111,115-116
+tests/integration/sidecar-plan.test.ts
+  s_d1e837811db462::t_d07b627faffdc1 393-394
+  s_d1e837811db462::t_cd5237f47fac59 427
+  s_d1e837811db462::t_4fa9c7eff28d4b 839,842-843,853
+packages/i18n/src/dictionaries/zh.ts
+  s_d1e837811db462::t_dff1b4d679da5a 581,587-588
+apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx
+  s_d1e837811db462::t_d07b627faffdc1 221
+  s_d1e837811db462::t_a30ed65b0db66d 2,348,367
+  s_d1e837811db462::t_d919a3fc0b5a4e 762-768
+packages/i18n/src/dictionaries/en.ts
+  s_d1e837811db462::t_dff1b4d679da5a 585,591-592
+tests/integration/sidecar-hooks.test.ts
+  s_d1e837811db462::t_42e448373eeaa3 508-523
+tests/integration/sidecar-permissions.test.ts
+  s_d1e837811db462::t_a8e9dd87cb4374 344-349
+  s_d1e837811db462::t_3039902d115d06 2-3,5
+  s_d1e837811db462::t_70a6185f47ccc8 375-379
+  s_d1e837811db462::t_0a0efef88ece91 7
+  s_d1e837811db462::t_ae6aa795b6cd70 339-343,350-374,380-456
+packages/agent/src/policy/escalation.test.ts
+  s_d1e837811db462::t_d07b627faffdc1 221
+apps/desktop/src/renderer/features/conversation/mode-picker.tsx
+  s_d1e837811db462::t_de01d5edfcc4b0 14,19-21,27,31,103
+apps/desktop/src/renderer/features/conversation/mode-picker.browser.test.tsx
+  s_d1e837811db462::t_59a29629ce7c3b 144
+  s_d1e837811db462::t_e311c713ec3a17 150,155
+  s_d1e837811db462::t_dc66a6c5336f36 1-143,145-149,151-154,156-162
+tests/integration/sidecar-skills.test.ts
+  s_d1e837811db462::t_d07b627faffdc1 103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "285167900a2c81f08a89185cebf3ddd125e2334f",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
