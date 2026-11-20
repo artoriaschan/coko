@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 权限 gate 有 Reviewer 端口；没有端口时行为与 02 交付后相同
 - [x] 只在以下条件同时成立时调用 Reviewer：模式为 `auto-review`、最终结论是来自判定第 7 步的询问、PermissionRequest Hook 没有决定、权限类不是 automation
 - [x] Reviewer 放行：依次提交审批请求与回答者为 Reviewer、带理由、scope 为 once 的允许决定，不进入等待表，随后执行
@@ -47,3 +49,6 @@
   - `pnpm exec vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/`：338 通过、9 失败（file-tool-details 5、terminal-details 4），基线上同样 9 个失败；新增的放行标注用例通过。
   - `pnpm typecheck`、`pnpm lint`：通过。
 
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/auto-review`（最终 HEAD c8633a1d，含两轴代码评审的修复）。

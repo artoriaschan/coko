@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 审批请求条目按设计稿升版，新增可选的审查信息：转交时带 Reviewer 的理由，失败时带失败原因的代码；旧版本读取正常
 - [x] 审查信息只出现在经过 Reviewer 的请求上；其他询问的审批请求没有它
 - [x] 理由按设计稿的上限截断，入库与推送前替换已登记的 Secret 明文
@@ -42,3 +44,7 @@
 - `pnpm exec vitest run tests/integration/sidecar-auto-review.test.ts tests/integration/sidecar-permissions.test.ts`（真实 Sidecar，darwin）：20/20 通过。
 - `pnpm typecheck`：通过。`pnpm lint`：通过。
 - 未验证：真实模型的理由内容与语言；真实 Electron 中的审批卡（只在 Browser Mode 中验证）。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/auto-review`（最终 HEAD c8633a1d，含两轴代码评审的修复）。

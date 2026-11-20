@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 设计稿保存为本功能目录下的 `design.md`，按 [设计模板](../../../docs/templates/design.md) 写：约束与驱动场景、责任与依赖、主要成功与失败路径、持久化与演进、比较过的方案、测试接口与验收证据
 - [x] 设计以计划生命周期阶段一交付后的代码形状为基线，并写明这一前提
 - [x] 写明 Reviewer 端口的形状（输入、放行与转交两种结果、失败的表达、取消），由谁提供实现，以及它在权限 gate 中相对 PreToolUse、PermissionRequest 与无人回答拒绝的位置
@@ -29,3 +31,7 @@
 ## Comments
 
 2026-11-20 实施代理：设计稿 [design.md](../design.md)（status approved，基线为 `feat/auto-review` 的 `69fa250e`）与 [ADR 0029](../../../docs/adr/0029-auto-review-delegates-final-ask.md)（accepted / not-started）已写成；ADR 0005 的 description、决定首段与“来源与后继”标注由 0029 细化，[ADR 索引](../../../docs/adr/README.md) 加入 0029 行并更新 0005 行；术语表未改。`pnpm run check:docs` 通过（452 个文件 0 个问题），从 docs/README → adr/README 读回 0005 与 0029 的互链。设计稿另列 7 条规格授权内的工程补充决定与 2 处对规格的事实更正（计划审阅卡现无“不得宽于规划前模式”的约束；Reviewer 的实现在 Sidecar 宿主而非 agent 运行时），供后续票与用户复核。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/auto-review`（最终 HEAD c8633a1d，含两轴代码评审的修复）。

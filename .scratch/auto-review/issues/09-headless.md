@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 无界面运行在 `auto-review` 下，Reviewer 放行的调用执行，条目为请求与 Reviewer 的允许决定
 - [x] Reviewer 转交的调用：提交回答者为 headless 的拒绝决定，模型看到现有的无审批者文本，Run 继续
 - [x] 审查失败（超时、报错、输出无效、没有模型、预算、内容过长）的调用同样以 headless 拒绝
@@ -34,3 +36,7 @@
   packages/agent/src/policy/gate-unattended.test.ts packages/agent/src/policy/gate-review.test.ts
   tests/integration/headless-approvals.test.ts tests/integration/headless.test.ts` 5 文件 57 通过；`pnpm typecheck` 通过；
   `pnpm lint`（rtk proxy）退出 0。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/auto-review`（最终 HEAD c8633a1d，含两轴代码评审的修复）。

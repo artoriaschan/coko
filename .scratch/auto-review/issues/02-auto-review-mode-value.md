@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] Permission Mode 取值为 read-only、default、accept-edits、auto-review、full-access；`accept-edits` 的行为不变
 - [x] `permission_mode` 条目按设计稿升一版，旧版本读取结果不变，数据库行不被改写
 - [x] 判定表中 `auto-review` 一列与 `accept-edits` 逐项相同（含各权限类）；Sandbox Mode 为 workspace-write，可写根与 `accept-edits` 相同
@@ -44,3 +46,7 @@
   - 真实 Sidecar：`sidecar-permissions`、`headless`、`sidecar-handoff`、`sidecar-skills`、`sidecar-plan`、`sidecar-hooks`：77 通过。
   - `pnpm typecheck` 通过；`pnpm lint` 通过（0 告警）；改动文件经 `oxfmt` 格式化。
   - `pnpm exec vitest run --project desktop-e2e apps/desktop/e2e/permissions.e2e.test.ts -t "Shift\+Tab"`：1 失败（基线同样失败，见上）。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/auto-review`（最终 HEAD c8633a1d，含两轴代码评审的修复）。

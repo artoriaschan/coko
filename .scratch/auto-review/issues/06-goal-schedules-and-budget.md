@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 审查请求的用量计入该 Run 的用量汇总与 Session 的费用合计
 - [x] 审查请求的 Token 与费用计入 Goal Budget，不计入 Goal 的轮次与工具调用数
 - [x] 发出审查请求前经与对话请求相同的请求前检查
@@ -25,3 +27,7 @@
   - 测试：`tests/integration/sidecar-auto-review.test.ts` 新增“Goal、定时任务与预算”三例（带 Token 上限且有价格的 Goal：失败审查的用量计入 Goal Token 与费用、追踪的 Run 与 Session 合计，不计轮次与工具调用；耗尽后无新审查请求、待审批请求出现且调用未执行、允许后执行并以 paused + budget_exhausted 结束；Goal Round 的放行与转交、awaiting-approval 且 Goal 仍 running、允许后 complete；定时 Run 的审查请求、user_messages 为空、schedule_create 不送审且允许后仍为 schedule-not-allowed）；新增 `apps/server/src/application/session-reviews.test.ts`（取消、超时两例）。
   - 未断言：预算失败的待审批请求上的 `review: { outcome: 'failed', code: 'budget' }`（依赖票 04 的 approval_request v2），留给票 10 补齐。
   - 运行：`pnpm exec vitest run tests/integration/sidecar-auto-review.test.ts apps/server/src/application/session-reviews.test.ts` 2 文件 13 例全部通过；`pnpm typecheck` 通过；`pnpm lint` 通过。突变检查：把审查的 beforeRequest 换成恒放行时预算用例失败（审查请求为 2 条）。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/auto-review`（最终 HEAD c8633a1d，含两轴代码评审的修复）。

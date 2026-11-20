@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 审查输入分为用户授权、助手委派的任务、动作三个分区，标注与数据边界取自设计稿
 - [x] 用户授权分区包含有效模型上下文中用户亲自输入的消息文本，不含宿主附加的块（State Update、Hook 追加的上下文）
 - [x] 存在 Goal 时，用户授权分区包含它的目标与 Success Criterion
@@ -43,3 +45,7 @@
     2 个文件 20 个用例全部通过，0 跳过（darwin，Seatbelt 用例运行）。
   - `pnpm typecheck`、`pnpm lint`：通过。`pnpm format:check` 只报 6 个与本票无关的既有文件（css、docs/ui 的 html）。
 - 未验证：真实模型下审查是否会被注入说服（设计稿已列为不做自动化评估）。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/auto-review`（最终 HEAD c8633a1d，含两轴代码评审的修复）。

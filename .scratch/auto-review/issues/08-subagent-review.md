@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 子 Session 的有效模式为 `auto-review` 时，其到达第 7 步的调用经 Reviewer
 - [x] 审查子 Session 的调用时，用户授权分区取根 Session 的用户消息、Goal 与已批准的 Plan
 - [x] 子 Session 的首条消息（派发说明）归入助手委派的任务
@@ -42,3 +44,7 @@
   - `pnpm exec vitest run` 选中 sidecar-subagents*、sidecar-auto-review、sidecar-teams*、secrets-gate-{auto-review,subagents,teams}、
     sidecar-team-state-updates：69 通过、1 失败（sidecar-teams-restart 的 SIGKILL 用例，团队 state_update 块顺序断言；基线复跑同样失败）。
   - `pnpm typecheck` 通过；`pnpm exec oxlint` 退出 0。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/auto-review`（最终 HEAD c8633a1d，含两轴代码评审的修复）。

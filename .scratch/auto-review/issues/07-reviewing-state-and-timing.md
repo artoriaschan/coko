@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 审查开始时向界面推送“自动审查中”，形状取自设计稿，不入库
 - [x] 工具卡在审查期间显示“自动审查中”，审查结束后由随后的审批条目决定显示
 - [x] 重连后不恢复这个状态，工具卡回到普通的等待显示
@@ -49,3 +51,7 @@
 - `pnpm typecheck` 通过；`pnpm lint` 无输出（通过）；改动文件 `oxfmt --check` 通过。
 
 未验证：没有在真实 Electron（agent-browser）中查看“自动审查中”的明暗主题与窄窗口外观，只有 Browser Mode 的可见性与文本断言。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/auto-review`（最终 HEAD c8633a1d，含两轴代码评审的修复）。
