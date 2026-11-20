@@ -1,0 +1,89 @@
+apps/server/src/application/session-reviews.ts
+  s_d1e837811db462::t_b32896bd2621de 61
+  s_d1e837811db462::t_0996ce62649b36 1-20,22-60,62-148
+  s_d1e837811db462::t_3cce2e596d7bd5 21
+apps/desktop/src/renderer/features/conversation/tool-cards.browser.test.tsx
+  s_d1e837811db462::t_f6a45075d00046 247-271,273-276,278-280
+  s_d1e837811db462::t_2a2c184095e91c 272
+  s_d1e837811db462::t_0de722024687dd 277
+apps/server/src/application/session-runs.ts
+  s_d1e837811db462::t_8024fa69852f7e 64
+  s_d1e837811db462::t_d8d18de87f9776 157-158,844-852
+apps/desktop/src/renderer/features/trajectory/locales.ts
+  s_d1e837811db462::t_97026dca3ed02d 165,396
+packages/agent/src/session-entries/permissions.ts
+  s_d1e837811db462::t_49ac3ed6c07ab0 104-113,116-120,148
+apps/desktop/src/renderer/features/conversation/tool-states.tsx
+  s_d1e837811db462::t_76c821d6441537 66-68,127-128,131-138
+  s_d1e837811db462::t_b32896bd2621de 69-76
+packages/protocol/src/permissions.ts
+  s_d1e837811db462::t_49ac3ed6c07ab0 69-70,73,75-82
+packages/agent/src/observability/trace.ts
+  s_d1e837811db462::t_0d941a86884dd5 39,132
+tests/integration/sidecar-auto-review.test.ts
+  s_d1e837811db462::t_dc88b73ccd2803 34-36,108,111
+  s_d1e837811db462::t_5426a2759ed050 361-362
+  s_d1e837811db462::t_d5ef44fcee0085 105-106
+  s_d1e837811db462::t_74d6421527d6e2 1-33,37-59,61-76,78-104,107,109-110,112-149,156-175,181-214,221-236,240-256,260-266,272-273,279-292,299-360,363-368,375-376
+  s_d1e837811db462::t_b32896bd2621de 60,77,150-155,176-180,215-220,237-239,257-259,267-271,274-278,293-298,369-374
+packages/agent/src/policy/index.ts
+  s_d1e837811db462::t_57f9ef3252b18b 27
+  s_d1e837811db462::t_7474d5337ecea7 28
+.scratch/auto-review/issues/03-reviewer-allow-and-escalate.md
+  s_d1e837811db462::t_dc24ac14e461fe 11-30,33-49
+packages/i18n/src/dictionaries/en.ts
+  s_d1e837811db462::t_76c821d6441537 742-743
+packages/agent/src/policy/review.test.ts
+  s_d1e837811db462::t_5723584aef1b26 1-83,88-146
+  s_d1e837811db462::t_b32896bd2621de 84-87
+packages/agent/src/engine/permission-wiring.ts
+  s_d1e837811db462::t_5363ed52d774d3 19,87-88
+packages/agent/src/policy/gate-review.test.ts
+  s_d1e837811db462::t_2e37c913e4f9cd 1-45,50-122,124-128,130-253,259-304
+  s_d1e837811db462::t_d28f75e88a22aa 123,129
+  s_d1e837811db462::t_b32896bd2621de 46-49,254-258
+apps/server/src/application/sessions.ts
+  s_d1e837811db462::t_d8d18de87f9776 163-170,187
+  s_d1e837811db462::t_8024fa69852f7e 31
+packages/agent/src/engine/types.ts
+  s_d1e837811db462::t_5363ed52d774d3 280-281
+  s_d1e837811db462::t_57f9ef3252b18b 6
+packages/agent/src/goals/state.ts
+  s_d1e837811db462::t_b8afa608d350f9 369
+packages/agent/src/policy/review.ts
+  s_d1e837811db462::t_6e2774b942c6a1 1-45,47,49,60-69,72-127
+  s_d1e837811db462::t_d60b23618c6b49 46,48,50-51,58-59
+  s_d1e837811db462::t_b32896bd2621de 52-57,70-71
+packages/agent/src/session-entries/observability.ts
+  s_d1e837811db462::t_49ac3ed6c07ab0 10-20
+tests/integration/sidecar-permissions.test.ts
+  s_d1e837811db462::t_4e9408a974ee96 340-341,345
+packages/agent/src/policy/broker.ts
+  s_d1e837811db462::t_5363ed52d774d3 58-61,140-143
+packages/i18n/src/dictionaries/zh.ts
+  s_d1e837811db462::t_76c821d6441537 734-735
+packages/agent/src/policy/gate.ts
+  s_d1e837811db462::t_5363ed52d774d3 77-92,94-102,134-140,197-198,400-401,478-513,548
+  s_d1e837811db462::t_b32896bd2621de 93
+packages/agent/src/session-entries/session-entries.test.ts
+  s_d1e837811db462::t_69f9b505caccdd 169-196,199
+packages/protocol/src/trace.ts
+  s_d1e837811db462::t_0d941a86884dd5 83
+  s_d1e837811db462::t_49ac3ed6c07ab0 11-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "32c2e00f51e5757ee29ecb76b87d33f048cdf53f",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
