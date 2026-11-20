@@ -1,0 +1,26 @@
+apps/server/src/application/session-reviews.test.ts
+  s_d1e837811db462::t_c57ae1aa4b40dd 102-105,107-111,113-127
+  s_d1e837811db462::t_267e61df47eb4d 106,112
+tests/integration/sidecar-subagents-auto-review.test.ts
+  s_d1e837811db462::t_267e61df47eb4d 9-10
+  s_d1e837811db462::t_b4d7a6cc6821fa 4,30,34,123-150
+.scratch/auto-review/issues/08-subagent-review.md
+  s_d1e837811db462::t_c61000d55d84b6 26-44
+  s_d1e837811db462::t_bf7e2e773520be 11-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "3dec016829c9d702ee7e20dfeaec42dbfadbc4cb",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
