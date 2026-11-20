@@ -1,0 +1,31 @@
+tests/integration/sidecar-plan.test.ts
+  s_e66561215efab5::t_87840ee5c53db8 5,1013
+apps/desktop/src/renderer/features/sidebar/project-row.tsx
+  s_e66561215efab5::t_87840ee5c53db8 40
+tests/integration/sidecar-plugins.test.ts
+  s_e66561215efab5::t_87840ee5c53db8 125,207
+tests/integration/sidecar-todo.test.ts
+  s_e66561215efab5::t_87840ee5c53db8 3
+tests/integration/secrets-gate-todo.test.ts
+  s_e66561215efab5::t_87840ee5c53db8 3
+apps/desktop/e2e/sidebar-lists.e2e.test.ts
+  s_e66561215efab5::t_87840ee5c53db8 91
+tests/integration/sidecar-tool-search-keywords.test.ts
+  s_e66561215efab5::t_87840ee5c53db8 136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "f278e7e2ef0fa4036400209ab7b84ef117f81c7c",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
