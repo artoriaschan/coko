@@ -30,10 +30,11 @@ export class SessionTitles {
     this.#options = options
   }
 
-  start(id: string, placeholder: string, text: string, images: Pick<ImageAttachment, 'name'>[]): void {
+  /** shown：标题请求中给模型的文本（`@session:<id>` 已换成会话标题）；文件名仍从 text 解析。 */
+  start(id: string, placeholder: string, text: string, images: Pick<ImageAttachment, 'name'>[], shown = text): void {
     if (this.#pending.has(id)) return
     const controller = new AbortController()
-    const done = this.#generate(id, placeholder, text, images, controller)
+    const done = this.#generate(id, placeholder, text, images, controller, shown)
       .catch(() => {
         // Neither transport errors nor deletion may reject an already accepted first send. No raw errors/text in logs.
         log.info('title request finished', { outcome: 'unavailable' })
@@ -55,7 +56,14 @@ export class SessionTitles {
     await this.settle([...this.#pending.keys()])
   }
 
-  async #generate(id: string, placeholder: string, text: string, images: Pick<ImageAttachment, 'name'>[], controller: AbortController): Promise<void> {
+  async #generate(
+    id: string,
+    placeholder: string,
+    text: string,
+    images: Pick<ImageAttachment, 'name'>[],
+    controller: AbortController,
+    shown: string,
+  ): Promise<void> {
     const { store, sessions, registry, clock } = this.#options
     sessions.assertAdmission(id)
     const session = await store.sessions.getSession(id)
@@ -77,7 +85,7 @@ export class SessionTitles {
     let snapshot: ModelRequestSnapshot = { system: SYSTEM, messages: [], tools: [] }
     try {
       const filenames = [...parseFileReferences(text).map((reference) => basename(reference.path)), ...images.map((image) => image.name)]
-      const messages = redactSecretsDeep([{ role: 'user' as const, content: JSON.stringify({ text, filenames }), timestamp: clock.now() }])
+      const messages = redactSecretsDeep([{ role: 'user' as const, content: JSON.stringify({ text: shown, filenames }), timestamp: clock.now() }])
       const context = { systemPrompt: SYSTEM, messages }
       snapshot = captureRequestSnapshot(context)
       const request = Promise.resolve().then(() =>

@@ -1,5 +1,5 @@
 // 摘要请求（docs/subsystems/context.md#压缩）：合并 pi 的结构化摘要与增量更新（UPDATE）和 claude-code 的逐条用户消息与 Next Step 约束；
-// 不做 <analysis> 草稿。对话序列化为文本（模型不会接着对话），工具结果截断，思考省略；File Reference 与指令文件块缩为一行路径，图片标为
+// 不做 <analysis> 草稿。对话序列化为文本（模型不会接着对话），工具结果截断，思考省略；File Reference 与指令文件块缩为一行路径，Session Reference 块缩为一行标题，图片标为
 // 省略；输入超过上限时从最早处省略（先工具结果，再消息），摘要请求本身不会溢出。序列化参照 pi coding-agent 1.4.0
 // core/compaction/utils.ts 的 serializeConversation 与 formatFileOperations（MIT, Copyright (c) 2025 Mario Zechner）。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
@@ -88,11 +88,15 @@ type Block = { type: string; text?: string; name?: string; arguments?: unknown }
 
 /** 附加的文件内容块（File Reference、指令文件）：摘要只需知道附加了哪个文件，内容可再读取。 */
 const ATTACHED = /^<(file_reference|instruction_file) path="([^"]*)"[^>]*>[\s\S]*<\/\1>$/
+/** Session Reference 块：摘要只需知道附了哪次会话（标题），被引用会话的记录不进入摘要请求。 */
+const SESSION_ATTACHED = /^<session_reference id="[^"]*" title="([^"]*)">[\s\S]*<\/session_reference>$/
 const unescapeAttribute = (value: string) => value.replaceAll('&quot;', '"').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&')
 
 const blockText = (block: Block): string | undefined => {
   if (block.type === 'image') return '[image omitted]'
   if (block.type !== 'text' || typeof block.text !== 'string') return undefined
+  const session = SESSION_ATTACHED.exec(block.text.trim())
+  if (session) return `[session reference attached: ${unescapeAttribute(session[1]!)}]`
   const attached = ATTACHED.exec(block.text.trim())
   if (!attached) return block.text
   return `[${attached[1] === 'file_reference' ? 'file reference' : 'instruction file'} attached: ${unescapeAttribute(attached[2]!)}]`

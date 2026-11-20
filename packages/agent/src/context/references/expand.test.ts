@@ -230,4 +230,80 @@ describe('expandFileReferences：Session Reference', () => {
     expect(out.blocks[10]!.text).toBe(`<session_reference id="s1" title="方案 &quot;讨论&quot;">\n${SESSION_REFERENCE_NOTES.count}\n</session_reference>`)
     expect(out.sessionReferences).toEqual([{ status: 'skipped', truncated: false }])
   })
+
+  it('只附说明的块不占字节额度：恰好剩下的字节仍可用于之后的引用', async () => {
+    // 每个记录 `[User]: ` 加正文共 51,175 字节，4 个合计 204,700，剩 100 字节。
+    const exact: SessionReferenceResolution = {
+      status: 'attached',
+      title: 'exact',
+      entries: [{ seq: 1, kind: 'message', runId: 'r', payload: { role: 'user', content: 'u'.repeat(51_175 - 8), timestamp: 1 } }],
+    }
+    const out = await expandFileReferences('@session:other @session:e1 @session:e2 @session:e3 @session:e4 @session:self @session:s1', {
+      cwd: ws.dir,
+      rules: [],
+      resolveSession: async (id) => (id.startsWith('e') ? exact : sessions[id]),
+    })
+    expect(out.sessionReferences).toEqual([
+      { status: 'out-of-project', truncated: false },
+      ...Array.from({ length: 4 }, () => ({ status: 'attached', truncated: false })),
+      { status: 'not-referable', truncated: false },
+      { status: 'attached', truncated: false },
+    ])
+    expect(out.blocks.at(-1)!.text).toBe(
+      '<session_reference id="s1" title="方案 &quot;讨论&quot;">\n[User]: 用方案 A\n\n[Assistant]: 好的。\n</session_reference>',
+    )
+  })
+
+  it('与文件引用共用合计 200KB：接近上限的会话按剩余额度截断，放不下的附说明；范围之外的说明块不占字节额度', async () => {
+    const user = (seq: number, text: string) => ({ seq, kind: 'message', runId: 'r', payload: { role: 'user', content: text, timestamp: 1 } })
+    const attached = (title: string, ...texts: string[]): SessionReferenceResolution => ({
+      status: 'attached',
+      title,
+      entries: texts.map((t, i) => user(i + 1, t)),
+    })
+    const all: Record<string, SessionReferenceResolution> = {
+      ...sessions,
+      long: attached('long', ...[1, 2, 3].map((i) => `m${i} ${'x'.repeat(10_000)}`)),
+      fill: attached('fill', 'f'.repeat(5_000)),
+      tail: attached('tail', 't'.repeat(500)),
+    }
+    const tokens: string[] = []
+    // 4 个约 45KB 的文件先用掉约 180KB。
+    for (let i = 0; i < 4; i++) {
+      await ws.write(`big${i}.txt`, Array.from({ length: 450 }, () => 'y'.repeat(99)).join('\n'))
+      tokens.push(`@big${i}.txt`)
+    }
+    const out = await expandFileReferences(`${tokens.join(' ')} @session:other @session:long @session:fill @session:s1 @session:tail`, {
+      cwd: ws.dir,
+      rules: [],
+      resolveSession: async (id) => all[id],
+    })
+    expect(out.references.map((r) => [r.status, r.truncated])).toEqual(Array.from({ length: 4 }, () => ['file', false]))
+    expect(out.sessionReferences).toEqual([
+      { status: 'out-of-project', truncated: false },
+      { status: 'attached', truncated: true },
+      { status: 'attached', truncated: true },
+      { status: 'attached', truncated: false },
+      { status: 'skipped', truncated: false },
+    ])
+    const [, long, fill, s1, tail] = out.blocks.slice(4).map((b) => b.text)
+    // long 的三条消息约 30KB，剩余约 24KB：省略最早的一条，保留最近的两条。
+    expect(long!.startsWith('<session_reference id="long" title="long">\n[1 earlier message omitted to fit the session reference limit]\n\n[User]: m2 x')).toBe(
+      true,
+    )
+    expect(long).toContain('[User]: m3 x')
+    expect(long).not.toContain('m1 x')
+    // fill 只剩约 4.7KB：截断这一条消息；之后放得下的短记录照常附上。
+    expect(fill).toContain('[Message truncated to fit the session reference limit]')
+    expect(s1).toBe('<session_reference id="s1" title="方案 &quot;讨论&quot;">\n[User]: 用方案 A\n\n[Assistant]: 好的。\n</session_reference>')
+    // 剩余不足以放下任何记录内容：附超限说明，不附只有省略说明的块。
+    expect(tail).toBe(`<session_reference id="tail" title="tail">\n${SESSION_REFERENCE_NOTES.budget}\n</session_reference>`)
+    const body = (text: string) => text.slice(text.indexOf('\n') + 1, text.lastIndexOf('\n'))
+    const attachedBytes = out.blocks
+      .map((b) => body(b.text))
+      .filter((text) => !text.startsWith('[Not attached'))
+      .reduce((sum, text) => sum + Buffer.byteLength(text, 'utf-8'), 0)
+    expect(attachedBytes).toBeLessThanOrEqual(FILE_REFERENCE_MESSAGE_BYTES)
+    expect(attachedBytes).toBeGreaterThan(FILE_REFERENCE_MESSAGE_BYTES - 200)
+  })
 })

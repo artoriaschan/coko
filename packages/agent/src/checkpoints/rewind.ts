@@ -61,13 +61,22 @@ export interface RewindPlanOptions {
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
-/** 用户消息的文本（字符串或 text 块，块之间换行）。 */
+/** 随消息附上的 File Reference 与 Session Reference 块（docs/subsystems/context.md）：追加在用户输入的文本之后，不是用户输入的文本。 */
+const REFERENCE_BLOCK = /^<(file_reference path|session_reference id)="/
+
+/**
+ * 用户消息的文本（字符串或 text 块，块之间换行）。第一个文本块之后的引用块不返回：回到输入区的 `@path` 与 `@session:<id>` 再次提交时
+ * 重新展开。
+ */
 export function userMessageText(payload: unknown): string | undefined {
   if (!isRecord(payload) || payload.role !== 'user') return undefined
   const content = payload.content
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
-  return content.flatMap((block: unknown) => (isRecord(block) && block.type === 'text' && typeof block.text === 'string' ? [block.text] : [])).join('\n')
+  return content
+    .flatMap((block: unknown) => (isRecord(block) && block.type === 'text' && typeof block.text === 'string' ? [block.text] : []))
+    .filter((text, index) => index === 0 || !REFERENCE_BLOCK.test(text))
+    .join('\n')
 }
 
 /** 有效上下文中的用户消息（Checkpoint 锚点）；不是时抛 RewindTargetError。 */

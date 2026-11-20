@@ -21,8 +21,8 @@ const SEPARATOR = '\n\n'
 const SUMMARY_TRUNCATED = '[Summary truncated to fit the session reference limit]'
 const MESSAGE_TRUNCATED = '[Message truncated to fit the session reference limit]'
 const omittedNotice = (count: number) => `[${count} earlier ${count === 1 ? 'message' : 'messages'} omitted to fit the session reference limit]`
-/** 截断时为说明行（省略条数、截断标记与分隔）预留的字节。 */
-const NOTICE_RESERVE = 200
+/** 截断时为说明行（省略条数、截断标记与分隔）预留的字节；可用字节少于它时截断后的记录没有任何消息内容。 */
+export const NOTICE_RESERVE = 200
 /** 宿主附加在 user message 中的块：File Reference、Session Reference 与附件（@coko/protocol 的 attachmentReferenceText）。 */
 const HOST_BLOCK = /^<(file_reference path=|session_reference id=|coko_attachment>)/
 

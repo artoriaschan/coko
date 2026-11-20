@@ -14,7 +14,7 @@ import { resolveToCwd } from '../../tools/paths.ts'
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead } from '../../tools/truncate.ts'
 import type { EntryLike } from '../../entries/index.ts'
 import { parseFileReferences, parseSessionReferences } from './parse.ts'
-import { SESSION_REFERENCE_MAX_BYTES, SESSION_REFERENCE_NOTES, sessionReferenceBlock, sessionTranscript } from './session.ts'
+import { NOTICE_RESERVE, SESSION_REFERENCE_MAX_BYTES, SESSION_REFERENCE_NOTES, sessionReferenceBlock, sessionTranscript } from './session.ts'
 
 export const FILE_REFERENCE_MAX_COUNT = 10
 export const FILE_REFERENCE_MESSAGE_BYTES = 200 * 1024
@@ -176,8 +176,12 @@ export async function expandFileReferences(text: string, options: ExpandFileRefe
       else if (budget <= 0) pushSession('skipped', SESSION_REFERENCE_NOTES.budget)
       else {
         const transcript = sessionTranscript(session.entries, { maxBytes: Math.min(SESSION_REFERENCE_MAX_BYTES, budget) })
-        budget -= transcript.bytes
-        pushSession('attached', transcript.body, transcript.truncated)
+        // 剩余额度放不下完整记录、也不够截断后留下任何消息内容：与额度用尽相同，只附说明（不附只有省略说明的块，合计不超额度）。
+        if (transcript.truncated && budget < NOTICE_RESERVE) pushSession('skipped', SESSION_REFERENCE_NOTES.budget)
+        else {
+          budget -= transcript.bytes
+          pushSession('attached', transcript.body, transcript.truncated)
+        }
       }
       continue
     }
