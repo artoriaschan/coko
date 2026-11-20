@@ -5,16 +5,17 @@ import { definePayloads, type EntryJson } from './define.ts'
 const strict = { additionalProperties: false } as const
 const Id = Type.String({ minLength: 1 })
 
-/** Session 的 Permission Mode：四档（ADR 0005；规划是计划阶段而不是模式，ADR 0028）。 */
+/** Session 的 Permission Mode：五档（ADR 0005、ADR 0029；规划是计划阶段而不是模式，ADR 0028）。 */
 export const standardPermissionModeSchema = Type.Union([
   Type.Literal('read-only'),
   Type.Literal('default'),
   Type.Literal('accept-edits'),
+  Type.Literal('auto-review'),
   Type.Literal('full-access'),
 ])
 export type StandardPermissionMode = Static<typeof standardPermissionModeSchema>
 
-/** 与 standardPermissionModeSchema 相同（Permission Mode 只有四档，ADR 0028；保留旧名，免于改动全部引用）。 */
+/** 与 standardPermissionModeSchema 相同（规划不是 Permission Mode，ADR 0028；保留旧名，免于改动全部引用）。 */
 export const permissionModeSchema = standardPermissionModeSchema
 export type PermissionMode = StandardPermissionMode
 
@@ -29,12 +30,15 @@ export const permissionRuleSchema = Type.Object(
 )
 export type PermissionRule = Static<typeof permissionRuleSchema>
 
+/** v1–v3 的四档（没有 auto-review）：旧版本的 schema 保持不变。 */
+const legacyPermissionModeSchema = Type.Union([Type.Literal('read-only'), Type.Literal('default'), Type.Literal('accept-edits'), Type.Literal('full-access')])
+
 /** permission_mode v1：只有四档。 */
-const permissionModeV1Schema = Type.Object({ mode: standardPermissionModeSchema }, strict)
+const permissionModeV1Schema = Type.Object({ mode: legacyPermissionModeSchema }, strict)
 
 /** permission_mode v2（旧数据）：增加 plan；进入 plan 时 prior 为进入前的模式。 */
 const permissionModeV2Schema = Type.Object(
-  { mode: Type.Union([standardPermissionModeSchema, Type.Literal('plan')]), prior: Type.Optional(standardPermissionModeSchema) },
+  { mode: Type.Union([legacyPermissionModeSchema, Type.Literal('plan')]), prior: Type.Optional(legacyPermissionModeSchema) },
   strict,
 )
 
@@ -42,6 +46,9 @@ const permissionModeV2Schema = Type.Object(
  * permission_mode v3：只有四档，不带 prior（ADR 0028）。v2 的 plan 读为 prior（没有时 default），只在读取时于内存中升级，不改写数据库行；
  * 旧数据中没有 plan_phase，因此读回后不在规划中。
  */
+const permissionModeV3Schema = Type.Object({ mode: legacyPermissionModeSchema }, strict)
+
+/** permission_mode v4：五档，增加 auto-review（ADR 0029）；v3 原样迁移，不改写数据库行。 */
 export const permissionModePayloadSchema = Type.Object({ mode: standardPermissionModeSchema }, strict)
 export type PermissionModePayload = Static<typeof permissionModePayloadSchema>
 
@@ -114,12 +121,13 @@ export const permissionEntryPayloads = definePayloads({
     { schema: permissionModeV1Schema },
     { schema: permissionModeV2Schema, migrate: (previous: EntryJson) => previous },
     {
-      schema: permissionModePayloadSchema,
+      schema: permissionModeV3Schema,
       migrate: (previous: EntryJson) => {
         const { mode, prior } = previous as { mode: string; prior?: string }
         return { mode: mode === 'plan' ? (prior ?? 'default') : mode }
       },
     },
+    { schema: permissionModePayloadSchema, migrate: (previous: EntryJson) => previous },
   ],
   permission_rule: [{ schema: permissionRulePayloadSchema }],
   approval_request: [{ schema: approvalRequestPayloadSchema }],

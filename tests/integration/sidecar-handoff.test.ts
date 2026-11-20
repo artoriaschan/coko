@@ -86,7 +86,7 @@ describe('交接：摘要与目标 Session', { timeout: 120_000 }, () => {
       { content: SUMMARY, ...usage(300, 40) },
     ])
     const rule = { behavior: 'allow', tool: 'Bash', content: 'pnpm test *' }
-    expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'accept-edits' })).status).toBe(200)
+    expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'auto-review' })).status).toBe(200)
     expect((await h.api.post(permissionPaths.sessionPermissionRules(h.sessionId), { rule })).status).toBe(200)
     await h.send('start the login form')
     const before = h.stream.entries(h.sessionId).map((e) => e.seq)
@@ -133,7 +133,7 @@ describe('交接：摘要与目标 Session', { timeout: 120_000 }, () => {
       h.api.get(permissionPaths.sessionPermissionRules(targetId)),
     ])
     expect(targetPerms.body).toEqual(sourcePerms.body)
-    expect(targetPerms.body).toEqual({ mode: 'accept-edits', rules: [rule] })
+    expect(targetPerms.body).toEqual({ mode: 'auto-review', rules: [rule] })
     const [source, created] = await Promise.all([h.api.get(apiPaths.session(h.sessionId)), h.api.get(apiPaths.session(targetId))])
     expect(created.body.session).toMatchObject({ workspaceId: h.workspaceId, title: '接着实现登录页', running: false })
     expect(created.body.session.model).toEqual(source.body.session.model)

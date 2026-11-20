@@ -37,7 +37,7 @@ export async function resolveTarget(subject: string, cwd: string): Promise<Permi
 }
 
 /**
- * 模式对应的可写根（ADR 0005）：read-only 与规划中（ADR 0028）没有；default 与 accept-edits 为本 Run 的 Workspace 根集合与系统临时目录；
+ * 模式对应的可写根（ADR 0005）：read-only 与规划中（ADR 0028）没有；default、accept-edits 与 auto-review 为本 Run 的 Workspace 根集合与系统临时目录；
  * full-access 为根目录（文件写入只受拒绝规则与受保护路径约束）。与命令沙箱同一推导（sandbox.ts）。
  */
 export function writableRootsFor(

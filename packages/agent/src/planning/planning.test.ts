@@ -293,10 +293,13 @@ describe('complete_plan（createAgentRuntime）', () => {
     return { reports, asked: entries.some((e) => e.kind === 'approval_request'), results }
   }
 
-  it.each<PermissionMode>(['read-only', 'default', 'accept-edits', 'full-access'])('%s 下不询问：报告原样交给宿主，结果为完成文本', async (mode) => {
-    const report = '## 1. Read src/parse.ts\nDone; verified by `pnpm test`.'
-    expect(await run(report, { mode })).toEqual({ reports: [report], asked: false, results: [{ isError: false, text: COMPLETED }] })
-  })
+  it.each<PermissionMode>(['read-only', 'default', 'accept-edits', 'auto-review', 'full-access'])(
+    '%s 下不询问：报告原样交给宿主，结果为完成文本',
+    async (mode) => {
+      const report = '## 1. Read src/parse.ts\nDone; verified by `pnpm test`.'
+      expect(await run(report, { mode })).toEqual({ reports: [report], asked: false, results: [{ isError: false, text: COMPLETED }] })
+    },
+  )
 
   it('拒绝规则与询问规则照常生效', async () => {
     const denied = await run('# r', { mode: 'full-access', rules: [{ behavior: 'deny', tool: COMPLETE_PLAN_TOOL }] })

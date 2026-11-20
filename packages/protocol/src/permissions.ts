@@ -6,16 +6,17 @@ import { PLAN_MAX_CHARS } from './planning.ts'
 const strict = { additionalProperties: false } as const
 const Id = Type.String({ minLength: 1 })
 
-/** Permission Mode 的四档（ADR 0005；规划是计划阶段而不是模式，ADR 0028）。 */
+/** Permission Mode 的五档（ADR 0005、ADR 0029；规划是计划阶段而不是模式，ADR 0028）。 */
 export const StandardPermissionMode = Type.Union([
   Type.Literal('read-only'),
   Type.Literal('default'),
   Type.Literal('accept-edits'),
+  Type.Literal('auto-review'),
   Type.Literal('full-access'),
 ])
 export type StandardPermissionMode = Static<typeof StandardPermissionMode>
 
-/** 与 StandardPermissionMode 相同（Permission Mode 只有四档，ADR 0028；保留旧名，免于改动全部引用）。 */
+/** 与 StandardPermissionMode 相同（规划不是 Permission Mode，ADR 0028；保留旧名，免于改动全部引用）。 */
 export const PermissionMode = StandardPermissionMode
 export type PermissionMode = StandardPermissionMode
 
@@ -28,7 +29,7 @@ export const PermissionRule = Type.Object(
 )
 export type PermissionRule = Static<typeof PermissionRule>
 
-/** permission_mode v3：只有四档（旧数据的 plan 在读取时迁移为进入前的模式，缺省 default；ADR 0028）。 */
+/** permission_mode v4：五档（v3 原样迁移；更早数据的 plan 在读取时迁移为进入前的模式，缺省 default；ADR 0028、ADR 0029）。 */
 export const PermissionModePayload = Type.Object({ mode: PermissionMode }, strict)
 export type PermissionModePayload = Static<typeof PermissionModePayload>
 
@@ -157,7 +158,7 @@ export const UpdatePermissionsRequest = Type.Union([
 ])
 export type UpdatePermissionsRequest = Static<typeof UpdatePermissionsRequest>
 
-/** PUT /api/sessions/:id/permission-mode：四档之一（plan 为 400；进入与退出规划经 POST …/plan，ADR 0028）。不改变计划阶段。 */
+/** PUT /api/sessions/:id/permission-mode：五档之一（plan 为 400；进入与退出规划经 POST …/plan，ADR 0028）。不改变计划阶段。 */
 export const SetPermissionModeRequest = Type.Object({ mode: StandardPermissionMode }, strict)
 export type SetPermissionModeRequest = Static<typeof SetPermissionModeRequest>
 
@@ -178,8 +179,8 @@ export const permissionPaths = {
   sessionPermissionRules: (id: string) => `/api/sessions/${encodeURIComponent(id)}/permission-rules`,
 } as const
 
-/** Shift+Tab 循环的三档；full-access 只能显式选择。 */
-export const CYCLED_PERMISSION_MODES = ['read-only', 'default', 'accept-edits'] as const satisfies readonly PermissionMode[]
+/** Shift+Tab 循环的四档；full-access 只能显式选择。 */
+export const CYCLED_PERMISSION_MODES = ['read-only', 'default', 'accept-edits', 'auto-review'] as const satisfies readonly PermissionMode[]
 
 const escapeContent = (content: string) => content.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')
 const unescapeContent = (content: string) => content.replace(/\\([\\()])/g, '$1')

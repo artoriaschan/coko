@@ -1,4 +1,4 @@
-// 新对话草稿的持久化配置：升级前残留的 permissionMode 'plan'（Permission Mode 只剩四档，ADR 0028）按未设置读取，草稿的其余配置保留。
+// 新对话草稿的持久化配置：升级前残留的 permissionMode 'plan'（规划不是 Permission Mode，ADR 0028）按未设置读取，草稿的其余配置保留。
 import { describe, expect, it } from 'vitest'
 import { createNewChatStore, NEW_CHAT_CONFIG_KEY } from './new-chat-store.ts'
 
@@ -22,7 +22,8 @@ describe('新对话草稿的 permissionMode', () => {
     expect([state.permissionMode, state.draftId, state.thinkingLevel, state.projectId]).toEqual([null, 'd1', 'high', 'p1'])
   })
 
-  it('四档之一原样读回', () => {
-    expect(createNewChatStore(storageWith({ ...saved, permissionMode: 'accept-edits' })).getState().permissionMode).toBe('accept-edits')
+  it('五档之一原样读回（含 auto-review）', () => {
+    for (const mode of ['read-only', 'default', 'accept-edits', 'auto-review', 'full-access'])
+      expect(createNewChatStore(storageWith({ ...saved, permissionMode: mode })).getState().permissionMode).toBe(mode)
   })
 })

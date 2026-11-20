@@ -505,6 +505,22 @@ describe('对手用例（权限）', () => {
     await h.sidecar.stop()
   })
 
+  it('auto-review 下 Hook 输入的 permission_mode 为 auto-review；Workspace 内写入照常免审批', async () => {
+    const root = await realpath(await tempDir())
+    const record = join(root, 'stdin.jsonl')
+    const h = await boot([{ content: [write('w1', 'w.txt')] }, { content: 'ok' }], {
+      root,
+      hooks: { PreToolUse: [group(hookCommand('--record', record))] },
+    })
+    const sessionId = await h.open('auto-review')
+    await h.send(sessionId)
+    await h.runEnds(sessionId, 1)
+    expect(await readFile(join(h.root, 'w.txt'), 'utf8')).toBe('x')
+    expect(h.stream.entries(sessionId).filter((e) => e.kind === 'approval_request')).toEqual([])
+    expect((await lines(record)).map((line) => (JSON.parse(line) as { permission_mode: string }).permission_mode)).toEqual(['auto-review'])
+    await h.sidecar.stop()
+  })
+
   it.skipIf(!darwin)('全局 Hook 的 allow 不免掉提权（escalation 卡）与 plan-exit（计划审阅）', async () => {
     const outside = await realpath(await tempDir('coko-outside-'))
     const escalated = { sandbox_permissions: 'danger-full-access', justification: 'outside the workspace' }

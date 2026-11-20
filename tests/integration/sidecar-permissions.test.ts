@@ -1,8 +1,10 @@
 // 权限模式、规则作用域与重新判定：真实 Sidecar（faux 模型）经协议驱动，重启后读回规则与模式。
-import { access, readFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import { API_ROUTES, apiPaths, permissionPaths, type SessionEntryRecord } from '@coko/protocol'
+import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, type SessionEntryRecord } from '@coko/protocol'
 import {
   client,
   connect,
@@ -332,5 +334,123 @@ describe('规则工具名（大小写与别名）', () => {
     ])
     expect(await exists(join(root, 'victim'))).toBe(true)
     expect(await exists(join(root, 'secret.txt'))).toBe(false)
+  })
+})
+
+describe('auto-review 的取值与入口（票 02：尚未接入 Reviewer，判定与 accept-edits 相同）', () => {
+  it('切到 auto-review 后读回；可写根内编辑免审批；未被规则覆盖的命令出现普通审批请求；重启后模式仍在', async () => {
+    const root = await tempDir()
+    const dirs = await sidecarDirs()
+    const first = await boot(root, dirs, [
+      { content: [write('w1', 'w.txt')] },
+      { content: 'ok' },
+      { content: [bash('b1', 'printf a > a.txt')] },
+      { content: 'ok' },
+    ])
+    const workspaceId = (await first.api.post(API_ROUTES.workspaces, { path: root })).body.id as string
+    const sessionId = await newSession(first.api, first.stream, workspaceId)
+    expect((await first.api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'auto-review' })).body).toEqual({ mode: 'auto-review', rules: [] })
+    expect((await first.api.get(permissionPaths.sessionPermissionRules(sessionId))).body).toEqual({ mode: 'auto-review', rules: [] })
+
+    expect(await runToEnd(first.api, first.stream, sessionId)).toBe(0)
+    expect(await readFile(join(root, 'w.txt'), 'utf8')).toBe('x')
+
+    await first.api.post(apiPaths.sessionMessages(sessionId), { text: 'go' })
+    const asked = await waitApproval(first.stream, sessionId)
+    expect(asked).toMatchObject({ kind: 'tool', toolName: 'bash', subject: 'printf a > a.txt' })
+    expect(asked.suggestions).toEqual([{ behavior: 'allow', tool: 'Bash', content: 'printf a > a.txt' }])
+    expect((await first.api.post(apiPaths.sessionApproval(sessionId, asked.requestId), { decision: 'deny', feedback: 'no' })).status).toBe(204)
+    await first.stream.waitFor(() => first.stream.entries(sessionId).filter((e) => e.kind === 'run_end').length >= 2)
+    expect(await exists(join(root, 'a.txt'))).toBe(false)
+    expect(first.stream.invalidEntries).toEqual([])
+    await first.sidecar.stop()
+
+    const second = await boot(root, dirs, [], 'faux-2.json')
+    expect((await second.api.get(permissionPaths.sessionPermissionRules(sessionId))).body).toEqual({ mode: 'auto-review', rules: [] })
+    const entries = (await second.api.get(apiPaths.session(sessionId))).body.entries as SessionEntryRecord[]
+    expect(entries.filter((e) => e.kind === 'permission_mode').map((e) => [e.payloadVersion, e.payload])).toEqual([
+      [4, { mode: 'default' }],
+      [4, { mode: 'auto-review' }],
+    ])
+    // 分叉出的新 Session 模式相同（交接见 sidecar-handoff.test.ts）。
+    const userSeq = entries.find((e) => kindOf(e) === 'user')!.seq
+    const forked = await second.api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: userSeq })
+    expect(forked.status).toBe(201)
+    expect((await second.api.get(permissionPaths.sessionPermissionRules(forked.body.sessionId as string))).body).toEqual({ mode: 'auto-review', rules: [] })
+    await second.sidecar.stop()
+  })
+
+  it('首次发送与默认模式设置接受 auto-review；项目设置文件中的默认模式照旧被忽略', async () => {
+    const root = await tempDir()
+    await mkdir(join(root, '.coko'), { recursive: true })
+    await writeFile(join(root, '.coko', 'settings.json'), JSON.stringify({ permissions: { defaultMode: 'full-access' } }))
+    const { api, stream, sidecar } = await boot(root, await sidecarDirs(), [{ content: 'first' }])
+
+    const sent = await api.post(API_ROUTES.firstSend, { draftId: 'auto-review-first-send', text: 'hello', permissionMode: 'auto-review' })
+    expect(sent.status).toBe(201)
+    expect((await api.get(permissionPaths.sessionPermissionRules(sent.body.session.id as string))).body).toEqual({ mode: 'auto-review', rules: [] })
+
+    const workspaceId = (await api.post(API_ROUTES.workspaces, { path: root })).body.id as string
+    // 项目设置文件中的 defaultMode 不生效：新 Session 仍为全局默认（default）。
+    expect(stream.entries(await newSession(api, stream, workspaceId))[0]).toMatchObject({ kind: 'permission_mode', payload: { mode: 'default' } })
+    expect((await api.put(permissionPaths.permissions, { target: 'defaultMode', value: 'auto-review', expectedRevision: 0 })).body.defaultMode).toEqual({
+      value: 'auto-review',
+      revision: 1,
+    })
+    expect(stream.entries(await newSession(api, stream, workspaceId))[0]).toMatchObject({ kind: 'permission_mode', payload: { mode: 'auto-review' } })
+    await sidecar.stop()
+  })
+
+  it('旧数据：permission_mode v3 读回为 v4（四档原样），库中行不改写', async () => {
+    const root = await tempDir()
+    const dirs = await sidecarDirs()
+    const before = await boot(root, dirs, [])
+    const workspaceId = (await before.api.post(API_ROUTES.workspaces, { path: root })).body.id as string
+    const sessionId = (await before.api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
+    await before.sidecar.stop()
+    // 升级前的版本写下的 v3 条目：经存储的公开接口在 Sidecar 停止时写入。
+    execFileSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `
+      const { openSqliteStore } = await import(process.argv[1]);
+      const { createPayloadRegistry } = await import(process.argv[4]);
+      const { SESSION_ENTRY_PAYLOADS } = await import(process.argv[5]);
+      const store = await openSqliteStore({ path: process.argv[2], payloads: createPayloadRegistry(SESSION_ENTRY_PAYLOADS) });
+      try {
+        await store.sessions.appendEntries(process.argv[3], [{ kind: 'permission_mode', payloadVersion: 3, payload: { mode: 'accept-edits' } }]);
+      } finally { await store.close(); }
+    `,
+        new URL('../../packages/session/src/sqlite/index.ts', import.meta.url).href,
+        join(dirs.dataDir, 'coko.db'),
+        sessionId,
+        new URL('../../packages/session/src/payloads.ts', import.meta.url).href,
+        new URL('../../packages/agent/src/session-entries/index.ts', import.meta.url).href,
+      ],
+      { stdio: 'pipe' },
+    )
+
+    const after = await boot(root, dirs, [], 'faux-2.json')
+    expect((await after.api.get(permissionPaths.sessionPermissionRules(sessionId))).body).toEqual({ mode: 'accept-edits', rules: [] })
+    const entries = (await after.api.get(apiPaths.session(sessionId))).body.entries as SessionEntryRecord[]
+    expect(entries.filter((e) => e.kind === 'permission_mode').map((e) => [e.payloadVersion, e.payload])).toEqual([
+      [4, { mode: 'default' }],
+      [4, { mode: 'accept-edits' }],
+    ])
+    const db = new DatabaseSync(join(dirs.dataDir, 'coko.db'), { readOnly: true })
+    try {
+      const rows = db
+        .prepare("SELECT payload_version, payload FROM session_entries WHERE kind = 'permission_mode' AND session_id = ? ORDER BY seq")
+        .all(sessionId)
+      expect(rows.map((row) => [row.payload_version, JSON.parse(String(row.payload))])).toEqual([
+        [4, { mode: 'default' }],
+        [3, { mode: 'accept-edits' }],
+      ])
+    } finally {
+      db.close()
+    }
+    await after.sidecar.stop()
   })
 })

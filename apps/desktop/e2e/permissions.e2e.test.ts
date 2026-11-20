@@ -1,4 +1,4 @@
-// 权限模式与规则：真实 Electron + 真实 Sidecar（faux）。Shift+Tab 循环三档、full-access 警示、Permissions 分区增删规则、
+// 权限模式与规则：真实 Electron + 真实 Sidecar（faux）。Shift+Tab 循环四档、full-access 警示、Permissions 分区增删规则、
 // 审批卡的"总是允许"下拉（越界写入不显示）。
 import { randomBytes } from 'node:crypto'
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -50,7 +50,7 @@ async function openPermissions(app: LaunchedApp) {
 }
 
 describe('权限模式选择', () => {
-  it('Shift+Tab 在只读、默认、自动接受编辑之间循环且不进入 full-access；菜单选 full-access 后有警示样式并免审批', async () => {
+  it('Shift+Tab 在只读、默认、帮我批准、自动审查之间循环且不进入 full-access；菜单选 full-access 后有警示样式并免审批', async () => {
     const { app, workspace } = await setup({ responses: [{ content: 'hello' }, { content: [bash('b1', 'printf hi > full.txt')] }, { content: 'done' }] })
     await send(app, 'start')
     // 首次发送接受并渲染真实 Session 后再测试会话模式，发送按钮在新对话中也已存在。
@@ -60,12 +60,12 @@ describe('权限模式选择', () => {
 
     await composer(app).click()
     const seen: (string | null)[] = []
-    for (const mode of ['accept-edits', 'read-only', 'default', 'accept-edits']) {
+    for (const mode of ['accept-edits', 'auto-review', 'read-only', 'default', 'accept-edits']) {
       await composer(app).press('Shift+Tab')
       await expect.poll(() => modePicker(app).getAttribute('data-permission-mode')).toBe(mode)
       seen.push(await modePicker(app).getAttribute('data-permission-mode'))
     }
-    expect(seen).toEqual(['accept-edits', 'read-only', 'default', 'accept-edits'])
+    expect(seen).toEqual(['accept-edits', 'auto-review', 'read-only', 'default', 'accept-edits'])
     // 焦点留在编辑区。
     expect(await composer(app).evaluate((el) => el === document.activeElement)).toBe(true)
     await app.window.mouse.move(0, 0)

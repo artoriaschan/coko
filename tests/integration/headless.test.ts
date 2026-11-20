@@ -100,11 +100,22 @@ describe('headless', { timeout: 120_000 }, () => {
     expect(out.stderr).toMatch(/coko headless: .+\nUsage:/)
   })
 
-  it('--permission-mode plan 是参数错误（规划不是 Permission Mode，ADR 0028）：退出 4，stderr 列出四个合法取值', async () => {
+  it('--permission-mode plan 是参数错误（规划不是 Permission Mode，ADR 0028）：退出 4，stderr 列出五个合法取值（错误与用法说明）', async () => {
     const dirs = await sidecarDirs()
     const out = await runHeadless(dirs, baseArgs(dirs, '--workspace', '/tmp', '--prompt', 'x', '--permission-mode', 'plan'))
     expect([out.code, out.stdout]).toEqual([4, ''])
-    expect(out.stderr).toContain('coko headless: --permission-mode must be one of read-only, default, accept-edits, full-access\nUsage:')
+    expect(out.stderr).toContain('coko headless: --permission-mode must be one of read-only, default, accept-edits, auto-review, full-access\nUsage:')
+    expect(out.stderr).toContain('[--permission-mode read-only|default|accept-edits|auto-review|full-access]')
+  })
+
+  it('--permission-mode auto-review 被接受：退出 0，Session 的模式条目切到 auto-review（v4）', async () => {
+    const h = await setup([{ content: 'reviewed' }])
+    const out = await runHeadless(h.dirs, baseArgs(h.dirs, '--workspace', h.root, '--prompt', 'hello', '--permission-mode', 'auto-review'), h.env)
+    expect([out.code, out.stdout]).toEqual([0, 'reviewed\n'])
+    expect(dbRows(h.dirs, "SELECT payload_version, payload FROM session_entries WHERE kind = 'permission_mode' ORDER BY seq")).toEqual([
+      { payload_version: 4, payload: JSON.stringify({ mode: 'default' }) },
+      { payload_version: 4, payload: JSON.stringify({ mode: 'auto-review' }) },
+    ])
   })
 
   it('启动后的参数错误（--session 不存在、Workspace 不存在）：退出 4，json 输出为 failed', async () => {

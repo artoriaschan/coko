@@ -29,12 +29,13 @@ export interface HeadlessArgs {
   ripgrep?: string
 }
 
+const MODES: readonly StandardPermissionMode[] = ['read-only', 'default', 'accept-edits', 'auto-review', 'full-access']
+
 export const USAGE = `Usage: headless.mjs --data-dir <dir> (--workspace <dir> | --session <id>) (--prompt <text> | --prompt-file <file>)
-  [--session <id>] [--provider-config <file>] [--model <providerId/modelId>] [--permission-mode <mode>]
+  [--session <id>] [--provider-config <file>] [--model <providerId/modelId>] [--permission-mode ${MODES.join('|')}]
   [--output text|json|stream-json] [--max-turns <n>] [--on-approval deny|fail] [--log-dir <dir>] [--ripgrep <path>]
 `
 
-const MODES: readonly StandardPermissionMode[] = ['read-only', 'default', 'accept-edits', 'full-access']
 const OUTPUTS: readonly OutputFormat[] = ['text', 'json', 'stream-json']
 const VALUED = new Set([
   '--data-dir',

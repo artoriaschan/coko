@@ -32,8 +32,8 @@ const NAME = /^[a-z0-9-]{1,64}$/
 const MODEL = /^[^/\s]+\/[^\s]+$/
 const THINKING = new Set<string>(THINKING_LEVELS)
 
-/** 模式的宽窄：read-only < default < accept-edits < full-access（ADR 0014）。 */
-export const PERMISSION_MODE_ORDER: readonly StandardPermissionMode[] = ['read-only', 'default', 'accept-edits', 'full-access']
+/** 模式的宽窄：read-only < default < accept-edits < auto-review < full-access（ADR 0014、ADR 0029）。 */
+export const PERMISSION_MODE_ORDER: readonly StandardPermissionMode[] = ['read-only', 'default', 'accept-edits', 'auto-review', 'full-access']
 const MODES = new Set<string>(PERMISSION_MODE_ORDER)
 const modeRank = (mode: PermissionMode) => PERMISSION_MODE_ORDER.indexOf(mode)
 
@@ -158,7 +158,7 @@ export function parseAgentDefinition(content: string, options: ParseAgentOptions
   let permissionMode: StandardPermissionMode | undefined
   if (fm['permission-mode'] !== undefined) {
     if (typeof fm['permission-mode'] !== 'string' || !MODES.has(fm['permission-mode']))
-      return invalid('permission-mode must be read-only, default, accept-edits or full-access')
+      return invalid('permission-mode must be read-only, default, accept-edits, auto-review or full-access')
     permissionMode = fm['permission-mode'] as StandardPermissionMode
   }
   let maxTurns = AGENT_DEFAULT_MAX_TURNS

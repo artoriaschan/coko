@@ -100,7 +100,7 @@ describe('Skill 调用', () => {
     '<available_skills> 列出可由模型调用的 Skill；skill 工具在各模式下都不审批；读 Skill 目录内的文件不审批，bash 运行其脚本仍审批（allowed-tools: Bash(*) 不放行）',
     { timeout: 120_000 },
     async () => {
-      const modes = ['read-only', 'default', 'accept-edits', 'full-access']
+      const modes = ['read-only', 'default', 'accept-edits', 'auto-review', 'full-access']
       const { api, stream, newSession, requests, dirs, workspaceDir, agentsHome, sidecar } = await boot(({ cokoHome, workspaceDir }) => [
         ...modes.flatMap((_, i) => [{ content: [toolCall(`s${i}`, 'skill', { name: 'notes', args: 'weekly sync' })] }, { content: 'loaded' }]),
         { content: [toolCall('r1', 'read', { path: join(cokoHome, 'skills/notes/reference.md') })] },

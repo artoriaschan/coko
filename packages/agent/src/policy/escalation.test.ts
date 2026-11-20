@@ -218,7 +218,7 @@ describe('规划中（计划阶段，ADR 0028）', () => {
     await expect(realpath(ws.path('new.txt'))).rejects.toThrow(/ENOENT/)
   })
 
-  it.each(['default', 'accept-edits', 'full-access'] as const)('%s 模式下命令以 read-only 沙箱运行，可写根为空', async (mode) => {
+  it.each(['default', 'accept-edits', 'auto-review', 'full-access'] as const)('%s 模式下命令以 read-only 沙箱运行，可写根为空', async (mode) => {
     const exec = recordingExec()
     const h = harness({ mode, planning: true, rules: [allowBash], exec: exec.port })
     h.faux.setResponses([fauxAssistantMessage(bash('b1', {}), { stopReason: 'toolUse' }), fauxAssistantMessage('done')])

@@ -6,7 +6,7 @@ import { MemoryScope } from '@coko/protocol'
 import { Type, type Static } from 'typebox'
 import { Value } from 'typebox/value'
 
-export type EvalPermissionMode = 'read-only' | 'default' | 'accept-edits' | 'full-access'
+export type EvalPermissionMode = 'read-only' | 'default' | 'accept-edits' | 'auto-review' | 'full-access'
 
 export interface EvalExpect {
   /** 相对 Workspace 的路径 → 完整内容，或 "/正则/"（JavaScript 语法，不带标志）。 */
