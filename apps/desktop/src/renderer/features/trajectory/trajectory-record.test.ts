@@ -73,6 +73,7 @@ it('retains failed requests, incomplete tools and live output without duplicatin
       accepting: true,
       blocks: [{ kind: 'text', text: 'Still working' }],
       tools: { call: { toolCallId: 'call', toolName: 'read', args: { path: 'a.ts' }, status: 'running', partialResult: 'partial output' } },
+      reviewing: {},
     },
   )
   expect(cells.filter((cell) => cell.toolCallId === 'call')).toHaveLength(1)

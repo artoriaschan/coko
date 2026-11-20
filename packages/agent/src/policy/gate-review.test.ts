@@ -5,7 +5,7 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createAgentRuntime } from '../engine/runtime.ts'
-import type { RunEntry } from '../engine/types.ts'
+import type { ProgressEvent, RunEntry } from '../engine/types.ts'
 import type { HookVerdict } from '../extensions/hooks/types.ts'
 import { createLocalExecPort } from '../ports/local-exec.ts'
 import type { ApprovalReview, PermissionMode, PermissionRule } from '../session-entries/index.ts'
@@ -50,6 +50,7 @@ function harness(setup: Setup) {
   registry.register(plain('mcp__docs__search', 'Search the docs.'))
   registry.register(plain('schedule_create'), { permissionClass: 'automation' })
   const entries: RunEntry[] = []
+  const progress: ProgressEvent[] = []
   const waiters = new Set<() => void>()
   const reviews: ReviewRequest[] = []
   const state = { mode: setup.mode ?? 'auto-review' }
@@ -71,6 +72,7 @@ function harness(setup: Setup) {
     },
   })
   runtime.subscribe((event) => {
+    if (event.kind === 'progress') progress.push(event.event)
     if (event.kind !== 'entry') return
     entries.push(event.entry)
     for (const waiter of waiters) waiter()
@@ -88,7 +90,7 @@ function harness(setup: Setup) {
     })
   const script = (...calls: ReturnType<typeof fauxToolCall>[]) =>
     faux.setResponses([fauxAssistantMessage(calls, { stopReason: 'toolUse' }), fauxAssistantMessage('done')])
-  return { faux, runtime, entries, reviews, state, approval, script }
+  return { faux, runtime, entries, progress, reviews, state, approval, script }
 }
 
 const exists = (path: string) =>
@@ -333,5 +335,157 @@ describe('不经 Reviewer 的调用', () => {
 
     expect([denied.reviews.length, hookAllowed.reviews.length, hookDenied.reviews.length, undecided.reviews.length]).toEqual([0, 0, 0, 1])
     expect(decisions(undecided.entries).map((d) => d.by)).toEqual(['reviewer'])
+  })
+})
+
+/** 受控 promise：交叠位置由测试决定（审查进行中时做某事，再放出结论）。 */
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((r) => (resolve = r))
+  return { promise, resolve }
+}
+
+/** 审查端口被调用时通知测试，结论由测试放出（不理会 signal：迟到的结论也会到达）。 */
+function heldReview() {
+  const started = deferred<AbortSignal | undefined>()
+  const outcome = deferred<ReviewOutcome>()
+  return {
+    started: started.promise,
+    release: outcome.resolve,
+    review: (_request: ReviewRequest, signal?: AbortSignal) => (started.resolve(signal), outcome.promise),
+  }
+}
+
+describe('审查中与时序', () => {
+  it('送审时先发出 review_start 进度（调用端口之前），不入库；不送审的调用没有它', async () => {
+    const held = heldReview()
+    const h = harness({ rules: [{ behavior: 'allow', tool: 'Bash', content: 'printf a *' }], review: held.review })
+    h.script(bash('b0', 'printf a > a.txt'), bash('b1', 'printf hi > out.txt'))
+    const pending = h.runtime.run('go')
+    await held.started
+    const runId = (h.progress.find((e) => e.type === 'run_start') as { runId: string }).runId
+    expect(h.progress.filter((e) => e.type === 'review_start')).toEqual([{ type: 'review_start', runId, toolCallId: 'b1', toolName: 'bash' }])
+    held.release(allow)
+    await pending
+    expect(h.progress.filter((e) => e.type === 'review_start')).toHaveLength(1)
+    expect(h.entries.map((e) => e.kind)).not.toContain('review_start')
+  })
+
+  it('审查途中切到 default：放行结论不生效，出现普通审批请求；之后的重新判定不再送审', async () => {
+    const held = heldReview()
+    const h = harness({ review: held.review })
+    h.script(bash('b1', 'printf hi > out.txt'))
+    const pending = h.runtime.run('go')
+    await held.started
+    h.state.mode = 'default'
+    held.release(allow)
+    const asked = await h.approval()
+    expect(asked.payload).toMatchObject({ toolCallId: 'b1', suggestions: [{ behavior: 'allow', tool: 'Bash', content: 'printf hi > out.txt' }] })
+    expect(asked.payload).not.toHaveProperty('review')
+    expect(decisions(h.entries)).toEqual([])
+    h.state.mode = 'auto-review'
+    await h.runtime.answerApproval(asked.payload.requestId, { decision: 'reevaluate' })
+    expect(h.runtime.pendingApprovals.map((p) => p.requestId)).toEqual([asked.payload.requestId])
+    await h.runtime.answerApproval(asked.payload.requestId, { decision: 'allow' })
+    await pending
+    expect(await exists(ws.path('out.txt'))).toBe(true)
+    expect(decisions(h.entries)).toEqual([{ requestId: asked.payload.requestId, outcome: 'allowed', scope: 'once' }])
+    expect(h.reviews).toHaveLength(1)
+  })
+
+  it('审查途中切到 full-access：调用按模式放行执行，没有审批条目（转交结论同样作废）', async () => {
+    const held = heldReview()
+    const h = harness({ review: held.review })
+    h.script(bash('b1', 'printf hi > out.txt'))
+    const pending = h.runtime.run('go')
+    await held.started
+    h.state.mode = 'full-access'
+    held.release({ verdict: 'escalate', reason: 'Not sure.' })
+    expect((await pending).status).toBe('completed')
+    expect(await exists(ws.path('out.txt'))).toBe(true)
+    expect(h.entries.filter((e) => e.kind === 'approval_request' || e.kind === 'approval_decision')).toEqual([])
+  })
+
+  it('审查途中新增匹配的拒绝规则：调用以规则拒绝；新增询问规则：直接询问，不重审', async () => {
+    const rules: PermissionRule[] = []
+    const held = heldReview()
+    const h = harness({ rules, review: held.review })
+    h.script(bash('b1', 'printf hi > out.txt'))
+    const pending = h.runtime.run('go')
+    await held.started
+    rules.push({ behavior: 'deny', tool: 'Bash', content: 'printf *' })
+    held.release(allow)
+    await pending
+    expect(await exists(ws.path('out.txt'))).toBe(false)
+    expect(text(toolResults(h.entries)[0]!)).toBe('Permission denied by rule Bash(printf *).')
+    expect(h.entries.filter((e) => e.kind === 'approval_request' || e.kind === 'approval_decision')).toEqual([])
+
+    const again = heldReview()
+    const asking: PermissionRule[] = []
+    const h2 = harness({ rules: asking, review: again.review })
+    h2.script(bash('b2', 'printf hi > out.txt'))
+    const second = h2.runtime.run('go')
+    await again.started
+    asking.push({ behavior: 'ask', tool: 'Bash', content: 'printf *' })
+    again.release(allow)
+    const asked = await h2.approval()
+    expect(asked.payload.toolCallId).toBe('b2')
+    await h2.runtime.answerApproval(asked.payload.requestId, { decision: 'deny', feedback: 'no' })
+    await second
+    expect(h2.reviews).toHaveLength(1)
+    expect(decisions(h2.entries).map((d) => d.by)).toEqual([undefined])
+  })
+
+  it.each<[string, (h: ReturnType<typeof harness>) => void, string, string]>([
+    ['停止', (h) => h.runtime.abort(), 'Operation aborted', 'aborted'],
+    ['暂停', (h) => h.runtime.pause(), 'Not run: the user paused the run before this call was approved.', 'paused'],
+  ])('%s：进行中的审查收到中止信号；之后到达的放行结论不生效，没有审批条目', async (_name, interrupt, resultText, status) => {
+    const held = heldReview()
+    const h = harness({ review: held.review })
+    h.script(bash('b1', 'printf hi > out.txt'))
+    const pending = h.runtime.run('go')
+    const signal = await held.started
+    interrupt(h)
+    expect(signal?.aborted).toBe(true)
+    held.release(allow)
+    expect((await pending).status).toBe(status)
+    expect(await exists(ws.path('out.txt'))).toBe(false)
+    expect(text(toolResults(h.entries)[0]!)).toBe(resultText)
+    expect(h.entries.filter((e) => e.kind === 'approval_request' || e.kind === 'approval_decision')).toEqual([])
+    expect(h.reviews).toHaveLength(1)
+  })
+
+  it('每次调用至多审查一次：转交后的请求被重新判定并重新询问时不送审', async () => {
+    const rules: PermissionRule[] = []
+    const h = harness({ rules, review: () => ({ verdict: 'escalate', reason: 'Not sure.' }) })
+    h.script(bash('b1', 'printf hi > out.txt'))
+    const pending = h.runtime.run('go')
+    const first = await h.approval()
+    rules.push({ behavior: 'ask', tool: 'Bash', content: 'printf *' })
+    await h.runtime.answerApproval(first.payload.requestId, { decision: 'reevaluate' })
+    const second = await h.approval(2)
+    expect(second.payload).toMatchObject({ toolCallId: 'b1', suggestions: [] })
+    await h.runtime.answerApproval(second.payload.requestId, { decision: 'allow' })
+    await pending
+    expect(await exists(ws.path('out.txt'))).toBe(true)
+    expect(h.reviews).toHaveLength(1)
+    expect(decisions(h.entries).map((d) => [d.outcome, d.by])).toEqual([
+      ['superseded', undefined],
+      ['allowed', undefined],
+    ])
+  })
+
+  it('切换到 auto-review 时已在等待的请求保持等待，没有审查请求', async () => {
+    const h = harness({ mode: 'default', review: () => allow })
+    h.script(bash('b1', 'printf hi > out.txt'))
+    const pending = h.runtime.run('go')
+    const asked = await h.approval()
+    h.state.mode = 'auto-review'
+    await h.runtime.answerApproval(asked.payload.requestId, { decision: 'reevaluate' })
+    expect(h.runtime.pendingApprovals.map((p) => p.requestId)).toEqual([asked.payload.requestId])
+    await h.runtime.answerApproval(asked.payload.requestId, { decision: 'deny', feedback: 'no' })
+    await pending
+    expect(h.reviews).toEqual([])
+    expect(h.progress.filter((e) => e.type === 'review_start')).toEqual([])
   })
 })

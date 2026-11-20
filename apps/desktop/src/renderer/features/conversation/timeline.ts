@@ -113,6 +113,8 @@ type TimelineContent =
       approval?: ToolApproval | null
       /** Recovery facts; never inferred from a missing result or from assistant text. */
       confirmation?: { answer: ConfirmationAnswer | null }
+      /** 自动审查中（只来自当前 Run 的 review_start 进度，尚无审批请求、执行记录与结果）。 */
+      reviewing?: true
     }
   | { kind: 'generating'; key: string; retry?: { attempt: number; maxRetries: number } }
   | { kind: 'stopped'; key: string }
@@ -202,6 +204,8 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
   const items: TimelineItem[] = []
   const tools = new Map<string, Extract<TimelineItem, { kind: 'tool' }>>()
   const requests = new Map<string, Extract<TimelineItem, { kind: 'tool' }>>()
+  /** 已有执行记录（tool_exec）的调用：审查不再进行（例如审查途中切到 full-access 后直接执行）。 */
+  const executed = new Set<string>()
   let lastRunId: string | null = null
   /** trigger compact 的 Run：其错误不可重试（重试会重新执行上一轮对话），也不显示"生成中"。 */
   const compactRuns = new Set<string>()
@@ -378,6 +382,10 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         }
         return
       }
+      if (entry.kind === 'tool_exec') {
+        executed.add(entry.payload.toolCallId)
+        return
+      }
       if (entry.kind === 'confirmation_request' || entry.kind === 'confirmation_answer') {
         const tool = tools.get(entry.payload.toolCallId)
         if (tool) tool.confirmation = { answer: entry.kind === 'confirmation_answer' ? entry.payload.answer : null }
@@ -518,6 +526,10 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
 
   const live = conversation.live
   if (live) {
+    for (const id of Object.keys(live.reviewing)) {
+      const tool = tools.get(id)
+      if (tool && tool.result === null && !tool.approval && !executed.has(id)) tool.reviewing = true
+    }
     for (const liveTool of Object.values(live.tools)) {
       const tool = tools.get(liveTool.toolCallId)
       if (tool) {

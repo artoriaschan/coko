@@ -81,6 +81,8 @@ export type ProgressEvent =
   | { type: 'tool_update'; runId: string; toolCallId: string; toolName: string; partialResult: AgentToolResult<unknown> }
   /** In tool completion order; the committed toolResult entries keep the model's call order. */
   | { type: 'tool_end'; runId: string; toolCallId: string; toolName: string; isError: boolean; result: AgentToolResult<unknown>; durationMs?: number }
+  /** The Reviewer (ADR 0029) started on this call. No end event: the approval request, the result or run_end follows. */
+  | { type: 'review_start'; runId: string; toolCallId: string; toolName: string }
   | { type: 'retry'; runId: string; attempt: number; maxRetries: number; delayMs: number; errorMessage: string }
   /** After every committed assistant message: its usage (input + cacheRead + cacheWrite + output) and the model's context window. */
   | { type: 'context_usage'; runId: string; tokens: number; contextWindow: number }

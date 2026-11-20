@@ -41,6 +41,11 @@ export function ToolStateMeta({ item }: { item: ToolItem }) {
           {t('sandbox.denied', { mode: t(`sandbox.shortModes.${denied}`) })}
         </span>
       )}
+      {item.reviewing && (
+        <span data-tool-reviewing className="shrink-0 text-ui-small whitespace-nowrap text-muted-foreground">
+          {t('tool.reviewing')}
+        </span>
+      )}
       <ApprovalMeta item={item} />
       {item.confirmation && item.confirmation.answer !== null ? (
         <span data-confirmation-outcome={item.confirmation.answer} className="text-ui-small text-warning-text">

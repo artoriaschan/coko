@@ -642,6 +642,7 @@ export const zh = {
     error: '失败',
     pending: '未完成',
     awaiting: '等待审批',
+    reviewing: '自动审查中',
     bash: '运行命令',
     read: '读取',
     write: '写入',

@@ -312,6 +312,43 @@ describe('chat store', () => {
     expect(store.lists.getState().sessions[0]?.running).toBe(false)
   })
 
+  it('自动审查中：review_start 标记工具项，随后的审批请求、执行记录或结果清除；重连后不恢复', async () => {
+    const stream = new FakeStream()
+    const store = createChatStore({ api: fakeApi({ listSessions: vi.fn<Api['listSessions']>(async () => [session('s1', { running: true })]) }), stream })
+    await store.getState().load()
+    stream.deliver({ type: 'subscribed', sessionId: 's1', lastSeq: 0, running: true })
+    const calls = ['a', 'b', 'c', 'd'].map((id) => ({ type: 'toolCall', id, name: 'bash', arguments: { command: id } }))
+    stream.deliver({ type: 'progress', sessionId: 's1', runId: 'r1', event: { type: 'run_start' } })
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 1, assistant(calls)) })
+    const progress = (event: Extract<ServerMessage, { type: 'progress' }>['event']) => stream.deliver({ type: 'progress', sessionId: 's1', runId: 'r1', event })
+    for (const id of ['a', 'b', 'c', 'd']) {
+      // pi 在权限判定之前发出 tool_start：它不结束审查中状态。
+      progress({ type: 'tool_start', toolCallId: id, toolName: 'bash', args: { command: id } })
+      progress({ type: 'review_start', toolCallId: id, toolName: 'bash' })
+    }
+    const reviewing = () => buildTimeline(store.getState().conversations.s1!).flatMap((i) => (i.kind === 'tool' && i.reviewing ? [i.call.id] : []))
+    expect(reviewing()).toEqual(['a', 'b', 'c', 'd'])
+    expect(store.getState().conversations.s1!.entries.map((e) => e.kind)).toEqual(['message'])
+
+    stream.deliver({
+      type: 'entry',
+      sessionId: 's1',
+      entry: entry('s1', 2, { requestId: 'q1', toolCallId: 'a', toolName: 'bash', kind: 'tool', subject: 'a', suggestions: [] }, 'approval_request'),
+    })
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 3, { toolCallId: 'b', toolName: 'bash', idempotencyKey: 'k-b' }, 'tool_exec') })
+    stream.deliver({
+      type: 'entry',
+      sessionId: 's1',
+      entry: entry('s1', 4, { role: 'toolResult', toolCallId: 'c', toolName: 'bash', content: [{ type: 'text', text: 'Operation aborted' }], isError: true }),
+    })
+    expect(reviewing()).toEqual(['d'])
+
+    stream.open = false
+    stream.reopen()
+    expect(reviewing()).toEqual([])
+    expect(buildTimeline(store.getState().conversations.s1!).find((i) => i.kind === 'tool' && i.call.id === 'd')).toMatchObject({ status: 'running' })
+  })
+
   it('草稿首条消息：创建会话（标题取首行）→ 订阅确认后再提交', async () => {
     const stream = new FakeStream()
     const api = fakeApi({ listSessions: vi.fn<Api['listSessions']>(async () => []) })
