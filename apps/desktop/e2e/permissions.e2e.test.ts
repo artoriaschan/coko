@@ -33,6 +33,8 @@ async function send(app: LaunchedApp, text: string) {
   await composer(app).press('Enter')
 }
 const idle = (app: LaunchedApp) => app.window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
+/** 最后一条回复的正文（不含页脚的用量等）。 */
+const lastReply = (app: LaunchedApp) => app.window.getByRole('article', { name: 'Coko' }).last().locator('[data-slot="assistant-message-body"]').textContent()
 const card = (app: LaunchedApp) => app.window.locator('[data-slot="approval-card"]')
 const modePicker = (app: LaunchedApp) => app.window.locator('[data-permission-mode]')
 const dialog = (app: LaunchedApp) => app.window.locator('[data-settings-page]')
@@ -54,7 +56,7 @@ describe('权限模式选择', () => {
     const { app, workspace } = await setup({ responses: [{ content: 'hello' }, { content: [bash('b1', 'printf hi > full.txt')] }, { content: 'done' }] })
     await send(app, 'start')
     // 首次发送接受并渲染真实 Session 后再测试会话模式，发送按钮在新对话中也已存在。
-    await expect.poll(() => app.window.getByRole('article', { name: 'Coko' }).textContent()).toBe('hello')
+    await expect.poll(() => lastReply(app)).toBe('hello')
     await idle(app)
     expect(await modePicker(app).getAttribute('data-permission-mode')).toBe('default')
 
@@ -74,6 +76,12 @@ describe('权限模式选择', () => {
 
     await modePicker(app).click()
     await app.window.locator('[role="menuitemradio"][data-mode="full-access"]').click()
+    // 完全访问先确认风险。
+    await app.window
+      .locator('[data-permission-risk-dialog]')
+      .getByRole('button', { name: /^(Turn on anyway|仍要开启)$/ })
+      .click()
+    await app.window.locator('[data-permission-risk-dialog]').waitFor({ state: 'detached' })
     await expect.poll(() => modePicker(app).getAttribute('data-permission-mode')).toBe('full-access')
     // 按真实协议读回，不以乐观按钮状态替代服务端保存的事实。
     await expect
@@ -178,7 +186,7 @@ describe('Permissions 设置与总是允许', () => {
     expect(await decided.textContent()).toMatch(/^(Always allowed in this workspace|本工作区总是允许)$/)
 
     await send(app, 'again')
-    await expect.poll(() => app.window.getByRole('article', { name: 'Coko' }).last().textContent(), { timeout: 30_000 }).toBe('ok again')
+    await expect.poll(() => lastReply(app), { timeout: 30_000 }).toBe('ok again')
     expect(await card(app).count()).toBe(0)
   })
 })
