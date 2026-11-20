@@ -54,7 +54,7 @@ describe('headless', { timeout: 120_000 }, () => {
     const kinds = messages.flatMap((m) => (m.type === 'entry' ? [(m.entry as { kind: string }).kind] : []))
     expect(kinds).toEqual(expect.arrayContaining(['run_start', 'state_update', 'message', 'model_request', 'run_end']))
     expect(messages.filter((message) => message.type === 'entry' && (message.entry as { kind: string }).kind === 'state_update')).toEqual([
-      expect.objectContaining({ entry: expect.objectContaining({ payloadVersion: 1, payload: { name: 'date', value: expect.any(Object) } }) }),
+      expect.objectContaining({ entry: expect.objectContaining({ payloadVersion: 2, payload: { name: 'date', value: expect.any(Object) } }) }),
     ])
     expect(messages.filter((m) => m.type === 'progress').map((m) => (m.event as { type: string }).type)).toEqual(
       expect.arrayContaining(['run_start', 'tool_start', 'tool_end', 'run_end']),

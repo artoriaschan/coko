@@ -113,7 +113,7 @@ export function PlanTab({ sessionId }: RightPanelTabProps) {
         ) : (
           <>
             {current.report !== undefined && (
-              <section data-slot="plan-report" aria-labelledby="plan-report-title" className="mb-4 border-b pb-4">
+              <section data-slot="plan-report" aria-labelledby="plan-report-title" className="mb-4 border-b-hairline border-border pb-4">
                 <h3 id="plan-report-title" className="pb-1 text-ui-small font-medium text-muted-foreground">
                   {t('plan.report')}
                 </h3>
