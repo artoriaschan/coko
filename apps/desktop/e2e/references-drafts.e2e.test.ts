@@ -38,7 +38,7 @@ async function addWorkspace(app: LaunchedApp, workspace: string) {
 }
 
 const composerOf = (page: Page) => page.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
-const filesMenu = (page: Page) => page.getByRole('listbox', { name: /^(Files|文件)$/ })
+const filesMenu = (page: Page) => page.getByRole('listbox', { name: /^(Files and sessions|文件与会话)$/ })
 const drafts = (page: Page) =>
   page.evaluate(() =>
     Object.fromEntries(

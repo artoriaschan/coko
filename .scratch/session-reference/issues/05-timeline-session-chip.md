@@ -64,4 +64,8 @@ Closed: true
   - 测试中的块是按 `packages/agent/src/context/references/session.ts` 的 `sessionReferenceBlock` 手写的，没有经真实 Sidecar 生成后再由 renderer 显示。
   - Space 激活、暗色主题与 390px 宽度下的自动断言、对比度都没有测试。
   - 回退区间（只读时间线）与子代理时间线中的会话 chip 没有单独测试；没有对话 store 时 chip 为停用状态，这一分支没有测试。
+- 合并 `feat/session-reference`（已含票 04）：`docs/subsystems/context.md` 与 `packages/i18n/src/dictionaries/domains/references.ts` 各有一处冲突，两侧内容都保留；Session Reference 开头的实现状态改为菜单候选、草稿 chip 与时间线 chip 均已实现。合并后重跑：
+  - `pnpm exec vitest run apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx apps/desktop/src/renderer/features/conversation/timeline.test.ts apps/desktop/src/renderer/features/conversation/file-menu.browser.test.tsx apps/desktop/src/renderer/features/conversation/session-reference.browser.test.tsx packages/ui/src/composer/session-reference-node.browser.test.tsx packages/i18n/src packages/ui/src/guards/style-guard.test.ts`：8 个文件、104 通过。
+  - `pnpm run typecheck`、`pnpm run lint`、`pnpm run check:docs`（460 个文件，0 个问题）通过。
+  - 草稿中经 `@` 菜单选出的会话 chip 提交后在时间线上的显示，没有连起来验证（票 06 的 E2E）。
 - 文档：`docs/subsystems/context.md` 的“界面”更新了“引用 chip”并新增“会话 chip 与 `@标题`”，Session Reference 开头的实现状态与测试列表同步。

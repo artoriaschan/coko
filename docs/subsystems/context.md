@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的上下文管理契约：系统消息的组成与环境信息、日期 State Update、@ File Reference 的语法、展开与上限、Read 拒绝规则、@session:<id> Session Reference 的语法、展开、单个上限与范围、文件候选接口、@ 文件菜单与引用 chip、输入区草稿的持久化，上下文用量（估算、阈值、接口与上下文环）、时间裁剪、压缩（自动、溢出、/compact、熔断、摘要结构、回退与分叉、界面），以及内置遍历与 ripgrep 共同的忽略来源。修改系统消息、环境信息、引用展开、文件候选、composer、用量、裁剪与压缩或 walk / grep / find 的忽略规则前查阅。"
+description: "当前的上下文管理契约：系统消息的组成与环境信息、日期 State Update、@ File Reference 的语法、展开与上限、Read 拒绝规则、@session:<id> Session Reference 的语法、展开、单个上限与范围、文件候选接口、@ 菜单（文件组与会话组）、草稿中的引用节点与引用 chip、输入区草稿的持久化，上下文用量（估算、阈值、接口与上下文环）、时间裁剪、压缩（自动、溢出、/compact、熔断、摘要结构、回退与分叉、界面），以及内置遍历与 ripgrep 共同的忽略来源。修改系统消息、环境信息、引用展开、文件候选、composer、用量、裁剪与压缩或 walk / grep / find 的忽略规则前查阅。"
 lifecycle: active
 ---
 
@@ -44,7 +44,8 @@ MCP 工具默认按需加载；关闭时直接提供全部 MCP 定义。按需�
 | `apps/server/src/application/context/references.ts` | 引用贡献的 `expandInput`（读取 `ContextScope.permissionRules`）；Session Reference 的范围判定与条目读取（`ContextScope.projectId`） |
 | `apps/server/src/http/routes/files.ts` | `GET /api/workspaces/:id/files` |
 | `packages/ui/src/composer/file-reference-node.ts` | composer 的 File Reference 节点 |
-| `apps/desktop/src/renderer/features/conversation/file-menu.tsx` | @ 文件菜单 |
+| `packages/ui/src/composer/session-reference-node.ts` | composer 的 Session Reference 节点 |
+| `apps/desktop/src/renderer/features/conversation/file-menu.tsx` | @ 菜单：文件组与会话组 |
 | `apps/desktop/src/renderer/stores/draft-store.ts`、`features/conversation/composer.tsx` | 草稿的存储与载入 |
 | `apps/desktop/src/renderer/features/conversation/timeline.ts`、`timeline-view.tsx` | 用户消息的引用 chip |
 | `packages/agent/src/context/usage/` | `contextBudget`（有效窗口、阈值、预警线）、`estimateContextTokens` / `estimateMessageChars`、`trimOldToolResults` |
@@ -112,7 +113,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ## Session Reference
 
-用户消息中以 `@session:<id>` 指向同一 Project 内另一个 Session，提交时附上那次会话的文字记录（[术语](../../GLOSSARY.md)）。不发额外的模型请求，请求体不加字段。目前只有手写或粘贴的文本语法；Sidecar 的展开与范围判定、时间线的会话 chip（见 [界面](#界面)）已实现，`@` 菜单的会话候选与草稿中的节点尚未实现。
+用户消息中以 `@session:<id>` 指向同一 Project 内另一个 Session，提交时附上那次会话的文字记录（[术语](../../GLOSSARY.md)）。不发额外的模型请求，请求体不加字段。引用可以手写、粘贴，或从 `@` 菜单的会话组选择（见 [界面](#界面)）；Sidecar 的展开与范围判定、`@` 菜单的会话候选、草稿中的会话 chip 与时间线的会话 chip 已实现。
 
 ### 语法
 
@@ -169,17 +170,20 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ## 界面
 
-- **@ 文件菜单**：在词首（开头或空白之后）输入 `@` 时打开，查询为 `@` 之后、光标之前的非空白文本。每次查询变化向 Sidecar 请求候选，新结果到达前先显示上一次结果中按子序列匹配的项。Enter 或指针选择插入 File Reference 节点并跟一个空格；目录上按 Tab 把 token 替换为 `@目录/` 并继续列出其中的项。键盘、Esc、输入法与定位规则与 / 命令菜单相同（见 [命令](commands.md#界面)）。
+- **@ 菜单**：在词首（开头或空白之后）输入 `@` 时打开，查询为 `@` 之后、光标之前的非空白文本。一个列表两组，文件组在前、会话组在后，同一段查询同时过滤两组；没有匹配的组不显示，两组都没有匹配时菜单不出现。键盘、Esc、输入法与定位规则与 / 命令菜单相同（见 [命令](commands.md#界面)）。
+  - **文件组**：每次查询变化向 Sidecar 请求候选，新结果到达前先显示上一次结果中按子序列匹配的项。Enter 或指针选择插入 File Reference 节点并跟一个空格；目录上按 Tab 把 token 替换为 `@目录/` 并继续列出其中的项。没有 Workspace（未选 Project 的新对话草稿）时没有文件组。
+  - **会话组**：候选取自界面已持有的会话列表，不请求 Sidecar。范围与当前会话相同：项目内的会话只列同一 Project 的会话（含 Worktree Session），独立对话只列其他独立对话，新对话草稿按草稿所选的 Project；当前会话与已归档的会话不出现，会话列表本身不含子 Session。按最近更新时间从新到旧：空查询显示 5 个；有查询时按标题匹配（不区分大小写，前缀在前、包含在后），最多 20 个；没有标题的会话以“未命名”显示并参与匹配。条目显示标题与最近活动时间（与侧栏相同的相对时间），标题放不下时截断、时间保持完整。Enter、Tab 或指针选择插入 Session Reference 节点并跟一个空格。会话候选不等待文件候选：文件结果到达前菜单可以先以会话组打开。
 - **File Reference 节点**：token 模式的文本节点，以小号链接色 chip 显示，作为整体选中与删除，不能在其中输入。文本即序列化形式 `@path`（含空白、全角标点或会被当作结尾标点的字符时为 `@"path"`），因此提交的文本就是 Sidecar 解析的语法。
+- **Session Reference 节点**：行内的原子节点（Lexical DecoratorNode，不可编辑），以与 File Reference 相同的 chip 显示 `@会话标题`，作为整体选中与删除，不能在其中输入，不可点击，方向键直接越过。标题是选中那一刻的快照，载入草稿后不随会话改名刷新。节点的文本内容为 `@session:<id>`：提交的文本、读出的纯文本与复制出的文本都是这个形式，粘贴回输入区得到的是这段文本而不是 chip。一条消息里可以同时有文件节点与多个会话节点。
 - **引用 chip**：时间线中，用户消息的 `<file_reference>` 与 `<session_reference>` 块不进入气泡文本，按出现顺序显示为气泡下方同一列表中的文件、目录或会话 chip（会话用对话图标）；文件内容与会话记录只发给模型，未附上的会话说明块同样显示 chip。
 - **会话 chip 与 `@标题`**：会话 chip 显示块中的标题，即提交那一刻的标题，被引用的会话后来改名或删除都不变；标题为空时显示“未命名”。chip 是按钮，可用键盘聚焦与激活，点击打开该会话；会话不在界面的会话列表中（已删除；归档的会话也不在该列表中）时不可点击。气泡文本、命令消息的参数与展开全文中的 `@session:<id>` 在该消息带有对应的会话引用块时显示为 `@标题`（词首与结尾标点规则与 Sidecar 的解析相同），没有对应块时原样显示；复制消息得到的仍是原文。
 
 ## 草稿
 
 - composer 的内容以 Lexical EditorState JSON 存 renderer 的 `localStorage`：会话为 `coko.draft.<sessionId>`，新对话只有一份草稿，键为 `coko.draft.new-chat`（旧的 `coko.draft.workspace.*` 初始化时清除）。用户编辑后 300 ms 防抖写入；切换会话与窗口关闭（`pagehide` / `beforeunload`）前立即写入；内容为空时删除该键。
-- 切换会话或草稿时载入目标的草稿，撤销历史随之清空。读出的值不是 JSON、不是 EditorState 形状或含未知节点（例如 File Reference 节点没有 path）时删除该键、记 renderer warn `draft discarded`，输入区为空。
+- 切换会话或草稿时载入目标的草稿，撤销历史随之清空。读出的值不是 JSON、不是 EditorState 形状或含未知节点（例如 File Reference 节点没有 path、Session Reference 节点缺少 id 或标题）时删除该键、记 renderer warn `draft discarded`，输入区为空。
 - 提交被接受后编辑区清空，草稿随之删除。提交等待期间切换作用域时载入目标草稿；成功后只清除提交时所属草稿，不把已提交的第一条消息复制到已有会话草稿。
-- composer 是纯文本编辑器，File Reference 是其中唯一的非文本节点，因此不需要 Markdown 导入导出。
+- composer 是纯文本编辑器，File Reference 与 Session Reference 是其中仅有的两种引用节点，各自以序列化文本参与读出与提交，因此不需要 Markdown 导入导出。Session Reference 节点在 EditorState JSON 中保存 `id` 与 `title`。
 
 ## 上下文用量
 
@@ -320,6 +324,8 @@ teammate 的子 Session 在 `<subagent>` 之后另有静态 `<team name="…">`�
 - `tests/integration/secrets-gate-references.test.ts`：引用块中的登记 Secret 在 user message 条目、faux requestLog、推送、库与日志中都是标记。
 - `tests/integration/sidecar-references.test.ts`：真实 Sidecar 上的 user message 块与 faux requestLog、project 作用域的 Read 拒绝规则、命令与引用的顺序、`GET /api/workspaces/:id/files`。
 - `packages/ui/src/composer/file-reference-node.browser.test.tsx`：节点的插入与整体删除、序列化、EditorState JSON 往返与拒绝、目录 Tab、onDraftChange。
+- `packages/ui/src/composer/session-reference-node.browser.test.tsx`：Session Reference 节点的 chip 文本、读出与复制的 `@session:<id>`、整体删除、与文件节点并存、EditorState JSON 往返与缺少 id 或标题时的拒绝。
+- `apps/desktop/src/renderer/features/conversation/file-menu.browser.test.tsx`、`session-reference.browser.test.tsx`：@ 菜单两组的顺序、空查询的 5 个、标题过滤与 20 个上限、范围过滤（另一个 Project、独立对话、归档、当前会话）、只有一组有匹配时的显示、中英文文案；应用内会话与新对话草稿的候选、提交的文本、带 chip 的草稿在切换会话与重新挂载后恢复及损坏时丢弃。
 - `apps/desktop/src/renderer/stores/draft-store.test.ts`、`features/conversation/timeline.test.ts`：草稿的键、防抖与损坏处理；引用 chip 的派生。
 - `apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx`：时间线的会话引用（气泡中的 `@标题`、会话 chip 的键盘与指针打开、不在列表中的会话不可点击、没有对应块时原样显示、与文件 chip 混排的顺序、中英文名称）。
 - `apps/desktop/e2e/references-drafts.e2e.test.ts`：Electron 中的 @ 菜单与 chip、草稿在切换会话与重启后保留、提交后清除、损坏的草稿。
