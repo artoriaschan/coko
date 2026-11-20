@@ -1,0 +1,44 @@
+.scratch/auto-review/issues/06-goal-schedules-and-budget.md
+  s_7f0e0901b93913::t_d6c759cabf1ff0 1-22
+.scratch/auto-review/issues/05-authorization-sources-and-injection.md
+  s_7f0e0901b93913::t_7b94e53842bb3e 1-27
+.scratch/auto-review/issues/04-escalation-reason-and-failures.md
+  s_7f0e0901b93913::t_8afa29db052d0e 1-26
+.scratch/auto-review/grilling.md
+  s_7f0e0901b93913::t_2d3f845708f7e7 1-108
+  s_7f0e0901b93913::t_c8f7e2254d46aa 109
+.scratch/auto-review/issues/07-reviewing-state-and-timing.md
+  s_7f0e0901b93913::t_92f6ae958a59a4 1-28
+.scratch/auto-review/issues/01-design-and-adr.md
+  s_7f0e0901b93913::t_51fc6c636b0989 1-29
+.scratch/auto-review/issues/08-subagent-review.md
+  s_7f0e0901b93913::t_32b612968885af 1-25
+.scratch/auto-review/issues/03-reviewer-allow-and-escalate.md
+  s_7f0e0901b93913::t_fa7db3d4ae95a7 1-32
+.scratch/auto-review/issues/10-acceptance-and-docs.md
+  s_7f0e0901b93913::t_cbc82fbf679241 1-27
+.scratch/auto-review/spec.md
+  s_7f0e0901b93913::t_5df8f704b4fce6 5
+  s_7f0e0901b93913::t_5a47f6b4373236 4
+  s_7f0e0901b93913::t_aa29a9e66e4650 1-3,6-271
+.scratch/auto-review/issues/02-auto-review-mode-value.md
+  s_7f0e0901b93913::t_532f2ed2bdd8e1 1-30
+.scratch/auto-review/issues/09-headless.md
+  s_7f0e0901b93913::t_f543df296d2de5 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "ec2c25faf27b0f93c2735fee66dd99afdb5d35ae",
+  "prompts": {},
+  "sessions": {
+    "s_7f0e0901b93913": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c271cafa-9048-41df-92d7-720524e727ce",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
