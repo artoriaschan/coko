@@ -56,3 +56,9 @@
   5. 菜单条目中放不下的会话标题以省略号截断，没有查看全文的入口（与侧栏搜索结果的做法相同）；时间始终完整。
   6. 从输入区复制再粘贴回来得到的是 `@session:<id>` 文本，不恢复成 chip（与回退后的表现一致）。
 - **文档影响。** `docs/subsystems/context.md`：description、模块表、“界面”（@ 菜单两组、Session Reference 节点）、“草稿”（未知节点规则与节点保存的字段）与“验证”。`docs/tech-stack/ui.md` 中 composer 的例证补上 Session Reference 的序列化形式。术语表不在本票（票 02）。
+
+### 2026-11-21 合并集成分支后
+
+- `git merge feat/session-reference`（已含票 01、02）：`docs/subsystems/context.md` 的 description 一处冲突，两边的内容都保留；同一文档 Session Reference 小节中“`@` 菜单的会话候选、草稿与时间线的会话 chip 尚未实现”改为只有时间线的会话 chip 尚未实现。
+- 合并后重跑：`pnpm run check:docs` 0 个问题；`pnpm run typecheck`、`pnpm exec oxlint` 退出 0；`pnpm exec oxfmt --check` 仍只有基线的 6 个文件；`pnpm exec vitest run --project ui-browser packages/ui/src/composer` 4 个文件 24 例通过；`pnpm exec vitest run --project desktop-renderer`（上文 5 个文件加票 01 的 `command-menu.browser.test.tsx`）6 个文件 54 例通过。
+- 合并后没有重跑 Sidecar 集成测试与 Electron E2E：本票未改 Sidecar；“菜单选择 → 提交 → 模型收到记录”的端到端效果留给票 06。

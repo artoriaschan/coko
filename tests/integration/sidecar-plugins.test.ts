@@ -156,6 +156,19 @@ describe('插件：目录来源', { timeout: 120_000 }, () => {
     // 命令：插件的 /sample:hello 与用户自己的 /hello 都可用。
     const names = await h.commands()
     expect(names).toEqual(expect.arrayContaining(['sample:hello', 'hello']))
+    // 命令目录：插件贡献的命令与 Skill 带插件名（来源取值不变），其余条目没有这个字段。
+    const catalog = (
+      (await h.api.get(commandPaths.commands + '?workspaceId=' + h.workspaceId)).body as { commands: { name: string; source: string; plugin?: string }[] }
+    ).commands
+    const entry = (name: string) => {
+      const found = catalog.find((c) => c.name === name)!
+      return { source: found.source, plugin: found.plugin }
+    }
+    expect(entry('sample:hello')).toEqual({ source: 'user', plugin: 'sample' })
+    expect(entry('sample:greet')).toEqual({ source: 'skill', plugin: 'sample' })
+    expect(catalog.filter((c) => !c.name.startsWith('sample:')).every((c) => !('plugin' in c))).toBe(true)
+    expect(entry('hello').source).toBe('user')
+    expect(entry('greet').source).toBe('skill')
     await h.send(sessionId, '/sample:hello World')
     await h.runEnds(sessionId, 2)
     expect(userText(h.stream.entries(sessionId), 1)).toBe('Hello from the sample plugin, World.')

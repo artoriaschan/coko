@@ -10,6 +10,8 @@ export interface CommandDefinition {
   description: string
   argumentHint?: string | undefined
   source: CommandSource
+  /** 贡献它的插件的名字（ADR 0017）；不来自插件的省略。 */
+  plugin?: string | undefined
   /** 定义它的文件（模板与 Skill）；内置与 MCP 提示模板省略。 */
   path?: string | undefined
   /** 来源自己的停用（例如 skills.disabled）；省略为启用。 */

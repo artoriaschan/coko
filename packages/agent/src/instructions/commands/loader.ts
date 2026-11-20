@@ -101,6 +101,7 @@ export function createCommandTemplateLoader(files: ReadOnlyFiles = createNodeFil
             description: parsed.description,
             argumentHint: parsed.argumentHint,
             source,
+            plugin: options.plugin,
             path,
             content: parsed.content,
           })

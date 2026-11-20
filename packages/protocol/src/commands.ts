@@ -13,6 +13,8 @@ export const CommandInfo = Type.Object(
     description: Type.String(),
     argumentHint: Type.Optional(Type.String()),
     source: CommandSource,
+    /** 贡献它的插件的名字（插件的命令 source 为 user、插件的 Skill source 为 skill）；不来自插件的条目没有这个字段。 */
+    plugin: Type.Optional(Type.String({ minLength: 1 })),
     /** 定义它的文件（模板与 Skill）。 */
     path: Type.Optional(Type.String()),
     /** 停用的命令（commands.enabled / commands.disabled，或来源自己的停用）不展开，提交时原样作为普通消息。 */

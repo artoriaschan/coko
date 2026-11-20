@@ -83,11 +83,11 @@ frontmatter 只认两个键，其余键（`model`、`allowed-tools` 等）忽略
 
 ## 协议
 
-`GET /api/commands?sessionId=…` 或 `?workspaceId=…` → `{ commands: CommandInfo[], diagnostics }`。`CommandInfo = { name, description, argumentHint?, source, path?, enabled }`，按来源顺序、再按名字排序。两个参数都缺时 400，Session 或 Workspace 不存在时 404。
+`GET /api/commands?sessionId=…` 或 `?workspaceId=…` → `{ commands: CommandInfo[], diagnostics }`。`CommandInfo = { name, description, argumentHint?, source, plugin?, path?, enabled }`，按来源顺序、再按名字排序。`plugin` 是贡献该条目的 [插件](plugins.md) 的名字：插件的命令（`source` 为 `user`）与插件的 Skill（`source` 为 `skill`）带有，其余条目没有这个字段；它不改变 `source`、同名优先级与 `command` 条目。两个参数都缺时 400，Session 或 Workspace 不存在时 404。
 
 ## 界面
 
-- **/ 命令菜单**：草稿第一个字符为 `/` 时出现，查询为 `/` 之后、光标之前的非空白文本；前缀匹配在前、包含匹配在后，按来源分组，每项显示 `/name`、argument-hint 与描述。没有匹配时不出现，Enter 照常发送。焦点留在编辑区（`aria-activedescendant` 指向选中项）；↑↓ 循环移动，Enter / Tab 插入 `/name `（不发送），Esc 关闭且草稿不变，关闭后同一 token 继续输入不再弹出，删掉 token 后重新输入 `/` 再弹出；输入法组合期间不打开、组合中的 Enter 不确认。菜单经 Radix Popper 定位在编辑区上方，放不下时翻到下方，不越出窗口，可用指针选择。目录在切换会话或草稿与编辑区获得焦点时刷新。
+- **/ 命令菜单**：草稿第一个字符为 `/` 时出现，查询为 `/` 之后、光标之前的非空白文本；按来源分组（内置、项目、用户、Skill、MCP），带 `plugin` 的条目不进所属来源的组，归入“插件”组（Skill 之后、MCP 之前，组内按名字排序）；没有可用条目的组不显示。匹配的条目前缀匹配在前、包含匹配在后，每项显示 `/name`、argument-hint 与描述。没有匹配时不出现，Enter 照常发送。焦点留在编辑区（`aria-activedescendant` 指向选中项）；↑↓ 循环移动，Enter / Tab 插入 `/name `（不发送），Esc 关闭且草稿不变，关闭后同一 token 继续输入不再弹出，删掉 token 后重新输入 `/` 再弹出；输入法组合期间不打开、组合中的 Enter 不确认。菜单经 Radix Popper 定位在编辑区上方，放不下时翻到下方，不越出窗口，可用指针选择。目录在切换会话或草稿与编辑区获得焦点时刷新。
 - **命令 chip**：由命令展开的用户消息显示为图标、`/name` 与参数，展开后显示"展开后的提示"全文。回退或通过兼容的用户锚点分叉协议处理这条消息时，紧邻目标消息且同属真实 Run 的 `command` 记录用于恢复原始调用 `/name 参数`；展开正文保持原样。没有该归属事实时使用目标消息真实正文，不从文字猜命令。返回文本放在已有未发送草稿之前，以换行分隔。
 
 ## 验证
@@ -96,6 +96,8 @@ frontmatter 只认两个键，其余键（`model`、`allowed-tools` 等）忽略
 - `apps/server/src/application/context/commands.test.ts`：内置命令的动作路径（409、steer 400）与 Skill 来源命令的展开与条目。
 - `tests/integration/sidecar-commands.test.ts`：真实 Sidecar 上的条目顺序与 faux requestLog、未知命令、追加指令展开、`commands.disabled` / `commands.enabled`、`GET /api/commands`。
 - `tests/integration/sidecar-rewind.test.ts` 与 `apps/desktop/e2e/rewind.e2e.test.ts`：命令回退/分叉返回原始调用、展开正文与源条目保持不变、已有草稿保留，以及 Checkpoint 的真实文件恢复。
+- `tests/integration/sidecar-plugins.test.ts`：真实 Sidecar 上命令目录中插件的命令与 Skill 带 `plugin`、`source` 不变，其余条目没有该字段。
+- `apps/desktop/src/renderer/features/conversation/command-menu.browser.test.tsx`：“插件”组的位置、归属与组内顺序，↑↓ 按显示顺序移动，没有可用的插件条目时没有该组，中英文组名。
 - `packages/ui/src/composer/composer-typeahead.browser.test.tsx`：typeahead 的键盘、Esc、输入法（Chromium CDP 组合）、指针与定位。
 - `apps/desktop/e2e/commands.e2e.test.ts`：Electron 中的分组菜单与 argument-hint、键盘与指针选择、命令 chip 展开全文。
 

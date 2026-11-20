@@ -15,5 +15,5 @@ export async function sessionProject(store: SessionStore, session: Session) {
 /** 项目归属给上下文作用域的字段：附加文件夹与项目记忆 Workspace（主要文件夹，ADR 0027）；没有项目时只有用户级记忆。 */
 export const projectScope = (project: Project | undefined) => ({
   additionalFolders: project?.additionalFolders ?? [],
-  ...(project ? { memoryWorkspaceId: project.primaryWorkspaceId } : {}),
+  ...(project ? { memoryWorkspaceId: project.primaryWorkspaceId, projectId: project.id } : {}),
 })
