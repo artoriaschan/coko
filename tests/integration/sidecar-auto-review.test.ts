@@ -18,7 +18,20 @@ import {
 } from '@coko/protocol'
 import { createGitWorkspace } from '../fixtures/git/index.ts'
 import { stdioServerConfig } from '../fixtures/mcp/index.ts'
-import { client, connect, exchange, fauxScript, hookCommand, sidecarDirs, startSidecar, tempDir, waitApproval } from './sidecar-harness.ts'
+import { randomBytes } from 'node:crypto'
+import {
+  advanceClock,
+  client,
+  connect,
+  exchange,
+  fauxScript,
+  hookCommand,
+  pollUntil,
+  sidecarDirs,
+  startSidecar,
+  tempDir,
+  waitApproval,
+} from './sidecar-harness.ts'
 
 const darwin = process.platform === 'darwin'
 const MARKER = 'COKO_PERMISSION_REVIEW'
@@ -40,14 +53,25 @@ interface ReviewInput {
   actions: { earlier_calls: unknown[]; pending_call: { tool: string; arguments: Record<string, unknown>; tool_description?: string } }
 }
 
-async function boot(responses: unknown[], options: { root?: string; env?: Record<string, string> } = {}) {
+async function boot(responses: unknown[], options: { root?: string; env?: Record<string, string>; ipc?: boolean } = {}) {
   const root = options.root ?? (await realpath(await tempDir()))
   const logs = await realpath(await tempDir('coko-review-logs-'))
   const requestDetailsLog = join(logs, 'details.jsonl')
   await writeFile(requestDetailsLog, '')
   const script = await fauxScript(logs, { requestDetailsLog, responses })
-  const sidecar = await startSidecar({ dirs: await sidecarDirs(), env: { COKO_FAUX_SCRIPT: script, ...options.env } })
-  onTestFinished(() => sidecar.stop().then(() => undefined))
+  const sidecar = await startSidecar({
+    dirs: await sidecarDirs(),
+    env: { COKO_FAUX_SCRIPT: script, ...options.env },
+    ...(options.ipc === undefined ? {} : { ipc: options.ipc }),
+  })
+  // 独立运行（ipc: false，Secret 来自 COKO_SECRET_<NAME>）没有 IPC shutdown，以 SIGTERM 有序退出。
+  onTestFinished(async () => {
+    if (options.ipc !== false) await sidecar.stop()
+    else {
+      sidecar.child.kill('SIGTERM')
+      await sidecar.exited
+    }
+  })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
@@ -76,7 +100,7 @@ async function boot(responses: unknown[], options: { root?: string; env?: Record
   const reviews = async () =>
     (await details()).filter(isReview).map((d) => JSON.parse(String(d.messages.filter((m) => m.role === 'user').at(-1)!.content)) as ReviewInput)
   const answer = (sessionId: string, requestId: string, body: Record<string, unknown>) => api.post(apiPaths.sessionApproval(sessionId, requestId), body)
-  return { root, sidecar, api, stream, workspaceId, open, entries, runEnds, send, details, reviews, answer }
+  return { root, sidecar, api, stream, workspaceId, open, entries, runEnds, send, details, reviews, answer, requestDetailsLog }
 }
 
 describe('Reviewer 放行与转交', () => {
@@ -137,7 +161,7 @@ describe('Reviewer 放行与转交', () => {
     await h.send(sessionId)
     const asked = await waitApproval(h.stream, sessionId)
     expect(asked).toMatchObject({ toolCallId: 'b1', suggestions: [{ behavior: 'allow', tool: 'Bash', content: 'printf a > a.txt' }] })
-    expect(asked).not.toHaveProperty('review')
+    expect(asked.review).toEqual({ outcome: 'escalated', reason: 'Not sure this was authorized.' })
     expect((await h.answer(sessionId, asked.requestId, { decision: 'allow' })).status).toBe(204)
     await h.runEnds(sessionId, 1)
     expect(await readFile(join(h.root, 'a.txt'), 'utf8')).toBe('a')
@@ -160,13 +184,104 @@ describe('Reviewer 放行与转交', () => {
 
     await h.send(sessionId)
     const third = await waitApproval(h.stream, sessionId, 3)
-    expect(third).toMatchObject({ toolCallId: 'b3' })
+    expect(third).toMatchObject({ toolCallId: 'b3', review: { outcome: 'failed', code: 'invalid-output' } })
     await h.answer(sessionId, third.requestId, { decision: 'deny', feedback: 'not now' })
     await h.runEnds(sessionId, 3)
     expect(text(toolResults(h.entries(sessionId)).find((r) => r.toolCallId === 'b3'))).toBe('The user rejected this tool call and said:\nnot now')
     const reviewRequests = h.entries(sessionId).filter((e) => e.kind === 'model_request' && (e.payload as { purpose: string }).purpose === 'review')
     expect(reviewRequests).toHaveLength(3)
     expect(await h.reviews()).toHaveLength(3)
+  })
+})
+
+type ModelRequest = { purpose: string; errorCode?: string; durationMs: number; stopReason: string }
+const reviewRequests = (entries: SessionEntryRecord[]) =>
+  entries.filter((e) => e.kind === 'model_request' && (e.payload as ModelRequest).purpose === 'review').map((e) => e.payload as ModelRequest)
+
+describe('转交理由与审查失败', () => {
+  it('审查超过 15 秒：请求被取消并记 timeout，出现带 timeout 代码的待审批请求，调用未执行；迟到的放行不生效', async () => {
+    const h = await boot([{ ...allow('Late approval.'), delayMs: 16_000 }, { content: [bash('b1', 'printf a > a.txt')] }, { content: 'ok' }], {
+      env: { COKO_TEST_CLOCK: '1' },
+    })
+    const sessionId = await h.open()
+    await h.send(sessionId)
+    await pollUntil(async () => (await h.reviews()).length === 1, { timeoutMs: 10_000, what: 'review request sent' })
+    await advanceClock(h.api, 15_000)
+    const asked = await waitApproval(h.stream, sessionId)
+    expect(asked).toMatchObject({ toolCallId: 'b1', review: { outcome: 'failed', code: 'timeout' } })
+    expect(reviewRequests(h.entries(sessionId))).toEqual([expect.objectContaining({ errorCode: 'timeout', durationMs: 15_000 })])
+    // 拨过 faux 应答的时刻：迟到的放行不产生决定，请求仍在等待，文件未写。
+    await advanceClock(h.api, 2_000)
+    expect(h.entries(sessionId).filter((e) => e.kind === 'approval_decision')).toEqual([])
+    expect(existsSync(join(h.root, 'a.txt'))).toBe(false)
+    await h.answer(sessionId, asked.requestId, { decision: 'deny', feedback: 'no' })
+    await h.runEnds(sessionId, 1)
+    expect(existsSync(join(h.root, 'a.txt'))).toBe(false)
+    expect(h.entries(sessionId).find((e) => e.kind === 'approval_decision')!.payload).not.toHaveProperty('by')
+    expect(await h.reviews()).toHaveLength(1)
+  })
+
+  it('请求报错、非结构化文本、缺字段、取值不合法：各出带相应代码的待审批请求；失败不重试，失败的请求照常记为 review 的 model_request', async () => {
+    const h = await boot([
+      { match: MARKER, content: '', stopReason: 'error', errorMessage: 'provider refused' },
+      { match: MARKER, content: 'Looks fine to me.' },
+      { match: MARKER, content: JSON.stringify({ decision: 'allow' }) },
+      { match: MARKER, content: JSON.stringify({ decision: 'deny', reason: 'No.' }) },
+      { content: [bash('b1', 'printf 1 > 1.txt'), bash('b2', 'printf 2 > 2.txt'), bash('b3', 'printf 3 > 3.txt'), bash('b4', 'printf 4 > 4.txt')] },
+      { content: 'ok' },
+    ])
+    const sessionId = await h.open()
+    await h.send(sessionId)
+    const reviews = []
+    for (const n of [1, 2, 3, 4]) {
+      const asked = await waitApproval(h.stream, sessionId, n)
+      reviews.push([asked.toolCallId, asked.review])
+      await h.answer(sessionId, asked.requestId, { decision: 'deny', feedback: 'no' })
+    }
+    await h.runEnds(sessionId, 1)
+    expect(reviews).toEqual([
+      ['b1', { outcome: 'failed', code: 'request-failed' }],
+      ['b2', { outcome: 'failed', code: 'invalid-output' }],
+      ['b3', { outcome: 'failed', code: 'invalid-output' }],
+      ['b4', { outcome: 'failed', code: 'invalid-output' }],
+    ])
+    for (const n of [1, 2, 3, 4]) expect(existsSync(join(h.root, `${n}.txt`))).toBe(false)
+    expect(reviewRequests(h.entries(sessionId)).map((r) => [r.stopReason, r.errorCode])).toEqual([
+      ['error', 'model_error'],
+      ['stop', undefined],
+      ['stop', undefined],
+      ['stop', undefined],
+    ])
+    expect(await h.reviews()).toHaveLength(4)
+    expect(h.stream.invalidEntries).toEqual([])
+  })
+
+  it('理由截断到 300 字符，入库与推送前替换已登记的 Secret；理由不出现在发给主模型的任何请求中', async () => {
+    const secret = `review-reason-sentinel-${randomBytes(12).toString('hex')}`
+    const escalated = `ESCALATE-MARK ${secret} ${'x'.repeat(400)}`
+    const allowed = 'ALLOW-MARK the user asked for this.'
+    const h = await boot(
+      [escalate(escalated), allow(allowed), { content: [bash('b1', 'printf a > a.txt')] }, { content: [bash('b2', 'printf b > b.txt')] }, { content: 'ok' }],
+      { ipc: false, env: { COKO_SECRET_REVIEW_TEST: secret } },
+    )
+    const sessionId = await h.open()
+    await h.send(sessionId)
+    const asked = await waitApproval(h.stream, sessionId)
+    const reason = asked.review?.outcome === 'escalated' ? asked.review.reason : ''
+    expect(reason).toHaveLength(300)
+    expect(reason.startsWith('ESCALATE-MARK [REDACTED:secret] xxx')).toBe(true)
+    expect(reason.endsWith('x…')).toBe(true)
+    await h.answer(sessionId, asked.requestId, { decision: 'allow' })
+    await h.runEnds(sessionId, 1)
+    expect(await readFile(join(h.root, 'b.txt'), 'utf8')).toBe('b')
+    const persisted = JSON.stringify((await h.api.get(apiPaths.session(sessionId))).body)
+    expect(persisted).toContain('ESCALATE-MARK [REDACTED:secret]')
+    expect(persisted).toContain(allowed)
+    expect(persisted).not.toContain(secret)
+    expect(JSON.stringify(h.stream.entries(sessionId))).not.toContain(secret)
+    const sent = await readFile(h.requestDetailsLog, 'utf8')
+    expect((await h.details()).filter((d) => !isReview(d))).toHaveLength(3)
+    for (const mark of ['ESCALATE-MARK', 'ALLOW-MARK', secret]) expect(sent).not.toContain(mark)
   })
 })
 

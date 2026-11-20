@@ -141,6 +141,23 @@ function EscalationDetail({ request }: { request: ApprovalRequestPayload }) {
   )
 }
 
+/** 经过自动审查的请求（ADR 0029）：Reviewer 转交的理由，或审查没能完成的原因。 */
+function ReviewDetail({ review }: { review: NonNullable<ApprovalRequestPayload['review']> }) {
+  const { t } = useI18n()
+  return (
+    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ui-body">
+      <dt className="text-muted-foreground">{review.outcome === 'escalated' ? t('approval.reviewEscalated') : t('approval.reviewFailed')}</dt>
+      {review.outcome === 'escalated' ? (
+        <dd data-review-detail data-user-content className="break-words">
+          {review.reason}
+        </dd>
+      ) : (
+        <dd data-review-detail>{t(`approval.reviewFailures.${review.code}`)}</dd>
+      )}
+    </dl>
+  )
+}
+
 /** 审批请求的明细：命令、路径、写入内容或 edit 的 diff 摘要；未知工具原样显示参数。 */
 function Detail({ request, call }: { request: ApprovalRequestPayload; call: ToolCallBlock | undefined }) {
   if (request.kind === 'escalation') return <EscalationDetail request={request} />
@@ -258,6 +275,7 @@ function ToolApproval({ request, call, onAllow, onAllowAlways, onReject, autoFoc
       onReject={(feedback) => accepted(onReject(feedback))}
     >
       <Detail request={request} call={call} />
+      {request.review && <ReviewDetail review={request.review} />}
     </ApprovalCard>
   )
 }

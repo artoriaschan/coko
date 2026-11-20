@@ -36,6 +36,25 @@ export type PermissionModePayload = Static<typeof PermissionModePayload>
 export const PermissionRulePayload = Type.Object({ op: Type.Union([Type.Literal('add'), Type.Literal('remove')]), rule: PermissionRule }, strict)
 export type PermissionRulePayload = Static<typeof PermissionRulePayload>
 
+/** 审查没能给出结论的原因（ADR 0029）：界面按代码本地化。 */
+export const ReviewFailureCode = Type.Union([
+  Type.Literal('timeout'),
+  Type.Literal('request-failed'),
+  Type.Literal('invalid-output'),
+  Type.Literal('no-model'),
+  Type.Literal('budget'),
+  Type.Literal('too-long'),
+])
+export type ReviewFailureCode = Static<typeof ReviewFailureCode>
+
+/** 只在经过 Reviewer 后出给用户的请求上：转交的理由，或没能完成的原因。 */
+export const ApprovalReview = Type.Union([
+  Type.Object({ outcome: Type.Literal('escalated'), reason: Type.String({ minLength: 1 }) }, strict),
+  Type.Object({ outcome: Type.Literal('failed'), code: ReviewFailureCode }, strict),
+])
+export type ApprovalReview = Static<typeof ApprovalReview>
+
+/** approval_request v2：review 为可选的审查信息（v1 原样迁移）。 */
 export const ApprovalRequestPayload = Type.Object(
   {
     requestId: Id,
@@ -49,6 +68,7 @@ export const ApprovalRequestPayload = Type.Object(
     suggestions: Type.Array(PermissionRule),
     planId: Type.Optional(Id),
     revision: Type.Optional(Type.Integer({ minimum: 1 })),
+    review: Type.Optional(ApprovalReview),
   },
   strict,
 )

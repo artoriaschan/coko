@@ -142,7 +142,8 @@ export class SessionReviews {
       .filter((block) => block.type === 'text')
       .map((block) => block.text)
       .join('')
-    const parsed = parseReviewOutput(raw)
+    // 先替换 Secret 再截断（parseReviewOutput 截到上限），跨截断点的 Secret 也不会留下前半段；JSON 转义过的 Secret 由解析后的再次替换处理。
+    const parsed = parseReviewOutput(redactSecretsDeep(raw))
     return parsed ? { verdict: parsed.verdict, reason: redactSecretsDeep(parsed.reason) } : failed('invalid-output')
   }
 }

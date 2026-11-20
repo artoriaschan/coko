@@ -55,25 +55,46 @@ export type PermissionModePayload = Static<typeof permissionModePayloadSchema>
 export const permissionRulePayloadSchema = Type.Object({ op: Type.Union([Type.Literal('add'), Type.Literal('remove')]), rule: permissionRuleSchema }, strict)
 export type PermissionRulePayload = Static<typeof permissionRulePayloadSchema>
 
-export const approvalRequestPayloadSchema = Type.Object(
-  {
-    requestId: Id,
-    toolCallId: Id,
-    toolName: Type.String(),
-    /** escalation：命令请求以更宽的 Sandbox Mode 运行一次；plan：exit_plan_mode 提交的计划等待审阅。 */
-    kind: Type.Union([Type.Literal('tool'), Type.Literal('escalation'), Type.Literal('plan')]),
-    /** 命令或路径。 */
-    subject: Type.String(),
-    targetMode: Type.Optional(sandboxModeSchema),
-    justification: Type.Optional(Type.String()),
-    /** 可保存为"总是允许"的建议规则；越界写入与提权为空。 */
-    suggestions: Type.Array(permissionRuleSchema),
-    /** kind plan：proposed 的 plan 条目（subject 为计划标题）。 */
-    planId: Type.Optional(Id),
-    revision: Type.Optional(Type.Integer({ minimum: 1 })),
-  },
-  strict,
-)
+const approvalRequestFields = {
+  requestId: Id,
+  toolCallId: Id,
+  toolName: Type.String(),
+  /** escalation：命令请求以更宽的 Sandbox Mode 运行一次；plan：exit_plan_mode 提交的计划等待审阅。 */
+  kind: Type.Union([Type.Literal('tool'), Type.Literal('escalation'), Type.Literal('plan')]),
+  /** 命令或路径。 */
+  subject: Type.String(),
+  targetMode: Type.Optional(sandboxModeSchema),
+  justification: Type.Optional(Type.String()),
+  /** 可保存为"总是允许"的建议规则；越界写入与提权为空。 */
+  suggestions: Type.Array(permissionRuleSchema),
+  /** kind plan：proposed 的 plan 条目（subject 为计划标题）。 */
+  planId: Type.Optional(Id),
+  revision: Type.Optional(Type.Integer({ minimum: 1 })),
+}
+
+/** approval_request v1：没有审查信息。 */
+const approvalRequestV1Schema = Type.Object(approvalRequestFields, strict)
+
+/** 审查没能给出结论的原因（ADR 0029；界面按代码本地化）。 */
+export const reviewFailureCodeSchema = Type.Union([
+  Type.Literal('timeout'),
+  Type.Literal('request-failed'),
+  Type.Literal('invalid-output'),
+  Type.Literal('no-model'),
+  Type.Literal('budget'),
+  Type.Literal('too-long'),
+])
+export type ReviewFailureCode = Static<typeof reviewFailureCodeSchema>
+
+/** 只在经过 Reviewer 后出给用户的请求上：转交的理由，或没能完成的原因。 */
+export const approvalReviewSchema = Type.Union([
+  Type.Object({ outcome: Type.Literal('escalated'), reason: Type.String({ minLength: 1 }) }, strict),
+  Type.Object({ outcome: Type.Literal('failed'), code: reviewFailureCodeSchema }, strict),
+])
+export type ApprovalReview = Static<typeof approvalReviewSchema>
+
+/** approval_request v2：另带可选的审查信息 review（v1 原样迁移）。 */
+export const approvalRequestPayloadSchema = Type.Object({ ...approvalRequestFields, review: Type.Optional(approvalReviewSchema) }, strict)
 export type ApprovalRequestPayload = Static<typeof approvalRequestPayloadSchema>
 
 export const approvalOutcomeSchema = Type.Union([
@@ -141,7 +162,7 @@ export const permissionEntryPayloads = definePayloads({
     { schema: permissionModePayloadSchema, migrate: (previous: EntryJson) => previous },
   ],
   permission_rule: [{ schema: permissionRulePayloadSchema }],
-  approval_request: [{ schema: approvalRequestPayloadSchema }],
+  approval_request: [{ schema: approvalRequestV1Schema }, { schema: approvalRequestPayloadSchema, migrate: (previous: EntryJson) => previous }],
   approval_decision: [
     { schema: approvalDecisionV1Schema },
     { schema: approvalDecisionV2Schema, migrate: (previous: EntryJson) => previous },

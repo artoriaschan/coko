@@ -741,6 +741,16 @@ export const en: typeof zh = {
     allowedWithMode: 'Allowed once with {mode}',
     allowedByReviewer: 'Allowed by auto review',
     reviewerReason: 'Auto review reason',
+    reviewEscalated: 'Auto review did not allow this',
+    reviewFailed: 'Auto review did not finish',
+    reviewFailures: {
+      timeout: 'The review timed out',
+      'request-failed': 'The review request failed',
+      'invalid-output': 'The review result could not be read',
+      'no-model': 'No model is available for this session',
+      budget: 'The goal budget is used up',
+      'too-long': 'The call is too long to review in full',
+    },
   },
   sandbox: {
     modes: {

@@ -733,6 +733,16 @@ export const zh = {
     allowedWithMode: '已以{mode}允许一次',
     allowedByReviewer: '已由自动审查允许',
     reviewerReason: '自动审查理由',
+    reviewEscalated: '自动审查未放行',
+    reviewFailed: '自动审查未完成',
+    reviewFailures: {
+      timeout: '审查超时',
+      'request-failed': '审查请求失败',
+      'invalid-output': '无法识别审查结果',
+      'no-model': '当前会话没有可用模型',
+      budget: 'Goal 预算已用尽',
+      'too-long': '调用内容过长，无法完整审查',
+    },
   },
   sandbox: {
     modes: {
