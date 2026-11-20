@@ -1,0 +1,41 @@
+.scratch/plan-lifecycle/issues/04-planning-keeps-permission-mode.md
+  s_e66561215efab5::t_ee5d3cfe243f26 11-12,57-60
+.scratch/plan-lifecycle/issues/11-abandon-and-replan.md
+  s_e66561215efab5::t_ee5d3cfe243f26 11-12,15,36-40
+.scratch/plan-lifecycle/issues/12-phase-two-acceptance-and-docs.md
+  s_e66561215efab5::t_ee5d3cfe243f26 11-12,33-36
+.scratch/plan-lifecycle/issues/10-complete-plan-report.md
+  s_e66561215efab5::t_ee5d3cfe243f26 11-12,46-48
+.scratch/plan-lifecycle/issues/06-rewind-fork-handoff.md
+  s_e66561215efab5::t_ee5d3cfe243f26 11-12,47-50
+.scratch/plan-lifecycle/issues/01-design-and-adr.md
+  s_e66561215efab5::t_ee5d3cfe243f26 11-12,29-32
+.scratch/plan-lifecycle/issues/03-planning-constraints.md
+  s_e66561215efab5::t_ee5d3cfe243f26 11-12,50-53
+.scratch/plan-lifecycle/issues/05-review-card-permission.md
+  s_e66561215efab5::t_ee5d3cfe243f26 11-12,38-41
+.scratch/plan-lifecycle/issues/09-executing-phase-and-reminder.md
+  s_e66561215efab5::t_ee5d3cfe243f26 11-12,44-47
+.scratch/plan-lifecycle/issues/08-phase-one-acceptance-and-docs.md
+  s_e66561215efab5::t_ee5d3cfe243f26 11-12,41-45
+.scratch/plan-lifecycle/issues/07-remove-plan-permission-mode.md
+  s_e66561215efab5::t_ee5d3cfe243f26 11-12,54-57
+.scratch/plan-lifecycle/issues/02-plan-phase-entry.md
+  s_e66561215efab5::t_ee5d3cfe243f26 11-12,44-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "f8c64d8a9e12607cfb70b92a05a2dc0bcde2d21a",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
