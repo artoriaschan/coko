@@ -1,0 +1,30 @@
+apps/desktop/e2e/permissions.e2e.test.ts
+  s_d1e837811db462::t_71113fa9516ac8 213
+  s_d1e837811db462::t_ce345b89141e84 217-218
+  s_d1e837811db462::t_3db8b2aa51728e 219
+  s_d1e837811db462::t_046552358d3616 185-212,214-216,220-231
+  s_d1e837811db462::t_e4b1d7491cdd02 2
+tests/integration/sidecar-permissions.test.ts
+  s_d1e837811db462::t_7b7f2472d46604 405,424-428,447-449
+tests/integration/sidecar-auto-review.test.ts
+  s_d1e837811db462::t_fd07c1fbd976f9 469-495
+  s_d1e837811db462::t_988ef0e83ab02d 583-599
+  s_d1e837811db462::t_5f0796e9858371 789
+  s_d1e837811db462::t_95c1bfc34e3aeb 793
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "1771e1cf4e9152f32ecf0eaaf730da3321ff4a2e",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
