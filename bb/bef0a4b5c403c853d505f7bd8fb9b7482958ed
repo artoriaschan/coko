@@ -1,0 +1,23 @@
+apps/desktop/src/main/index.ts
+  s_e66561215efab5::t_f883fd6a83eae9 116-120
+apps/desktop/e2e/ripgrep-logging.e2e.test.ts
+  s_e66561215efab5::t_efa5a6ae60b37c 34-40
+docs/tech-stack/testing.md
+  s_e66561215efab5::t_27f813f9899dcb 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "bbbef0a4b5c403c853d505f7bd8fb9b7482958ed",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
