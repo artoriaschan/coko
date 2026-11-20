@@ -1,0 +1,55 @@
+apps/server/src/application/checkpoints.ts
+  s_e66561215efab5::t_9fbba583152be2 30-31,109,136
+apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx
+  s_e66561215efab5::t_bf39996695c348 373-411
+tests/integration/sidecar-handoff.test.ts
+  s_e66561215efab5::t_5ccf4569309e04 8,148-159
+docs/subsystems/handoff.md
+  s_e66561215efab5::t_c40c12082ad6d5 48
+  s_e66561215efab5::t_497cff9bc25932 75
+tests/integration/sidecar-plan.test.ts
+  s_e66561215efab5::t_bfad7ae619d2e5 66,72
+  s_e66561215efab5::t_1812f2499f4689 27,29-30,67-70,76,456-527
+  s_e66561215efab5::t_fe27a9b2de0578 8,71
+apps/server/src/application/sessions.ts
+  s_e66561215efab5::t_9fbba583152be2 152
+packages/agent/src/agents/fork.test.ts
+  s_e66561215efab5::t_469be58331aa13 207-209,214-218,233-234,237-239
+  s_e66561215efab5::t_e6d8fb7a1d4765 219-230
+  s_e66561215efab5::t_30095aee41bc37 235-236
+packages/agent/src/agents/handoff.test.ts
+  s_e66561215efab5::t_bf39996695c348 117,120,133
+  s_e66561215efab5::t_a17bb06352ca6c 112-116,118-119,121-122
+docs/README.md
+  s_e66561215efab5::t_b17aa6275c1673 47,50
+.scratch/plan-lifecycle/issues/06-rewind-fork-handoff.md
+  s_e66561215efab5::t_e6d8fb7a1d4765 36-44
+  s_e66561215efab5::t_638ef68d4fd1ee 11-35
+packages/agent/src/agents/fork.ts
+  s_e66561215efab5::t_30095aee41bc37 12,77
+  s_e66561215efab5::t_e6d8fb7a1d4765 78
+apps/server/src/application/session-permissions.ts
+  s_e66561215efab5::t_9fbba583152be2 7,44,164-166,176,186-197
+tests/integration/sidecar-rewind.test.ts
+  s_e66561215efab5::t_38794b617b0267 79-81,93-108,112-115
+  s_e66561215efab5::t_e6d8fb7a1d4765 84-89
+docs/subsystems/plan-mode.md
+  s_e66561215efab5::t_d93d6a6f4b9997 29,31-32,68,70-71
+  s_e66561215efab5::t_c40c12082ad6d5 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "e16a44533db69d8dce54ac325a5896504adff78b",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
