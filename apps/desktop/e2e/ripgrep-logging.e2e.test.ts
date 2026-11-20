@@ -31,6 +31,13 @@ describe('随包 ripgrep', () => {
     expect(await app.window.locator('[data-error-code]').getAttribute('data-error-code')).toBe('ripgrep-unavailable')
     const pids = await app.sidecarPids()
     await waitFor(() => pids.every((pid) => !processExists(pid)), 10_000, 'sidecar exit')
+    // 后台模式不弹原生错误框（会抢前台），只写日志。
+    await app.dispose()
+    const desktop = await readLogRecords(join(root, 'coko-home', 'data', 'logs', 'desktop.jsonl'))
+    expect(desktop.find((r) => r.message === 'sidecar error dialog suppressed in e2e background mode')?.properties).toMatchObject({
+      kind: 'startup',
+      code: 'ripgrep-unavailable',
+    })
   })
 
   it('grep 经随包 ripgrep 执行；desktop.jsonl 与 sidecar.jsonl 落盘且已脱敏', async () => {
