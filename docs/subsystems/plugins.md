@@ -102,6 +102,8 @@ digest 为 SHA-256，输入是规范化 JSON（键排序，数组保持顺序）
 
 插件资源不覆盖用户与项目的同名资源：用户的 `greet` Skill 与插件的 `sample:greet` 同时可用。`/<plugin>:<skill>` 与 `/<plugin>:<command>` 展开时，文件正文先替换已登记 Secret 的明文再进入 user message 条目，用户写的参数原样保留（[ADR 0007](../adr/0007-secrets-from-registered-entries.md)）。
 
+命令目录（`GET /api/commands`）中，插件的命令与 Skill 各带 `plugin`（插件名），来源仍分别为 `user` 与 `skill`。`/` 命令菜单据此把它们归入单独的“插件”组（Skill 组之后、MCP 组之前，组内按名字排序），用户组与 Skill 组不再含插件条目；设置的“Skills & Commands”分区不按插件分组。见 [命令](commands.md#界面)。
+
 ## 与项目资源的区别
 
 | | 插件 | 项目资源（`<Workspace>/.coko/` 与项目 MCP、项目 Hook） |

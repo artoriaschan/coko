@@ -67,6 +67,7 @@ export function skillsContribution(options: SkillsContributionOptions): SkillsCo
     description: skill.description,
     ...(skill.argumentHint === undefined ? {} : { argumentHint: skill.argumentHint }),
     source: 'skill',
+    plugin: skill.plugin,
     path: skill.path,
     enabled,
     async expand(args) {
