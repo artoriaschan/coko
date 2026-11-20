@@ -73,12 +73,15 @@ export class SessionReviews {
     } catch {
       return failed('request-failed')
     }
-    const input = buildReviewInput({
-      entries,
-      ...(rootEntries ? { rootEntries } : {}),
-      call: { toolName: request.toolName, input: request.input, ...(request.description === undefined ? {} : { description: request.description }) },
-      priorCalls: request.priorCalls,
-    })
+    // 先按值脱敏再构建：截断可能切在 Secret 中间，切开后的残片不再能被识别（用户输入的 Secret 按原文入库，ADR 0007）。
+    const input = buildReviewInput(
+      redactSecretsDeep({
+        entries,
+        ...(rootEntries ? { rootEntries } : {}),
+        call: { toolName: request.toolName, input: request.input, ...(request.description === undefined ? {} : { description: request.description }) },
+        priorCalls: request.priorCalls,
+      }),
+    )
     if ('tooLong' in input) return failed('too-long')
     const messages = redactSecretsDeep([{ role: 'user' as const, content: input.text, timestamp: clock.now() }])
     const context = { systemPrompt: REVIEW_SYSTEM_PROMPT, messages }
