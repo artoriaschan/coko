@@ -135,7 +135,7 @@ export const AuditEvent = Type.Union([
     by: Type.Optional(Type.String()),
     scope: Type.Optional(Type.String()),
   }),
-  audit('permission_mode', { mode: Type.String(), prior: Type.Optional(Type.String()) }),
+  audit('permission_mode', { mode: Type.String() }),
   audit('plan_phase', { phase: Type.String(), planId: Type.Optional(Id) }),
   audit('permission_rule', {
     op: Type.String(),

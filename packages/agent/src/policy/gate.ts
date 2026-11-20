@@ -43,7 +43,7 @@ export const RECORD_FAILED_TEXT = 'Run stopped: the record could not be saved'
 export const ESCALATION_NOT_DENIED_TEXT =
   'invalid escalation: sandbox_permissions only retries a command the sandbox denied in this run; run the command without it first'
 export const rejectedWithFeedback = (feedback: string) => `The user rejected this tool call and said:\n${feedback}`
-/** 调用的效果固定在比当前模式更宽的沙箱中执行，而当前模式（plan、read-only）不允许提权。 */
+/** 调用的效果固定在比当前模式更宽的沙箱中执行，而当前模式（read-only）不允许提权。 */
 export const fixedSandboxRefusedText = (what: string, fixed: SandboxMode, mode: PermissionMode) =>
   `Not sent: ${what} was started under the ${fixed} sandbox, wider than ${mode} mode allows; input to it would run with that access. ` +
   'Start a new terminal job under the current mode instead.'
@@ -372,22 +372,21 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       const verdict = options.hooks ? await options.hooks.preToolUse(hookCall, signal) : {}
       if (verdict.decision === 'deny') return hookBlock(blockedByHookText(verdict.reason), verdict)
       if (decision.behavior === 'deny') return { block: true, reason: deniedText(decision) }
-      // isolation worktree 在规划中与 plan / read-only 模式下不可用：直接为错误结果，不先询问一个批准之后也会失败的调用（Hook 与规则的拒绝之后）。
-      const isolationMode = planning() ? 'plan' : options.mode()
-      if (isolation && (isolationMode === 'plan' || isolationMode === 'read-only'))
-        return { block: true, reason: `isolation: worktree is not available in ${isolationMode} mode` }
+      // isolation worktree 在规划中与 read-only 模式下不可用：直接为错误结果，不先询问一个批准之后也会失败的调用（Hook 与规则的拒绝之后）。
+      if (isolation && (planning() || options.mode() === 'read-only'))
+        return { block: true, reason: `isolation: worktree is not available in ${planning() ? 'plan' : 'read-only'} mode` }
       const remember = (latest: PermissionTarget | undefined) => {
         const real = (latest ?? target)?.real
         if (real !== undefined && categoryOf(name) === 'write') prepared.set(context.toolCall.id, real)
       }
 
-      // 效果固定在更宽档位中执行的调用（向较宽档位启动的终端输入）：规划中与 plan / read-only 模式下拒绝，其余模式按一次提权询问（与
+      // 效果固定在更宽档位中执行的调用（向较宽档位启动的终端输入）：规划中与 read-only 模式下拒绝，其余模式按一次提权询问（与
       // sandbox_permissions 相同，允许规则与模式放行都不能免掉它）。
       const fixed = tool?.fixedSandbox?.(context.args as never)
       const mode = options.mode()
       if (fixed && isWiderSandbox(fixed.mode, sandboxModeFor(mode, planning()))) {
         if (planning()) return { block: true, reason: planningFixedSandboxRefusedText(fixed.what, fixed.mode) }
-        if (mode === 'plan' || mode === 'read-only') return { block: true, reason: fixedSandboxRefusedText(fixed.what, fixed.mode, mode) }
+        if (mode === 'read-only') return { block: true, reason: fixedSandboxRefusedText(fixed.what, fixed.mode, mode) }
         return escalate(context, signal, subject ?? '', fixed.mode, `${fixed.what} runs with ${fixed.mode} access, wider than the current ${mode} mode`)
       }
 

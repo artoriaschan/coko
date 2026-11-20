@@ -1,6 +1,6 @@
 // 计划批准的状态不一致：待审批的 plan 请求没有对应的审阅记录（propose 总在询问之前登记，正常走不到）时，不猜测 revision，以 internal 失败
 // （HTTP 500），不提交新 revision 的 plan 条目，也不放行该请求。Session 计划的读取：子 Session 取根 Session 的阶段与活动 Plan，没有阶段条目时为 none；
-// 计划接口的动作对子 Session 为 child-session。
+// 计划接口的动作对子 Session 为 child-session。旧数据（permission_mode v2 的 plan）读为进入前的模式，不在规划中。
 import { SESSION_ENTRY_PAYLOADS, type AgentRuntime } from '@coko/agent'
 import { createPayloadRegistry, type SessionStore } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
@@ -15,7 +15,8 @@ async function setup() {
   const store: SessionStore = createMemoryStore({ payloads: createPayloadRegistry(SESSION_ENTRY_PAYLOADS) })
   const workspace = await store.sessions.registerWorkspace({ path: process.cwd(), name: 'ws' })
   const session = await store.sessions.createSession({ workspaceId: workspace.id, title: 't', model: null })
-  await store.sessions.appendEntries(session.id, [{ kind: 'permission_mode', payload: { mode: 'plan', prior: 'default' } }])
+  // 升级前（permission_mode v2）停在 plan 模式的 Session。
+  await store.sessions.appendEntries(session.id, [{ kind: 'permission_mode', payloadVersion: 2, payload: { mode: 'plan', prior: 'default' } }])
   const runtimes = new SessionRuntimes(store, new SessionHub())
   const answered: unknown[] = []
   // 只用到 pendingApprovals 与 answerApproval 的运行时替身：一个 plan 请求在等待，但没有经过 propose。
@@ -57,10 +58,33 @@ describe('Session 计划的读取', () => {
     await expect(permissions.planAction('missing', 'enter')).rejects.toMatchObject({ code: 'not-found', status: 404 })
   })
 
-  it('升级前停在 plan 模式、没有阶段条目的 Session：不在规划中（过渡状态，由票 07 收尾）', async () => {
+  it('升级前停在 plan 模式、没有阶段条目的 Session：模式读为 prior、读取结果不带 prior，不在规划中，运行时不按规划判定', async () => {
     const { session, permissions } = await setup()
+    expect(await permissions.sessionPermissions(session.id)).toEqual({ mode: 'default', rules: [] })
     expect(await permissions.sessionPlan(session.id)).toEqual({ phase: 'none', plan: null })
     expect(await permissions.review(session.id).active()).toBe(false)
+    const runtime = permissions.runtimePermissions(await permissions.state(session), session.workspaceId, session.id)
+    expect([runtime.mode(), runtime.planning()]).toEqual(['default', false])
+  })
+
+  it.each([
+    [{ mode: 'plan', prior: 'accept-edits' }, 'accept-edits'],
+    [{ mode: 'plan', prior: 'full-access' }, 'full-access'],
+    [{ mode: 'plan' }, 'default'],
+    [{ mode: 'read-only' }, 'read-only'],
+  ])('旧的 permission_mode v2 %j 读为 %s（没有 prior 的 plan 为 default）', async (payload, mode) => {
+    const { store } = await setup()
+    const workspace = await store.sessions.registerWorkspace({ path: process.cwd(), name: 'ws' })
+    const old = await store.sessions.createSession({ workspaceId: workspace.id, title: 'old', model: null })
+    await store.sessions.appendEntries(old.id, [{ kind: 'permission_mode', payloadVersion: 1, payload: { mode: 'accept-edits' } }])
+    await store.sessions.appendEntries(old.id, [{ kind: 'permission_mode', payloadVersion: 2, payload }])
+    const permissions = new SessionPermissions({
+      store,
+      runtimes: new SessionRuntimes(store, new SessionHub()),
+      service: new PermissionService(store, () => []),
+    })
+    expect(await permissions.sessionPermissions(old.id)).toEqual({ mode, rules: [] })
+    expect(await permissions.sessionPlan(old.id)).toEqual({ phase: 'none', plan: null })
   })
 })
 

@@ -45,13 +45,13 @@ describe('handoffTargetEntries', () => {
       entry('permission_mode', { mode: 'default' }, null),
       user('one'),
       assistant('a'),
-      entry('permission_mode', { mode: 'plan' }, 'r1'),
+      entry('permission_mode', { mode: 'read-only' }, 'r1'),
       rule('add', 'Bash'),
     ]
     expect(handoffTargetEntries(entries, 'src', 9)).toEqual([
       { kind: 'handoff_origin', payload: { sessionId: 'src', seq: 9 } },
       { kind: 'permission_mode', payload: { mode: 'default' } },
-      { kind: 'permission_mode', payload: { mode: 'plan' } },
+      { kind: 'permission_mode', payload: { mode: 'read-only' } },
       { kind: 'permission_rule', payload: { op: 'add', rule: { behavior: 'allow', tool: 'Bash' } } },
     ])
   })
@@ -99,7 +99,7 @@ describe('handoffTargetEntries 的计划阶段', () => {
     const entries = [
       entry('permission_mode', { mode: 'default' }, null),
       user('one'),
-      entry('permission_mode', { mode: 'plan', prior: 'default' }, null),
+      entry('permission_mode', { mode: 'read-only' }, null),
       entry('plan_phase', { phase: 'planning' }, null),
       rule('add', 'Bash'),
     ]

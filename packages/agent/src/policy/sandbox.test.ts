@@ -9,7 +9,6 @@ describe('模式对应的沙箱档位', () => {
     ['default', 'workspace-write'],
     ['accept-edits', 'workspace-write'],
     ['full-access', 'danger-full-access'],
-    ['plan', 'read-only'],
   ] as const)('%s → %s', (mode, sandbox) => {
     expect(sandboxModeFor(mode)).toBe(sandbox)
   })
@@ -17,9 +16,9 @@ describe('模式对应的沙箱档位', () => {
 
 describe('规划中的沙箱档位（ADR 0028）', () => {
   it('规划中一律 read-only；不在规划中沿用模式映射', () => {
-    const modes = ['read-only', 'plan', 'default', 'accept-edits', 'full-access'] as const
+    const modes = ['read-only', 'default', 'accept-edits', 'full-access'] as const
     expect(modes.map((mode) => sandboxModeFor(mode, true))).toEqual(modes.map(() => 'read-only'))
-    expect(modes.map((mode) => sandboxModeFor(mode, false))).toEqual(['read-only', 'read-only', 'workspace-write', 'workspace-write', 'danger-full-access'])
+    expect(modes.map((mode) => sandboxModeFor(mode, false))).toEqual(['read-only', 'workspace-write', 'workspace-write', 'danger-full-access'])
   })
 
   it('规划中可写根为空（含显式可写根与 full-access）', async () => {

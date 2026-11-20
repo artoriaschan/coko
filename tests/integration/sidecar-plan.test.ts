@@ -2,10 +2,12 @@
 // 沙箱且不能提权，其余调用按当前模式）、Run 中途进入与退出、exit_plan_mode 的提交与审阅（编辑后批准、带反馈继续规划，批准只结束规划）、回答的校验、压缩后的
 // <approved_plan> 与分叉。
 // 本票不新增文件读取（没有读取根或注入点涉及路径），不需要符号链接越界用例。
+import { execFileSync } from 'node:child_process'
 import { access, readFile, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, planPaths, type SessionEntryRecord } from '@coko/protocol'
+import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, planPaths, tracePaths, type SessionEntryRecord, type TraceResponse } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval as waitRequest, type Stream } from './sidecar-harness.ts'
 
 const darwin = process.platform === 'darwin'
@@ -441,6 +443,100 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(JSON.stringify(firstEntries.find((e) => kindOf(e) === 'user')!.payload)).toContain('research first')
     expect(h.stream.invalidEntries).toEqual([])
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('旧数据（permission_mode v2 的 plan）：模式读为 prior、没有 prior 读为 default，库中行不改写；不在规划中、没有 <plan_mode> 与 exit_plan_mode；已提交的计划仍可读', async () => {
+    const root = await realpath(await tempDir())
+    const script = await fauxScript(root, { responses: [{ content: 'continuing' }] }, '.faux.json')
+    const dirs = await sidecarDirs()
+    const env = { COKO_FAUX_SCRIPT: script }
+    const before = await startSidecar({ dirs, env })
+    const seeding = client(before, await exchange(before))
+    const workspaceId = (await seeding.post(API_ROUTES.workspaces, { path: root })).body.id as string
+    const withPrior = (await seeding.post(API_ROUTES.sessions, { workspaceId })).body.id as string
+    const withoutPrior = (await seeding.post(API_ROUTES.sessions, { workspaceId })).body.id as string
+    expect(await before.stop()).toEqual({ code: 0, signal: null })
+    // 升级前的版本写下的条目：permission_mode v2 停在 plan，plan v1 的计划；没有 plan_phase。经存储的公开接口在 Sidecar 停止时写入。
+    const proposed = { planId: 'p0', revision: 1, markdown: '# Old plan', status: 'proposed' }
+    execFileSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `
+      const { openSqliteStore } = await import(process.argv[1]);
+      const { createPayloadRegistry } = await import(process.argv[6]);
+      const { SESSION_ENTRY_PAYLOADS } = await import(process.argv[7]);
+      const store = await openSqliteStore({ path: process.argv[2], payloads: createPayloadRegistry(SESSION_ENTRY_PAYLOADS) });
+      const [withPrior, withoutPrior, proposed] = [process.argv[3], process.argv[4], JSON.parse(process.argv[5])];
+      try {
+        await store.sessions.appendEntries(withPrior, [
+          { kind: 'permission_mode', payloadVersion: 2, payload: { mode: 'plan', prior: 'accept-edits' } },
+          { kind: 'plan', payloadVersion: 1, payload: proposed },
+        ]);
+        await store.sessions.appendEntries(withoutPrior, [{ kind: 'permission_mode', payloadVersion: 2, payload: { mode: 'plan' } }]);
+      } finally { await store.close(); }
+    `,
+        new URL('../../packages/session/src/sqlite/index.ts', import.meta.url).href,
+        join(dirs.dataDir, 'coko.db'),
+        withPrior,
+        withoutPrior,
+        JSON.stringify(proposed),
+        new URL('../../packages/session/src/payloads.ts', import.meta.url).href,
+        new URL('../../packages/agent/src/session-entries/index.ts', import.meta.url).href,
+      ],
+      { stdio: 'pipe' },
+    )
+
+    const sidecar = await startSidecar({ dirs, env })
+    const cookie = await exchange(sidecar)
+    const api = client(sidecar, cookie)
+    expect((await api.get(permissionPaths.sessionPermissionRules(withPrior))).body).toEqual({ mode: 'accept-edits', rules: [] })
+    expect((await api.get(permissionPaths.sessionPermissionRules(withoutPrior))).body).toEqual({ mode: 'default', rules: [] })
+    for (const id of [withPrior, withoutPrior]) expect((await api.get(planPaths.sessionPlan(id))).body).toEqual({ phase: 'none', plan: null })
+    // 读取结果为当前版本（v3，不带 prior）；已提交的计划仍在条目中（时间线的计划卡与右栏 Plan 页由它派生）。
+    const entries = (await api.get(apiPaths.session(withPrior))).body.entries as SessionEntryRecord[]
+    expect(entries.filter((e) => e.kind === 'permission_mode').map((e) => [e.payloadVersion, e.payload])).toEqual([
+      [3, { mode: 'default' }],
+      [3, { mode: 'accept-edits' }],
+    ])
+    expect(entries.filter((e) => e.kind === 'plan').map((e) => e.payload)).toEqual([proposed])
+    // 数据库行不改写：原始版本号仍为 2。
+    const db = new DatabaseSync(join(dirs.dataDir, 'coko.db'), { readOnly: true })
+    try {
+      const rows = db
+        .prepare("SELECT payload_version, payload FROM session_entries WHERE kind = 'permission_mode' AND session_id = ? ORDER BY seq")
+        .all(withPrior)
+      expect(rows.map((row) => [row.payload_version, JSON.parse(String(row.payload))])).toEqual([
+        [3, { mode: 'default' }],
+        [2, { mode: 'plan', prior: 'accept-edits' }],
+      ])
+    } finally {
+      db.close()
+    }
+    // 审计的权限模式事件不带 prior。
+    const audit = (await api.get(apiPaths.sessionAudit(withPrior))).body as { kind: string }[]
+    expect(
+      audit.filter((e) => e.kind === 'permission_mode').map(({ seq: _seq, at: _at, ...event }: { kind: string; seq?: number; at?: number }) => event),
+    ).toEqual([
+      { kind: 'permission_mode', mode: 'default' },
+      { kind: 'permission_mode', mode: 'accept-edits' },
+    ])
+
+    // 下一个 Run 不在规划中：没有 <plan_mode>，没有 exit_plan_mode。
+    const stream = await connect(sidecar, cookie)
+    stream.send({ type: 'subscribe', sessionId: withPrior, afterSeq: 0 })
+    await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === withPrior)
+    expect((await api.post(apiPaths.sessionMessages(withPrior), { text: 'continue' })).status).toBe(202)
+    await stream.waitFor(() => stream.entries(withPrior).some((e) => e.kind === 'run_end'), 30_000)
+    const [sent] = ((await api.get(tracePaths.trace(withPrior))).body as TraceResponse).runs.flatMap((run) => run.requests)
+    expect(sent!.snapshot!.system).toContain('<environment>')
+    expect(sent!.snapshot!.system).not.toContain('<plan_mode>')
+    const tools = (sent!.snapshot!.tools as { name: string }[]).map((t) => t.name)
+    expect(tools).toContain('read')
+    expect(tools).not.toContain('exit_plan_mode')
+    expect(stream.invalidEntries).toEqual([])
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
   it('压缩把已批准计划摘要掉后注入 <approved_plan>；分叉规划中的 Session：仍在规划中、模式随 permission_mode 复制（default），没有 plan 条目', async () => {

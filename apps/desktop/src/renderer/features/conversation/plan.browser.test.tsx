@@ -370,12 +370,13 @@ describe('plan-chip', () => {
       await expect.poll(() => screen.container.querySelector('[data-slot="plan-chip"]')).toBeNull()
     })
 
-    it('退出失败：chip 保留且可再次点击；旧数据中的 plan 模式（没有阶段条目）与草稿都不显示 chip', async () => {
+    it('退出失败：chip 保留且可再次点击；旧数据（plan 模式已读为 prior，没有阶段条目）与草稿都不显示 chip', async () => {
       seq = 0
       const { chat, api } = createFixtureChat({
         entries: {
           's-1': [entry('plan_phase', { phase: 'planning' }, null)],
-          's-3': [entry('permission_mode', { mode: 'plan', prior: 'default' }, null)],
+          // 服务端读取时已把 permission_mode v2 的 plan 迁移为 prior（v3）。
+          's-3': [entry('permission_mode', { mode: 'default' }, null)],
         },
       })
       let attempts = 0
@@ -383,7 +384,6 @@ describe('plan-chip', () => {
         attempts++
         throw new ApiError('network', 'down', 0)
       }
-      chat.newChat.getState().configure({ permissionMode: 'plan' })
       await expect.poll(() => chat.getState().conversations['s-1']?.status).toBe('ready')
       const screen = await wrap(
         <>
@@ -398,20 +398,6 @@ describe('plan-chip', () => {
       await expect.poll(() => attempts).toBe(1)
       await expect.element(chip).toBeEnabled()
       expect(screen.container.querySelectorAll('[data-slot="plan-chip"]')).toHaveLength(1)
-      chat.newChat.getState().configure({ permissionMode: null })
-    })
-
-    it('旧数据中的 plan 模式：按钮显示“规划”，菜单三项都不勾选，选择即切到该模式', async () => {
-      const picked: string[] = []
-      const screen = await wrap(<ModePicker value="plan" onChange={(m) => picked.push(m)} />)
-      const button = screen.getByRole('button', { name: /Plan/ })
-      await expect.element(button).toBeVisible()
-      await userEvent.click(button)
-      expect(document.querySelectorAll('[role="menuitemradio"]')).toHaveLength(3)
-      expect(document.querySelectorAll('[role="menuitemradio"][aria-checked="true"]')).toHaveLength(0)
-      await userEvent.click(page.getByRole('menuitemradio', { name: /Ask for approval/ }))
-      await menuClosed()
-      expect(picked).toEqual(['default'])
     })
 
     it('选择完全访问权限先显示风险提示，取消不改变，确认后才生效', async () => {

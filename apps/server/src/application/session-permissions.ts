@@ -37,18 +37,12 @@ const log = getLogger(['application', 'sessions'])
 export interface SessionPermissionState {
   workspaceId: string
   mode: PermissionMode
-  /** plan 模式下：进入 plan 之前的模式（permission_mode 的 prior）。 */
-  prior?: StandardPermissionMode
   rules: PermissionRule[]
   /** 计划阶段（ADR 0028）：最后一条 plan_phase，没有时 none。与模式同一口径回放（原始条目，票 06 改为有效条目）。 */
   phase: PlanPhasePayload
 }
 
-const view = (state: SessionPermissionState): SessionPermissionsResponse => ({
-  mode: state.mode,
-  ...(state.mode === 'plan' && state.prior ? { prior: state.prior } : {}),
-  rules: [...state.rules],
-})
+const view = (state: SessionPermissionState): SessionPermissionsResponse => ({ mode: state.mode, rules: [...state.rules] })
 
 /**
  * 子 Session 的权限作用域（ADR 0014）：rootSessionId 为规则与"本会话总是允许"所属的根 Session；modeCap 为子代理定义的 permission-mode
@@ -162,12 +156,9 @@ export class SessionPermissions implements PlanHost {
         await Promise.all([this.service.load(), this.service.loadWorkspace(session.workspaceId)])
         const replayed: SessionPermissionState = { workspaceId: session.workspaceId, mode: 'default', rules: [], phase: { phase: 'none' } }
         for (const entry of await this.#store.sessions.listEntries(session.id)) {
-          if (entry.kind === 'permission_mode') {
-            const { mode, prior } = entry.payload as { mode: PermissionMode; prior?: StandardPermissionMode }
-            replayed.mode = mode
-            if (mode !== 'plan') delete replayed.prior
-            else if (prior) replayed.prior = prior
-          } else if (entry.kind === 'permission_rule') {
+          // permission_mode 已在读取时迁移到 v3（旧数据的 plan 读为 prior，缺省 default；ADR 0028）。
+          if (entry.kind === 'permission_mode') replayed.mode = (entry.payload as { mode: PermissionMode }).mode
+          else if (entry.kind === 'permission_rule') {
             const { op, rule: stored } = entry.payload as unknown as { op: 'add' | 'remove'; rule: PermissionRule }
             const [rule] = this.service.canonical([stored]) as [PermissionRule]
             replayed.rules = op === 'add' ? withRules(replayed.rules, [rule]) : replayed.rules.filter((r) => !sameRule(r, rule))
@@ -223,7 +214,6 @@ export class SessionPermissions implements PlanHost {
       if (state.mode !== mode) {
         await this.#runtimes.commit(sessionId, { kind: 'permission_mode', payload: { mode } })
         state.mode = mode
-        delete state.prior
         log.info('permission mode changed', { sessionId, mode })
       }
       return view(state)

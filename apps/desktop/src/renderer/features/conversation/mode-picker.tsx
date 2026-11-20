@@ -11,7 +11,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@coko/ui'
-import { IconClipboardList, IconEye, IconHandStop, IconShieldExclamation, IconShield, IconTerminal } from '@tabler/icons-react'
+import { IconEye, IconHandStop, IconShieldExclamation, IconShield, IconTerminal } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { PermissionRiskDialog } from './permission-risk-dialog.tsx'
@@ -24,10 +24,9 @@ export const MODE_ICONS: Record<PermissionMode, React.ComponentType<{ className?
   default: IconHandStop,
   'accept-edits': ShieldTerminalIcon,
   'full-access': IconShieldExclamation,
-  plan: IconClipboardList,
 }
 
-/** Shift+Tab 的下一档：只在前三档之间循环（只切换 Permission Mode，不影响规划）；从 full-access 或旧数据中的 plan 回到第一档。 */
+/** Shift+Tab 的下一档：只在前三档之间循环（只切换 Permission Mode，不影响规划）；从 full-access 回到第一档。 */
 export function nextCycledMode(mode: PermissionMode): StandardPermissionMode {
   const index = CYCLED_PERMISSION_MODES.indexOf(mode as (typeof CYCLED_PERMISSION_MODES)[number])
   return CYCLED_PERMISSION_MODES[(index + 1) % CYCLED_PERMISSION_MODES.length]!
@@ -43,7 +42,7 @@ function ShieldTerminalIcon({ className }: { className?: string }) {
 }
 
 export interface ModePickerProps {
-  /** 当前 Permission Mode（规划中照常显示并勾选它，ADR 0028）。plan 只来自升级前的旧数据（票 07 由读取迁移收尾）。 */
+  /** 当前 Permission Mode（规划中照常显示并勾选它，ADR 0028）。 */
   value: PermissionMode
   disabled?: boolean
   onChange: (mode: StandardPermissionMode) => void
@@ -53,7 +52,7 @@ export interface ModePickerProps {
 export function ModePicker({ value, disabled, onChange }: ModePickerProps) {
   const { t } = useI18n()
   const Icon = MODE_ICONS[value]
-  const label = value === 'plan' ? t('plan.mode') : t(`permissions.modes.${value}`)
+  const label = t(`permissions.modes.${value}`)
   const warning = value === 'full-access'
   const [open, setOpen] = React.useState(false)
   const [riskOpen, setRiskOpen] = React.useState(false)

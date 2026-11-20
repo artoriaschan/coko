@@ -63,7 +63,7 @@ export interface SubagentSessionHost {
   deliver(sessionId: string, input: RunInput): boolean
   /** 派发时父级本 Run 可用的工具名。 */
   visibleTools(sessionId: string): string[] | undefined
-  /** 父 Session 当前的权限模式（根 Session 的模式；isolation 在 plan / read-only 下为错误结果）。 */
+  /** 父 Session 当前的权限模式（根 Session 的模式；isolation 在规划中与 read-only 下为错误结果）。 */
   mode(sessionId: string): Promise<PermissionMode>
   /** 父 Session 是否在规划中（根 Session 的计划阶段，ADR 0028；isolation 在规划中为错误结果）。 */
   planning(sessionId: string): Promise<boolean>

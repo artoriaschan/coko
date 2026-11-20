@@ -6,7 +6,7 @@ import { PLAN_MAX_CHARS } from './planning.ts'
 const strict = { additionalProperties: false } as const
 const Id = Type.String({ minLength: 1 })
 
-/** 可作为默认模式与 plan 之前模式的四档（plan 只对一个 Session 生效，不能设为默认）。 */
+/** Permission Mode 的四档（ADR 0005；规划是计划阶段而不是模式，ADR 0028）。 */
 export const StandardPermissionMode = Type.Union([
   Type.Literal('read-only'),
   Type.Literal('default'),
@@ -15,9 +15,9 @@ export const StandardPermissionMode = Type.Union([
 ])
 export type StandardPermissionMode = Static<typeof StandardPermissionMode>
 
-/** Session 的 Permission Mode：四档加 plan（Plan Mode：判定与 read-only 相同，命令沙箱 read-only）。 */
-export const PermissionMode = Type.Union([StandardPermissionMode, Type.Literal('plan')])
-export type PermissionMode = Static<typeof PermissionMode>
+/** 与 StandardPermissionMode 相同（Permission Mode 只有四档，ADR 0028；保留旧名，免于改动全部引用）。 */
+export const PermissionMode = StandardPermissionMode
+export type PermissionMode = StandardPermissionMode
 
 export const SandboxMode = Type.Union([Type.Literal('read-only'), Type.Literal('workspace-write'), Type.Literal('danger-full-access')])
 export type SandboxMode = Static<typeof SandboxMode>
@@ -28,8 +28,8 @@ export const PermissionRule = Type.Object(
 )
 export type PermissionRule = Static<typeof PermissionRule>
 
-/** permission_mode v2：进入 plan 时另记 prior（进入前的模式，退出与批准计划时回到它）。 */
-export const PermissionModePayload = Type.Object({ mode: PermissionMode, prior: Type.Optional(StandardPermissionMode) }, strict)
+/** permission_mode v3：只有四档（旧数据的 plan 在读取时迁移为进入前的模式，缺省 default；ADR 0028）。 */
+export const PermissionModePayload = Type.Object({ mode: PermissionMode }, strict)
 export type PermissionModePayload = Static<typeof PermissionModePayload>
 
 export const PermissionRulePayload = Type.Object({ op: Type.Union([Type.Literal('add'), Type.Literal('remove')]), rule: PermissionRule }, strict)
@@ -165,11 +165,8 @@ export type SetPermissionModeRequest = Static<typeof SetPermissionModeRequest>
 export const SessionPermissionRuleRequest = Type.Object({ rule: PermissionRuleInput }, strict)
 export type SessionPermissionRuleRequest = Static<typeof SessionPermissionRuleRequest>
 
-/** Session 的当前模式与 Session 规则（由条目回放）；plan 模式另带 prior。 */
-export const SessionPermissionsResponse = Type.Object(
-  { mode: PermissionMode, prior: Type.Optional(StandardPermissionMode), rules: Type.Array(PermissionRule) },
-  strict,
-)
+/** Session 的当前模式与 Session 规则（由条目回放）。 */
+export const SessionPermissionsResponse = Type.Object({ mode: PermissionMode, rules: Type.Array(PermissionRule) }, strict)
 export type SessionPermissionsResponse = Static<typeof SessionPermissionsResponse>
 
 export const permissionPaths = {
@@ -181,7 +178,7 @@ export const permissionPaths = {
   sessionPermissionRules: (id: string) => `/api/sessions/${encodeURIComponent(id)}/permission-rules`,
 } as const
 
-/** Shift+Tab 循环的三档；full-access 与 plan 只能显式选择。 */
+/** Shift+Tab 循环的三档；full-access 只能显式选择。 */
 export const CYCLED_PERMISSION_MODES = ['read-only', 'default', 'accept-edits'] as const satisfies readonly PermissionMode[]
 
 const escapeContent = (content: string) => content.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')

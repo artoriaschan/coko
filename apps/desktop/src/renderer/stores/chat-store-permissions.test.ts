@@ -6,6 +6,7 @@ import { ApiError, type ApiClient } from '../client/api.ts'
 import type { StreamClient } from '../client/connection.ts'
 import { planPhaseOf } from '@coko/agent/entries'
 import { createChatStore, sessionPermissionMode, sessionRules, type ChatFailure } from './chat-store.ts'
+import { NEW_CHAT_CONFIG_KEY } from './new-chat-store.ts'
 
 function fakeStream() {
   const listeners = new Set<(message: ServerMessage) => void>()
@@ -173,12 +174,24 @@ describe('Permission Mode（store）', () => {
     expect(store.newChat.getState().permissionMode).toBeNull()
   })
 
-  it('草稿中残留的 plan（升级前持久化）首次发送时按未设置处理', async () => {
-    const { store, calls } = await setup()
-    store.getState().startDraft('w1')
-    store.newChat.getState().configure({ permissionMode: 'plan' })
-    expect(await store.getState().send('hello')).toBe(true)
-    expect(calls).toEqual(['first:undefined'])
+  it('草稿中残留的 plan（升级前持久化）读取时按未设置处理，首次发送不带它', async () => {
+    const items = new Map([[NEW_CHAT_CONFIG_KEY, JSON.stringify({ draftId: 'd1', model: null, thinkingLevel: 'off', permissionMode: 'plan' })]])
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => items.get(key) ?? null,
+      setItem: (key: string, value: string) => void items.set(key, value),
+      removeItem: (key: string) => void items.delete(key),
+      key: (index: number) => [...items.keys()][index] ?? null,
+      length: 1,
+    })
+    try {
+      const { store, calls } = await setup()
+      expect(store.newChat.getState()).toMatchObject({ draftId: 'd1', permissionMode: null })
+      store.getState().startDraft('w1')
+      expect(await store.getState().send('hello')).toBe(true)
+      expect(calls).toEqual(['first:undefined'])
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('Session 规则按 permission_rule 条目回放', () => {

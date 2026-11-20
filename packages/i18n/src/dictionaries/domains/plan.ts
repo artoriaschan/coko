@@ -1,4 +1,4 @@
-// Plan Mode：输入区的 Plan chip、审阅卡、右栏 Plan tab 与时间线的计划卡；mode 只用于升级前旧数据中的 plan 模式（票 07 删除）。
+// Plan Mode：输入区的 Plan chip、审阅卡、右栏 Plan tab 与时间线的计划卡。
 import { defineDomain } from './define.ts'
 
 export const plan = defineDomain(
@@ -6,7 +6,6 @@ export const plan = defineDomain(
     title: '计划',
     tab: '计划',
     chip: '计划',
-    mode: '规划',
     exit: '关闭计划模式',
     status: {
       proposed: '待审阅',
@@ -45,7 +44,6 @@ export const plan = defineDomain(
     title: 'Plan',
     tab: 'Plan',
     chip: 'Planning',
-    mode: 'Plan',
     exit: 'Exit planning',
     status: {
       proposed: 'Awaiting review',

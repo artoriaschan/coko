@@ -53,7 +53,7 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 
 ## 有效权限与审批
 
-子 Session 没有自己的模式与规则：每次判定时取根 Session 当前的状态。模式 = min(根当前模式, 定义 `permission-mode`)，序为 read-only < default < accept-edits < full-access；规划不改变根的模式，因此根在规划中时子级的有效模式仍是这个较窄者（例如根为 full-access、定义没有上限时为 full-access，命令不询问），不被压成 read-only；旧数据中根为 plan 模式时原样传给判定（与 read-only 同判）。规则为根 Session 的 Session 规则加全局、Workspace 与 project 规则。根中途切换模式时子级的待审批请求重新判定，下一次调用按新模式。可写根与沙箱按子 Session 的工作目录。
+子 Session 没有自己的模式与规则：每次判定时取根 Session 当前的状态。模式 = min(根当前模式, 定义 `permission-mode`)，序为 read-only < default < accept-edits < full-access；规划不改变根的模式，因此根在规划中时子级的有效模式仍是这个较窄者（例如根为 full-access、定义没有上限时为 full-access，命令不询问），不被压成 read-only。规则为根 Session 的 Session 规则加全局、Workspace 与 project 规则。根中途切换模式时子级的待审批请求重新判定，下一次调用按新模式。可写根与沙箱按子 Session 的工作目录。
 
 是否规划中同样取根 Session 的计划阶段（[ADR 0028](../adr/0028-plan-phase-not-permission-mode.md)），根中途进入或退出即时生效：规划期间子 Session 的写入直接拒绝（不询问）、命令在只读沙箱中运行且不能提权，与根 Session 相同（见 [Plan Mode](plan-mode.md#进入退出与判定)）。开始时根在规划中的子 Session Run 的系统消息带子 Session 的 `<plan_mode>`：只说明父 Session 在规划中、不可改动 Workspace、把发现与拟做的改动报告给父代理，不提提交计划。
 
@@ -75,7 +75,7 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 
 ## isolation worktree
 
-`isolation: 'worktree'` 时经 WorktreeService 的 `createForSubagent` 在 `.coko-worktrees/` 创建 worktree 并绑定子 Session。判定：根 Session 规划中（不论模式），或旧数据的 plan 与 read-only 模式下，gate 直接给出错误结果（`isolation: worktree is not available in <mode> mode`，规划中为 `plan`；在 Hook 与规则的拒绝之后、询问之前），派发处（`SubagentService`，经 `SubagentSessionHost.planning` 取根 Session 的阶段）同样检查，不询问、不创建 worktree；full-access 直接放行，其余模式询问。派发没有完成（子 Session 或条目提交失败）时没有改动的 worktree 被回收、询问规则去掉，不残留 running 的子代理。子 Session 结束时 HEAD 仍为 base 且工作区干净则移除 worktree 并删除分支；否则保留，`agent_end.worktree { kept: true, path, branch }`，结果末尾注明。保留的 worktree 在父 Session 中加两条不入库的询问规则 `Read(<path>)` 与 `Edit(<path>)`（Edit 规则组覆盖 write 与 edit）：父 Session 在任何模式下读取、写入或编辑其中的文件都须审批（启动恢复时重新登记仍 active 的；worktree 移除时去掉）。bash 不受这些规则保护：父 Session 的命令可以读写该目录（受模式与沙箱限制）。
+`isolation: 'worktree'` 时经 WorktreeService 的 `createForSubagent` 在 `.coko-worktrees/` 创建 worktree 并绑定子 Session。判定：根 Session 规划中（不论模式）或 read-only 模式下，gate 直接给出错误结果（`isolation: worktree is not available in <mode> mode`，规划中为 `plan`；在 Hook 与规则的拒绝之后、询问之前），派发处（`SubagentService`，经 `SubagentSessionHost.planning` 取根 Session 的阶段）同样检查，不询问、不创建 worktree；full-access 直接放行，其余模式询问。派发没有完成（子 Session 或条目提交失败）时没有改动的 worktree 被回收、询问规则去掉，不残留 running 的子代理。子 Session 结束时 HEAD 仍为 base 且工作区干净则移除 worktree 并删除分支；否则保留，`agent_end.worktree { kept: true, path, branch }`，结果末尾注明。保留的 worktree 在父 Session 中加两条不入库的询问规则 `Read(<path>)` 与 `Edit(<path>)`（Edit 规则组覆盖 write 与 edit）：父 Session 在任何模式下读取、写入或编辑其中的文件都须审批（启动恢复时重新登记仍 active 的；worktree 移除时去掉）。bash 不受这些规则保护：父 Session 的命令可以读写该目录（受模式与沙箱限制）。
 
 ## 重启
 

@@ -35,7 +35,7 @@ export interface ComposerProps {
   accessory?: React.ReactNode
   /** 权限选择，位于计划状态之前。模型选择继续使用 accessory。 */
   permissionControl?: React.ReactNode
-  /** 底栏最前的 Plan chip 槽（plan 模式时显示）；没有内容时不占位。 */
+  /** 底栏最前的 Plan chip 槽（规划中时显示）；没有内容时不占位。 */
   planChip?: React.ReactNode
   /** 焦点在编辑区时 Shift+Tab：切换到下一档 Permission Mode（不移动焦点）。 */
   onCycleMode?: () => void

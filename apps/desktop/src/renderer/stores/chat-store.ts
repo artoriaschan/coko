@@ -512,8 +512,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
             ...(files?.length ? { files } : {}),
             ...(model ? { model } : {}),
             thinkingLevel: draft.thinkingLevel,
-            // 草稿中残留的 plan（规划不再是 Permission Mode，ADR 0028）按未设置处理：首次发送只接受四档。
-            ...(draft.permissionMode && draft.permissionMode !== 'plan' ? { permissionMode: draft.permissionMode } : {}),
+            ...(draft.permissionMode ? { permissionMode: draft.permissionMode } : {}),
           })
           await lists.getState().load()
           // A title can finish while the first-send response or list refresh is in flight.

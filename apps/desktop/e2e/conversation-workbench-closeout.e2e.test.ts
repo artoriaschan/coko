@@ -264,7 +264,7 @@ it('CW-43/44: current Electron workbench geometry, long-list search, both themes
   await page.screenshot({ path: '/tmp/coko-cw23-narrow-dark-reduced.png' })
 })
 
-it('CW-66/88: an existing Session combines shared composer, plan prior, context warning and automatic compaction', { timeout: 120_000 }, async () => {
+it('CW-66/88: an existing Session combines shared composer, planning, context warning and automatic compaction', { timeout: 120_000 }, async () => {
   const { folder, page } = await fixture({
     contextWindow: 65_000,
     maxTokens: 4_000,
@@ -290,7 +290,8 @@ it('CW-66/88: an existing Session combines shared composer, plan prior, context 
     await expect.poll(() => page.locator('[data-action="send"]').isVisible()).toBe(true)
   }
   await expect.poll(() => page.locator('[data-context-ring]').getAttribute('data-level')).toMatch(/warning|critical/)
-  expect(await mode.getAttribute('data-permission-mode')).toBe('plan')
+  // 规划是计划阶段，不改变 Permission Mode（ADR 0028）。
+  expect(await mode.getAttribute('data-permission-mode')).toBe('default')
   await page.locator('[data-context-ring]').click()
   const card = page.locator('[data-slot="context-card"]')
   await expect.poll(() => card.locator('dt').count()).toBe(5)

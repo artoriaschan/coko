@@ -112,7 +112,7 @@ describe('权限判定（default 模式）', () => {
 })
 
 describe('四种模式 × 工具类型（ADR 0005）', () => {
-  const roots: Record<PermissionContext['mode'], string[]> = { 'read-only': [], default: [WS, TMP], 'accept-edits': [WS, TMP], 'full-access': ['/'], plan: [] }
+  const roots: Record<PermissionContext['mode'], string[]> = { 'read-only': [], default: [WS, TMP], 'accept-edits': [WS, TMP], 'full-access': ['/'] }
   const at = (mode: PermissionContext['mode'], rules: PermissionRule[] = []) => ctx({ mode, rules, writableRoots: roots[mode] })
   type Expect = 'allow' | 'deny' | `ask:${string}`
   const outcome = (call: PermissionCall, context: PermissionContext): Expect => {
@@ -210,9 +210,9 @@ describe('权限类（M3）', () => {
     expect(decide(pdf, ctx({ mode: 'full-access', rules: [rule('ask', 'Skill', 'pdf')] }))).toMatchObject({ behavior: 'ask', reason: 'ask-rule' })
   })
 
-  it('memory-write：所有模式（含 plan）放行；询问与拒绝规则仍先于模式生效；规则组名 Memory', () => {
+  it('memory-write：所有模式（含规划中）放行；询问与拒绝规则仍先于模式生效；规则组名 Memory', () => {
     expect(MODES.map((mode) => decide(call('memory_write', 'memory-write'), allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow'])
-    expect(decide(call('memory_delete', 'memory-write'), ctx({ mode: 'plan', writableRoots: [] })).behavior).toBe('allow')
+    expect(decide(call('memory_delete', 'memory-write'), ctx({ mode: 'read-only', writableRoots: [], planning: true })).behavior).toBe('allow')
     expect(decide(call('memory_write', 'memory-write'), ctx({ rules: [rule('ask', 'Memory')] }))).toMatchObject({ behavior: 'ask', reason: 'ask-rule' })
     expect(decide(call('memory_write', 'memory-write'), ctx({ mode: 'full-access', rules: [rule('deny', 'Memory')] })).behavior).toBe('deny')
     expect(decide(call('memory_delete', 'memory-write'), ctx({ mode: 'read-only', writableRoots: [], rules: [rule('deny', 'memory')] })).behavior).toBe('deny')
@@ -285,61 +285,11 @@ describe('权限类（M3）', () => {
   })
 })
 
-describe('plan 模式（Plan Mode，ADR 0005）', () => {
-  // plan 与 read-only 的可写根都为空（sandbox.ts 的推导）。
-  const at = (mode: 'plan' | 'read-only', rules: PermissionRule[] = [], readRoots?: string[]) =>
-    ctx({ mode, rules, writableRoots: [], ...(readRoots ? { readRoots } : {}) })
-  const SKILL = '/Users/me/.agents/skills/review'
-
-  it.each<[string, PermissionCall]>([
-    ['Workspace 内读取', file('read', 'a.ts', `${WS}/a.ts`)],
-    ['grep Workspace', file('grep', '.', WS)],
-    ['Workspace 外读取', file('read', '/etc/hosts', '/etc/hosts')],
-    ['额外读取根内的读取', file('read', `${SKILL}/notes.md`, `${SKILL}/notes.md`)],
-    ['Workspace 内写入', file('write', 'a.ts', `${WS}/a.ts`)],
-    ['Workspace 内 edit', file('edit', 'a.ts', `${WS}/a.ts`)],
-    ['受保护路径写入', file('write', '.git/config', `${WS}/.git/config`)],
-    ['bash', bash('ls')],
-    ['未知工具', { toolName: 'deploy' }],
-    ['context-read', { toolName: 'memory_list', permissionClass: 'context-read' }],
-    ['memory-write', { toolName: 'memory_write', permissionClass: 'memory-write' }],
-    ['external', { toolName: 'mcp__srv__x', permissionClass: 'external' }],
-    ['session-state', { toolName: 'todo_write', permissionClass: 'session-state' }],
-  ])('%s：与 read-only 的判定相同', (_name, call) => {
-    expect(decide(call, at('plan', [], [SKILL]))).toEqual(decide(call, at('read-only', [], [SKILL])))
-  })
-
-  it('读取放行、写入与命令询问（不放行写入；可保存的建议与 read-only 相同）', () => {
-    expect(decide(file('read', 'a.ts', `${WS}/a.ts`), at('plan')).behavior).toBe('allow')
-    expect(decide(file('write', 'a.ts', `${WS}/a.ts`), at('plan'))).toEqual({ behavior: 'ask', reason: 'outside-writable-roots', suggestions: [] })
-    expect(decide(bash('touch x'), at('plan'))).toMatchObject({ behavior: 'ask', reason: 'approval-required' })
-  })
-
-  it('session-state 在 plan 中放行；deny 规则仍生效', () => {
-    for (const name of ['todo_write', 'create_goal', 'update_goal', 'job_kill'])
-      expect(decide({ toolName: name, permissionClass: 'session-state' }, at('plan'))).toEqual({ behavior: 'allow' })
-    expect(decide({ toolName: 'job_kill', permissionClass: 'session-state' }, at('plan', [rule('deny', 'job_kill')])).behavior).toBe('deny')
-  })
-
-  it('plan-exit 在 plan 中询问且没有建议；允许规则不生效，拒绝规则生效', () => {
-    const exit: PermissionCall = { toolName: 'exit_plan_mode', permissionClass: 'plan-exit' }
-    expect(decide(exit, at('plan'))).toEqual({ behavior: 'ask', reason: 'approval-required', suggestions: [] })
-    expect(decide(exit, at('plan', [rule('allow', 'exit_plan_mode')])).behavior).toBe('ask')
-    expect(decide(exit, at('plan', [rule('deny', 'exit_plan_mode')])).behavior).toBe('deny')
-  })
-
-  it('允许规则在 plan 中照常生效（与 read-only 相同），拒绝与询问规则同样前置', () => {
-    expect(decide(bash('git status'), at('plan', [rule('allow', 'Bash', 'git status')])).behavior).toBe('allow')
-    expect(decide(file('read', 'a.ts', `${WS}/a.ts`), at('plan', [rule('deny', 'Read')])).behavior).toBe('deny')
-    expect(decide(file('read', 'a.ts', `${WS}/a.ts`), at('plan', [rule('ask', 'Read')]))).toMatchObject({ behavior: 'ask', reason: 'ask-rule' })
-  })
-})
-
 describe('Permission Mode × 是否规划中 × 工具类型（ADR 0028）', () => {
-  const MODES = ['read-only', 'plan', 'default', 'accept-edits', 'full-access'] as const
+  const MODES = ['read-only', 'default', 'accept-edits', 'full-access'] as const
   type Mode = (typeof MODES)[number]
   // 可写根按 sandbox.ts 的推导：规划中一律为空，否则按模式。
-  const roots = (mode: Mode, planning: boolean) => (planning || mode === 'read-only' || mode === 'plan' ? [] : mode === 'full-access' ? ['/'] : [WS, TMP])
+  const roots = (mode: Mode, planning: boolean) => (planning || mode === 'read-only' ? [] : mode === 'full-access' ? ['/'] : [WS, TMP])
   const at = (mode: Mode, planning: boolean, rules: PermissionRule[] = []) =>
     ctx({ mode, rules, writableRoots: roots(mode, planning), ...(planning ? { planning } : {}) })
   type Expect = 'allow' | `deny:${string}` | `ask:${string}`
@@ -351,7 +301,7 @@ describe('Permission Mode × 是否规划中 × 工具类型（ADR 0028）', () 
   const PLANNING_DENIED = MODES.map(() => 'deny:planning')
 
   it.each<[string, PermissionCall, Expect[] | 'same']>([
-    // 名称, 调用, 规划中五种模式的结果（same：与不在规划中相同）
+    // 名称, 调用, 规划中四种模式的结果（same：与不在规划中相同）
     ['Workspace 内 write', file('write', 'a.ts', `${WS}/a.ts`), PLANNING_DENIED as Expect[]],
     ['Workspace 内 edit', file('edit', 'a.ts', `${WS}/a.ts`), PLANNING_DENIED as Expect[]],
     ['可写根之外写入', file('write', '/etc/x', '/etc/x'), PLANNING_DENIED as Expect[]],
@@ -365,7 +315,7 @@ describe('Permission Mode × 是否规划中 × 工具类型（ADR 0028）', () 
     ['Workspace 内读取', file('read', 'a.ts', `${WS}/a.ts`), 'same'],
     ['Workspace 外读取', file('read', '/etc/hosts', '/etc/hosts'), 'same'],
     ['grep', file('grep', '.', WS), 'same'],
-    ['bash', bash('ls'), ['ask:approval-required', 'ask:approval-required', 'ask:approval-required', 'ask:approval-required', 'allow']],
+    ['bash', bash('ls'), ['ask:approval-required', 'ask:approval-required', 'ask:approval-required', 'allow']],
     ['memory-write', { toolName: 'memory_write', permissionClass: 'memory-write' }, 'same'],
     ['session-state（Todo、Goal）', { toolName: 'todo_write', permissionClass: 'session-state' }, 'same'],
     ['context-read', { toolName: 'memory_list', permissionClass: 'context-read' }, 'same'],
@@ -381,13 +331,7 @@ describe('Permission Mode × 是否规划中 × 工具类型（ADR 0028）', () 
 
   it('不在规划中时 write 的结果与改动前相同（planning 缺省与 false 一致）', () => {
     const write = file('write', 'a.ts', `${WS}/a.ts`)
-    expect(MODES.map((mode) => outcome(write, at(mode, false)))).toEqual([
-      'ask:outside-writable-roots',
-      'ask:outside-writable-roots',
-      'ask:approval-required',
-      'allow',
-      'allow',
-    ])
+    expect(MODES.map((mode) => outcome(write, at(mode, false)))).toEqual(['ask:outside-writable-roots', 'ask:approval-required', 'allow', 'allow'])
     expect(decide(write, { ...at('default', false), planning: false })).toEqual(decide(write, at('default', false)))
   })
 
@@ -404,11 +348,11 @@ describe('Permission Mode × 是否规划中 × 工具类型（ADR 0028）', () 
 
 describe('permission_mode 条目的版本', () => {
   const definition = permissionEntryPayloads.find((d) => d.kind === 'permission_mode')!
-  const [v1, v2] = definition.versions
+  const [v1, v2, v3] = definition.versions
+  const STANDARD = ['read-only', 'default', 'accept-edits', 'full-access']
 
   it('v1 的四档读回为 v2（原样迁移）；v1 不接受 plan 与 prior', () => {
-    expect(definition.versions).toHaveLength(2)
-    for (const mode of ['read-only', 'default', 'accept-edits', 'full-access']) {
+    for (const mode of STANDARD) {
       expect(v1!.check({ mode })).toBeUndefined()
       const migrated = v2!.migrate!({ mode })
       expect(migrated).toEqual({ mode })
@@ -422,6 +366,17 @@ describe('permission_mode 条目的版本', () => {
     expect(v2!.check({ mode: 'plan', prior: 'accept-edits' })).toBeUndefined()
     expect(v2!.check({ mode: 'plan' })).toBeUndefined()
     expect(v2!.check({ mode: 'plan', prior: 'plan' })).toBeDefined()
+  })
+
+  it('v2 → v3（ADR 0028）：plan 读为 prior，没有 prior 读为 default；四档原样；v3 只有四档、不带 prior', () => {
+    expect(definition.versions).toHaveLength(3)
+    for (const mode of STANDARD) expect(v3!.migrate!({ mode })).toEqual({ mode })
+    expect(v3!.migrate!({ mode: 'plan', prior: 'accept-edits' })).toEqual({ mode: 'accept-edits' })
+    expect(v3!.migrate!({ mode: 'plan', prior: 'full-access' })).toEqual({ mode: 'full-access' })
+    expect(v3!.migrate!({ mode: 'plan' })).toEqual({ mode: 'default' })
+    for (const mode of STANDARD) expect(v3!.check({ mode })).toBeUndefined()
+    expect(v3!.check({ mode: 'plan' })).toBeDefined()
+    expect(v3!.check({ mode: 'default', prior: 'default' })).toBeDefined()
   })
 })
 
@@ -459,9 +414,8 @@ describe('判定步骤（decideWithStep）', () => {
 })
 
 describe('权限类（M5）：agent 与 automation', () => {
-  const MODES = ['read-only', 'plan', 'default', 'accept-edits', 'full-access'] as const
-  const allIn = (mode: (typeof MODES)[number]) =>
-    ctx({ mode, writableRoots: mode === 'read-only' || mode === 'plan' ? [] : mode === 'full-access' ? ['/'] : [WS, TMP] })
+  const MODES = ['read-only', 'default', 'accept-edits', 'full-access'] as const
+  const allIn = (mode: (typeof MODES)[number]) => ctx({ mode, writableRoots: mode === 'read-only' ? [] : mode === 'full-access' ? ['/'] : [WS, TMP] })
   const agent = (type: string, isolation?: boolean): PermissionCall => ({
     toolName: 'agent',
     permissionClass: 'agent',
@@ -470,9 +424,9 @@ describe('权限类（M5）：agent 与 automation', () => {
   })
   const schedule = (name: string): PermissionCall => ({ toolName: name, permissionClass: 'automation' })
 
-  it('agent：五种模式都放行；带 isolation 时只有 full-access 放行，其余询问', () => {
-    expect(MODES.map((mode) => decide(agent('explore'), allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow', 'allow'])
-    expect(MODES.map((mode) => decide(agent('general', true), allIn(mode)).behavior)).toEqual(['ask', 'ask', 'ask', 'ask', 'allow'])
+  it('agent：四种模式都放行；带 isolation 时只有 full-access 放行，其余询问', () => {
+    expect(MODES.map((mode) => decide(agent('explore'), allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow'])
+    expect(MODES.map((mode) => decide(agent('general', true), allIn(mode)).behavior)).toEqual(['ask', 'ask', 'ask', 'allow'])
     expect(decideWithStep(agent('general', true), allIn('full-access')).step).toBe('mode')
   })
 
@@ -494,27 +448,26 @@ describe('权限类（M5）：agent 与 automation', () => {
 
   it('automation：只在 full-access 放行；规则组名 Schedule；deny 规则在 full-access 也生效', () => {
     for (const name of ['schedule_create', 'schedule_update'])
-      expect(MODES.map((mode) => decide(schedule(name), allIn(mode)).behavior)).toEqual(['ask', 'ask', 'ask', 'ask', 'allow'])
+      expect(MODES.map((mode) => decide(schedule(name), allIn(mode)).behavior)).toEqual(['ask', 'ask', 'ask', 'allow'])
     expect(decide(schedule('schedule_create'), allIn('default'))).toMatchObject({ behavior: 'ask', suggestions: [{ behavior: 'allow', tool: 'Schedule' }] })
     expect(decide(schedule('schedule_create'), { ...allIn('default'), rules: [rule('allow', 'Schedule')] }).behavior).toBe('allow')
     expect(decide(schedule('schedule_update'), { ...allIn('full-access'), rules: [rule('deny', 'Schedule')] }).behavior).toBe('deny')
   })
 
-  it('context-read / session-state 的 M5 工具（agent_wait、schedule_list、agent_cancel、schedule_delete）在五种模式放行', () => {
+  it('context-read / session-state 的 M5 工具（agent_wait、schedule_list、agent_cancel、schedule_delete）在四种模式放行', () => {
     for (const [name, permissionClass] of [
       ['agent_wait', 'context-read'],
       ['schedule_list', 'context-read'],
       ['agent_cancel', 'session-state'],
       ['schedule_delete', 'session-state'],
     ] as const)
-      expect(MODES.map((mode) => decide({ toolName: name, permissionClass }, allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow', 'allow'])
+      expect(MODES.map((mode) => decide({ toolName: name, permissionClass }, allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow'])
   })
 })
 
 describe('权限类（M6）：lsp 与 team', () => {
-  const MODES = ['read-only', 'plan', 'default', 'accept-edits', 'full-access'] as const
-  const allIn = (mode: (typeof MODES)[number]) =>
-    ctx({ mode, writableRoots: mode === 'read-only' || mode === 'plan' ? [] : mode === 'full-access' ? ['/'] : [WS, TMP] })
+  const MODES = ['read-only', 'default', 'accept-edits', 'full-access'] as const
+  const allIn = (mode: (typeof MODES)[number]) => ctx({ mode, writableRoots: mode === 'read-only' ? [] : mode === 'full-access' ? ['/'] : [WS, TMP] })
   const lsp = (subject: string, resolved: string, real = resolved): PermissionCall => ({
     toolName: 'lsp',
     permissionClass: 'lsp',
@@ -523,7 +476,7 @@ describe('权限类（M6）：lsp 与 team', () => {
   })
   const asRead = (call: PermissionCall): PermissionCall => ({ ...call, toolName: 'read', permissionClass: undefined })
 
-  it('lsp：file_path 按读取判定（Workspace 内放行、外询问、受保护路径与符号链接与 read 相同），五种模式一致', () => {
+  it('lsp：file_path 按读取判定（Workspace 内放行、外询问、受保护路径与符号链接与 read 相同），四种模式一致', () => {
     const calls = [
       lsp('src/a.ts', `${WS}/src/a.ts`),
       lsp('/etc/hosts', '/etc/hosts'),
@@ -535,7 +488,7 @@ describe('权限类（M6）：lsp 与 team', () => {
         const reasonOf = (d: ReturnType<typeof decide>) => (d.behavior === 'ask' ? d.reason : d.behavior)
         expect(reasonOf(decide(call, allIn(mode)))).toBe(reasonOf(decide(asRead(call), allIn(mode))))
       }
-    expect(MODES.map((mode) => decide(calls[0]!, allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow', 'allow'])
+    expect(MODES.map((mode) => decide(calls[0]!, allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow'])
     expect(decide(calls[1]!, allIn('default'))).toMatchObject({ behavior: 'ask', suggestions: [{ behavior: 'allow', tool: 'Lsp', content: '/etc/hosts' }] })
     expect(decide(calls[1]!, { ...allIn('default'), readRoots: ['/etc'] }).behavior).toBe('allow')
   })
@@ -553,10 +506,10 @@ describe('权限类（M6）：lsp 与 team', () => {
     expect(decide(asRead(inside), { ...allIn('default'), rules: [rule('deny', 'Lsp')] }).behavior).toBe('allow')
   })
 
-  it('team：send_message 与 task_* 在五种模式放行；规则组名 Team，拒绝规则生效', () => {
+  it('team：send_message 与 task_* 在四种模式放行；规则组名 Team，拒绝规则生效', () => {
     const team = (name: string): PermissionCall => ({ toolName: name, permissionClass: 'team' })
     for (const name of ['send_message', 'task_create', 'task_update', 'task_list'])
-      expect(MODES.map((mode) => decide(team(name), allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow', 'allow'])
+      expect(MODES.map((mode) => decide(team(name), allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow'])
     expect(canonicalRuleTool('team')).toBe('Team')
     expect(decide(team('send_message'), { ...allIn('full-access'), rules: [rule('deny', 'Team')] })).toMatchObject({
       behavior: 'deny',
@@ -567,7 +520,7 @@ describe('权限类（M6）：lsp 与 team', () => {
 
   it('agent 带 name（teammate）与 agent 相同', () => {
     const teammate: PermissionCall = { toolName: 'agent', permissionClass: 'agent', subject: 'general' }
-    expect(MODES.map((mode) => decide(teammate, allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow', 'allow'])
-    expect(MODES.map((mode) => decide({ ...teammate, isolation: true }, allIn(mode)).behavior)).toEqual(['ask', 'ask', 'ask', 'ask', 'allow'])
+    expect(MODES.map((mode) => decide(teammate, allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow'])
+    expect(MODES.map((mode) => decide({ ...teammate, isolation: true }, allIn(mode)).behavior)).toEqual(['ask', 'ask', 'ask', 'allow'])
   })
 })

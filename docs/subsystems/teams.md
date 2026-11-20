@@ -75,7 +75,7 @@ stdin 在公共字段之外：TaskCreated / TaskCompleted 为 `task_id`、`task_
 
 ## worktree
 
-`agent { name, isolation: 'worktree' }` 按 [子代理](subagents.md#isolation-worktree) 的规则创建 worktree（plan / read-only 拒绝，其余非 full-access 询问），并在 teammate 存在期间保留：teammate 的 Run 结束不回收，它还会收到消息。解散时 HEAD 仍为 base 且工作区干净则移除 worktree 与分支，否则保留并写在 `agent_end.worktree`。父 Session 读写保留的 worktree 须审批（不入库的询问规则，重启后重新登记）。不带 isolation 的 teammate 继承父级的工作目录。
+`agent { name, isolation: 'worktree' }` 按 [子代理](subagents.md#isolation-worktree) 的规则创建 worktree（规划中与 read-only 拒绝，其余非 full-access 询问），并在 teammate 存在期间保留：teammate 的 Run 结束不回收，它还会收到消息。解散时 HEAD 仍为 base 且工作区干净则移除 worktree 与分支，否则保留并写在 `agent_end.worktree`。父 Session 读写保留的 worktree 须审批（不入库的询问规则，重启后重新登记）。不带 isolation 的 teammate 继承父级的工作目录。
 
 ## 预算
 

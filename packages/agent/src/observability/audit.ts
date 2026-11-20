@@ -25,7 +25,7 @@ export type AuditEvent = AuditBase &
         by?: string
         scope?: string
       }
-    | { kind: 'permission_mode'; mode: string; prior?: string }
+    | { kind: 'permission_mode'; mode: string }
     | { kind: 'plan_phase'; phase: string; planId?: string }
     | { kind: 'permission_rule'; op: string; rule: { behavior: string; tool: string; content?: string } }
     | {
@@ -89,7 +89,7 @@ export function deriveAudit(entries: readonly TraceEntry[]): AuditEvent[] {
         break
       }
       case 'permission_mode':
-        events.push({ ...base(entry), kind: 'permission_mode', mode: String(p.mode), ...optional('prior', str(p.prior)) })
+        events.push({ ...base(entry), kind: 'permission_mode', mode: String(p.mode) })
         break
       case 'plan_phase':
         events.push({ ...base(entry), kind: 'plan_phase', phase: String(p.phase), ...optional('planId', str(p.planId)) })

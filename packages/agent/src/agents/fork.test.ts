@@ -157,7 +157,7 @@ describe('forkEntries 的工具加载边界', () => {
     const reply = entry('message', { role: 'assistant', content: [{ type: 'text', text: 'boundary answer' }], stopReason: 'stop', timestamp: 0 })
     const end = entry('run_end', { status: 'completed' })
     const b = entry('tool_load', { names: ['mcp__demo__sum'], source: 'optimistic', toolCallId: 'load-b' })
-    const restriction = entry('permission_mode', { mode: 'plan' }, null)
+    const restriction = entry('permission_mode', { mode: 'read-only' }, null)
     const source = [mode, first, a, ...summary, targetUser, reply, end, b, restriction]
     const boundaries = [
       ['user-before', targetUser.seq],
@@ -168,7 +168,7 @@ describe('forkEntries 的工具加载边界', () => {
       expect(forked.entries.filter((item) => item.kind === 'tool_load')).toEqual([{ kind: 'tool_load', payload: a.payload }])
       const copied = forked.entries.map((item, index) => ({ ...item, seq: index + 1, runId: null }))
       expect([...loadedToolNames(copied)]).toEqual(['mcp__demo__echo'])
-      expect(forked.entries.filter((item) => item.kind === 'permission_mode').at(-1)?.payload).toEqual({ mode: index === 0 ? 'full-access' : 'plan' })
+      expect(forked.entries.filter((item) => item.kind === 'permission_mode').at(-1)?.payload).toEqual({ mode: index === 0 ? 'full-access' : 'read-only' })
     }
     const copied = forks[1]!.entries.map((item, index) => ({ ...item, seq: index + 1, runId: null }))
     const copiedReply = copied.find((item) => item.kind === 'message' && (item.payload as { role?: string }).role === 'assistant')!
@@ -183,18 +183,18 @@ describe('forkEntries 的计划阶段', () => {
     return [
       entry('permission_mode', { mode: 'default' }, null),
       user('one'),
-      entry('permission_mode', { mode: 'plan', prior: 'default' }, null),
+      entry('permission_mode', { mode: 'read-only' }, null),
       entry('plan_phase', { phase: 'planning' }, null),
       entry('plan', { planId: 'p1', revision: 1, markdown: '# P', status: 'proposed' }),
     ]
   }
 
-  it('边界前在规划中：plan 模式与末尾追加的一条 plan_phase planning 一致；plan 与原阶段条目不复制', () => {
+  it('边界前在规划中：复制模式，末尾追加一条 plan_phase planning；plan 与原阶段条目不复制', () => {
     const entries = planning()
     const target = user('two')
     const copied = forkEntries([...entries, target], 's', target.seq).entries.filter((e) => e.kind !== 'fork_origin')
     expect(copied.map((e) => e.kind)).toEqual(['permission_mode', 'message', 'permission_mode', 'plan_phase'])
-    expect(copied.at(-2)!.payload).toEqual({ mode: 'plan', prior: 'default' })
+    expect(copied.at(-2)!.payload).toEqual({ mode: 'read-only' })
     expect(copied.at(-1)!.payload).toEqual({ phase: 'planning' })
   })
 
@@ -209,11 +209,11 @@ describe('forkEntries 的计划阶段', () => {
     const first = user('one')
     const reply = entry('message', { role: 'assistant', content: [{ type: 'text', text: 'ok' }], stopReason: 'stop', timestamp: 0 })
     const end = entry('run_end', { status: 'completed' })
-    const later = [entry('permission_mode', { mode: 'plan', prior: 'default' }, null), entry('plan_phase', { phase: 'planning' }, null)]
+    const later = [entry('permission_mode', { mode: 'read-only' }, null), entry('plan_phase', { phase: 'planning' }, null)]
     const entries = [entry('permission_mode', { mode: 'default' }, null), first, reply, end, ...later, user('two')]
     expect(forkEntries(entries, 's', first.seq).entries.map((e) => e.kind)).not.toContain('plan_phase')
     const inclusive = forkEntries(entries, 's', reply.seq, 'assistant-inclusive').entries
-    expect(inclusive.filter((e) => e.kind === 'permission_mode').at(-1)!.payload).toEqual({ mode: 'plan', prior: 'default' })
+    expect(inclusive.filter((e) => e.kind === 'permission_mode').at(-1)!.payload).toEqual({ mode: 'read-only' })
     expect(inclusive.at(-1)).toEqual({ kind: 'plan_phase', payload: { phase: 'planning' } })
   })
 })

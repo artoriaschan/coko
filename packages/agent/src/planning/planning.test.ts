@@ -24,7 +24,7 @@ import {
 let seq = 0
 const entry = (kind: string, payload: unknown): EntryLike => ({ seq: ++seq, kind, payload })
 const plan = (planId: string, revision: number, status: string, markdown = '# P') => entry('plan', { planId, revision, markdown, status })
-const mode = (m: string, prior?: string) => entry('permission_mode', prior ? { mode: m, prior } : { mode: m })
+const mode = (m: string) => entry('permission_mode', { mode: m })
 const phase = (p: string, planId?: string) => entry('plan_phase', planId ? { phase: p, planId } : { phase: p })
 beforeEach(() => {
   seq = 0
@@ -41,8 +41,8 @@ describe('nextPlanRef', () => {
     ['上一份已放弃：新 planId', () => [plan('p1', 2, 'approved'), plan('p1', 2, 'abandoned')], { planId: 'new', revision: 1 }],
     ['退出后重新进入规划：新 planId', () => [phase('planning'), plan('p1', 1, 'proposed'), phase('none'), phase('planning')], { planId: 'new', revision: 1 }],
     [
-      '起点是计划阶段而不是 plan 模式：之后的 permission_mode 不截断',
-      () => [phase('planning'), plan('p1', 1, 'proposed'), mode('plan', 'default')],
+      '起点是计划阶段：规划中切换模式（permission_mode）不截断',
+      () => [phase('planning'), plan('p1', 1, 'proposed'), mode('read-only')],
       { planId: 'p1', revision: 2 },
     ],
   ])('%s', (_name, build, expected) => {
@@ -57,8 +57,8 @@ describe('nextPlanRef', () => {
 })
 
 describe('planPhaseOf 与 activePlanOf', () => {
-  it('没有阶段条目时为 none（含只有 plan 模式的旧 Session），否则为有效条目中最后一条', () => {
-    expect(planPhaseOf([mode('plan', 'default')])).toEqual({ phase: 'none' })
+  it('没有阶段条目时为 none（含只有 permission_mode 的旧 Session），否则为有效条目中最后一条', () => {
+    expect(planPhaseOf([mode('default')])).toEqual({ phase: 'none' })
     expect(planPhaseOf([phase('planning'), phase('none'), phase('executing', 'p1')])).toEqual({ phase: 'executing', planId: 'p1' })
     const entries = [phase('planning'), entry('message', {}), phase('none')]
     entries.push(entry('rewind', { targetSeq: entries[1]!.seq }))

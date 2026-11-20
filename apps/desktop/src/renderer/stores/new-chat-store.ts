@@ -51,6 +51,8 @@ export function createNewChatStore(storage: Storage | undefined = typeof localSt
   let initial = fresh()
   try {
     const saved: unknown = JSON.parse(storage?.getItem(NEW_CHAT_CONFIG_KEY) ?? 'null')
+    // 升级前持久化的 plan 已不是 Permission Mode（ADR 0028）：按未设置读取，草稿的其余配置保留。
+    if (saved && typeof saved === 'object' && 'permissionMode' in saved && saved.permissionMode === 'plan') saved.permissionMode = null
     if (Value.Check(SavedDraft, saved)) initial = { ...initial, ...saved, sending: false }
     const obsolete: string[] = []
     for (let i = 0; storage && i < storage.length; i++) {
