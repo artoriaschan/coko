@@ -296,7 +296,7 @@ Artifact 以 `directory/outputs/` 的磁盘内容为唯一事实源，不写 Ses
 - [模型选择 Electron E2E](../../apps/desktop/e2e/model-picker.e2e.test.ts)：更换供应商和档位后读回 Sidecar。
 - [输入区 Browser Mode](../../apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx)：布局、文件选择/粘贴/拖入、运行控制与草稿。
 - [文件与草稿 Electron E2E](../../apps/desktop/e2e/references-drafts.e2e.test.ts)：原生文件选择到持久化引用与模型请求。
-- [权限判定与审批](permissions.md#界面)、[计划模式](plan-mode.md#界面)：权限选择、计划胶囊、计划卡与右栏 Plan 页（含已完成计划的完成报告）。
+- [权限判定与审批](permissions.md#界面)、[计划模式](plan-mode.md#界面)：权限选择、计划胶囊、计划卡与右栏 Plan 页（含已完成计划的完成报告；没有右栏可开时计划卡展开后显示）。
 - [上下文管理](context.md)、[会话模型协议](../../packages/protocol/src/http.ts)：上下文统计与模型选择接口。
 
 - [跨功能 Electron 验证](../../apps/desktop/e2e/conversation-workbench-closeout.e2e.test.ts)：创建项目到首次发送与模型标题、只发图片到提示词估算、归档到搜索排除、全部来源最终五项菜单、两主题窄窗口与已有会话的计划和自动压缩。

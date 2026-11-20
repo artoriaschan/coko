@@ -326,7 +326,7 @@ planPaths = {
 - **模式菜单**（票 04）：始终显示并勾选当前 Permission Mode；规划中可切换且不退出规划；Shift+Tab 只切换模式。
 - **Plan chip**（票 04、09、11）：阶段为 `planning` 时显示 `plan.chip`，`executing` 时显示 `plan.chipExecuting`；`none` 时不渲染。× 调 `POST …/plan { action: 'exit' }`，等待响应；失败保留显示并经现有失败通道提示（`onFailure`），文字草稿与其他配置不变；成功后焦点回编辑区。关闭按钮的可访问名称：规划中 `plan.exit`，执行中 `plan.abandon`。样式与几何不变，执行中的 × 不弹确认。草稿不显示 chip。
 - **审阅卡**（票 04、05）：主按钮 `plan.review.approve`（“批准并执行”），去掉下拉“批准并允许编辑”与“恢复为…”（`data-restores`）。票 05：卡上标出 `plan.review.permission`（“执行权限”）并放入现有 `ModePicker`（同一组件，选择完全访问权限仍先确认风险），切换调用现有的 `setPermissionMode`，失败时卡片保留原显示并提示，审批请求仍可回答。
-- **计划卡与 Plan 页**（票 09–11）：新增状态“执行中”“已完成”“已放弃”；已完成在 Plan 页显示完成报告（静态 Markdown，标题 `plan.report`），计划卡显示状态与“在侧边栏查看”。
+- **计划卡与 Plan 页**（票 09–11）：新增状态“执行中”“已完成”“已放弃”；已完成在 Plan 页显示完成报告（静态 Markdown，标题 `plan.report`），计划卡显示状态与“在侧边栏查看”；没有右栏可开（历史、只读）时计划卡展开后在正文前显示同一份报告（与 Plan 页共用 `PlanReport`）。
 - **新对话草稿**（票 07）：持久化的 `permissionMode: 'plan'` 读取时按未设置处理（`new-chat-store.ts`），首次发送不带它。
 
 #### 11.3 文案（`packages/i18n/src/dictionaries/domains/plan.ts`，中英同构）

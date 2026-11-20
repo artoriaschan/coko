@@ -560,6 +560,40 @@ describe('plan-chip', () => {
       expect([chip() !== null, report()]).toEqual([true, null])
     })
 
+    it('完成：没有右栏可开（只读、历史）时，已完成的计划卡展开后在正文前显示完成报告', async () => {
+      seq = 0
+      const completed = entry(
+        'plan',
+        { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'completed', report: '## Done\n\nVerified by **unit tests**.' },
+        null,
+      )
+      const rows = [
+        entry('plan_phase', { phase: 'planning' }, null),
+        entry('plan', { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'approved' }, null),
+        entry('plan_phase', { phase: 'executing', planId: 'p1' }, null),
+        completed,
+        entry('plan_phase', { phase: 'none' }, null),
+      ]
+      const { chat } = createFixtureChat({ entries: { 's-1': rows } })
+      await expect.poll(() => chat.getState().conversations['s-1']?.status).toBe('ready')
+      const screen = await wrap(
+        <TimelineSessionContext.Provider value={{ sessionId: 's-1', entries: rows, actionsDisabled: true, readOnly: true }}>
+          <PlanCard item={{ kind: 'plan', key: String(completed.seq), plan: completed.payload as PlanPayload }} />
+        </TimelineSessionContext.Provider>,
+        chat,
+      )
+      const card = screen.container.querySelector('[data-slot="plan-card"]')!
+      const report = () => card.querySelector('[data-slot="plan-report"]')
+      expect([card.getAttribute('data-status'), report()]).toEqual(['completed', null])
+
+      await screen.getByRole('button', { name: 'Fix it' }).click()
+      await expect.element(screen.getByRole('heading', { name: 'Completion report' })).toBeVisible()
+      expect(report()!.textContent).toContain('Verified by unit tests.')
+      // 报告在计划正文之前，与 Plan 页相同。
+      const markdowns = [...card.querySelectorAll('[data-slot="plan-markdown"]')].map((node) => node.textContent)
+      expect(markdowns).toEqual([expect.stringContaining('Verified by unit tests.'), expect.stringContaining('Fix it')])
+    })
+
     // ADR 0028：renderer 与服务端同用 planPhaseOf（有效条目），回退条目到达后 chip 与 Plan 页随之变化，与协议读回一致。
     it('回退后按有效条目派生：回退到批准之前 chip 重新出现、被回退的已批准修订不再显示；回退到进入规划之前 chip 消失、没有计划', async () => {
       seq = 0

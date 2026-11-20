@@ -90,6 +90,20 @@ export function PlanMarkdown({ text, className }: { text: string; className?: st
   )
 }
 
+/** 完成报告（静态 Markdown，标题 plan.report）：右栏 Plan 页与时间线计划卡（无右栏的内联展开）共用。 */
+export function PlanReport({ report, className }: { report: string; className?: string }) {
+  const { t } = useI18n()
+  const titleId = React.useId()
+  return (
+    <section data-slot="plan-report" aria-labelledby={titleId} className={cn('border-b-hairline border-border pb-4', className)}>
+      <h3 id={titleId} className="pb-1 text-ui-small font-medium text-muted-foreground">
+        {t('plan.report')}
+      </h3>
+      <PlanMarkdown text={report} className="text-ui-body" />
+    </section>
+  )
+}
+
 /** 新提交的计划只自动打开右栏一次（按请求）。 */
 const autoOpened = new Set<string>()
 

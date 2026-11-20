@@ -5,7 +5,7 @@ import * as React from 'react'
 import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { pendingApprovals } from '../../stores/chat-store.ts'
-import { displayedPlanStatus, PlanMarkdown, planHistory, setPlanDraft, usePlanDraft } from '../conversation/plan-review-panel.tsx'
+import { displayedPlanStatus, PlanMarkdown, PlanReport, planHistory, setPlanDraft, usePlanDraft } from '../conversation/plan-review-panel.tsx'
 import type { RightPanelTabProps } from './tabs.ts'
 
 const EMPTY: never[] = []
@@ -112,14 +112,7 @@ export function PlanTab({ sessionId }: RightPanelTabProps) {
           </>
         ) : (
           <>
-            {current.report !== undefined && (
-              <section data-slot="plan-report" aria-labelledby="plan-report-title" className="mb-4 border-b-hairline border-border pb-4">
-                <h3 id="plan-report-title" className="pb-1 text-ui-small font-medium text-muted-foreground">
-                  {t('plan.report')}
-                </h3>
-                <PlanMarkdown text={current.report} className="text-ui-body" />
-              </section>
-            )}
+            {current.report !== undefined && <PlanReport report={current.report} className="mb-4" />}
             <PlanMarkdown text={text} className="text-ui-body" />
           </>
         )}
