@@ -1,0 +1,39 @@
+packages/agent/src/policy/review.test.ts
+  s_d1e837811db462::t_de81fb8482a399 1,4-16,84-86,91
+  s_d1e837811db462::t_a5a0cd26157e37 158-283,287-336,338-366
+tests/integration/secrets-gate-auto-review.test.ts
+  s_d1e837811db462::t_226d1c7b790e29 1-90
+packages/agent/src/policy/review.ts
+  s_d1e837811db462::t_2d192ba090e1dd 3-4,6-8
+  s_d1e837811db462::t_90084ca2ebf988 98-102,104,106-113,115,118-131,133-135,146-156,158-200
+  s_d1e837811db462::t_543ceaca291798 39-46,48-71,74-76,78
+  s_d1e837811db462::t_7b33de2559dae9 202
+apps/server/src/application/session-reviews.ts
+  s_d1e837811db462::t_de505f788153ca 76-84
+tests/integration/sidecar-auto-review.test.ts
+  s_d1e837811db462::t_a47e0e5990112e 383-386,388
+  s_d1e837811db462::t_31cfc1e45a8f49 51-52,82,426-439,442-443
+  s_d1e837811db462::t_f9cb77fe810ad4 441
+  s_d1e837811db462::t_061f6043f0429b 53
+  s_d1e837811db462::t_b2c6ee7276aaab 394,495,498,517,519-520,523,526-527
+  s_d1e837811db462::t_616bf7f397680e 440
+  s_d1e837811db462::t_755d617944c694 380-382,387,389-393,395-425,444-494,496-497,499-516,518,521-522,524-525,528-529
+  s_d1e837811db462::t_7ddad53d4a671b 1,7,15,23
+  s_d1e837811db462::t_c1eae365054b04 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "2ab1c0d03ed4bd90f4bc6ebcb7af557acf22ecf6",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
