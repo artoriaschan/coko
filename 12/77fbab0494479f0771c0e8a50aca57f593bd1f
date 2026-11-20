@@ -1,0 +1,21 @@
+apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx
+  s_085ed727045dd9::t_e0172fb9b20cf6 451
+  s_085ed727045dd9::t_10a0195573ddbf 449-450
+  s_085ed727045dd9::t_86dc4dd644e32f 387-448,452-454
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "1277fbab0494479f0771c0e8a50aca57f593bd1f",
+  "prompts": {},
+  "sessions": {
+    "s_085ed727045dd9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d626f66c-4285-483b-b8a1-1e40637e2a6c",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
