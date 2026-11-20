@@ -1,8 +1,8 @@
 # 自动审查模式：规格
 
 Status: ready-for-agent
-Spec status: approved（2026-11-20 向用户列出六处测试接缝与 Further Notes 的补充决定，用户答复“确认”并调用 `/to-tickets`）
-讨论：[grilling.md](grilling.md) · 实施票：[01–10](issues/01-design-and-adr.md) · 现状：[权限判定与审批](../../docs/subsystems/permissions.md) · 相关决定：[ADR 0005](../../docs/adr/0005-permission-mode-and-sandbox.md)、[ADR 0013](../../docs/adr/0013-external-hooks-tighten-only.md)、[ADR 0014](../../docs/adr/0014-subagents-as-child-sessions.md)、[ADR 0019](../../docs/adr/0019-headless-runs-deny-approvals.md) · 前置：[计划生命周期规格](../plan-lifecycle/spec.md) 的阶段一 · 术语：[GLOSSARY](../../GLOSSARY.md)
+Spec status: delivered（2026-11-20 实施票 01–10 合入集成分支 `feat/auto-review`，验收与未验证项见[票 10](issues/10-acceptance-and-docs.md)；此前 approved：2026-11-20 向用户列出六处测试接缝与 Further Notes 的补充决定，用户答复“确认”并调用 `/to-tickets`）
+讨论：[grilling.md](grilling.md) · 设计稿：[design.md](design.md) · 实施票：[01](issues/01-design-and-adr.md)、[02](issues/02-auto-review-mode-value.md)、[03](issues/03-reviewer-allow-and-escalate.md)、[04](issues/04-escalation-reason-and-failures.md)、[05](issues/05-authorization-sources-and-injection.md)、[06](issues/06-goal-schedules-and-budget.md)、[07](issues/07-reviewing-state-and-timing.md)、[08](issues/08-subagent-review.md)、[09](issues/09-headless.md)、[10](issues/10-acceptance-and-docs.md) · 决定：[ADR 0029](../../docs/adr/0029-auto-review-delegates-final-ask.md) · 现状：[权限判定与审批](../../docs/subsystems/permissions.md) · 相关决定：[ADR 0005](../../docs/adr/0005-permission-mode-and-sandbox.md)、[ADR 0013](../../docs/adr/0013-external-hooks-tighten-only.md)、[ADR 0014](../../docs/adr/0014-subagents-as-child-sessions.md)、[ADR 0019](../../docs/adr/0019-headless-runs-deny-approvals.md) · 前置：[计划生命周期规格](../plan-lifecycle/spec.md) 的阶段一 · 术语：[GLOSSARY](../../GLOSSARY.md)
 
 本规格以计划生命周期阶段一已交付为基线：Permission Mode 只有 read-only、default、accept-edits、full-access 四档，`plan` 不再是模式取值，计划审阅卡使用现有的模式菜单组件。阶段一交付前本规格的实施票不能开始。
 
@@ -188,7 +188,7 @@ Spec status: approved（2026-11-20 向用户列出六处测试接缝与 Further 
 - **模式菜单四项：** 请求批准（`default`）、帮我批准（`accept-edits`）、自动审查（`auto-review`）、完全访问权限（`full-access`）。“帮我批准”与“自动审查”的说明文字须能区分“只自动放行文件编辑”与“由模型判断其余调用”。“自动审查”有自己的图标，使用普通档位的颜色，不使用 destructive 色，选择时不确认。read-only 照旧不在菜单中。
 - **Shift+Tab 循环** 为 read-only → default → accept-edits → auto-review，从 full-access 回到 read-only。
 - **设置页默认模式** 的选项加入“自动审查”。
-- **计划审阅卡** 上的模式菜单随组件得到新项，受“不得宽于进入规划前的模式”的既有约束。
+- **计划审阅卡** 上的模式菜单随组件得到新项，受“不得宽于进入规划前的模式”的既有约束。（更正：现状没有这条约束，ADR 0028 已移除；审阅卡随 `ModePicker` 得到“自动审查”一项，不新增约束，见 [设计稿的事实更正](design.md#对规格的事实更正)。）
 - **工具卡：** 审查进行时显示“自动审查中”；Reviewer 放行后标题行显示“已由自动审查允许”，展开可读理由。
 - **审批卡：** 请求带审查信息时，在明细中显示 Reviewer 的理由，或“自动审查未完成”及原因；其余键盘、焦点、“总是允许”与拒绝交互不变。
 - **文案** 中英文同时提供。

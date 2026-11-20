@@ -3,7 +3,7 @@ import type { Model, Models, TextContent, UserMessage } from '@earendil-works/pi
 import type { EntryLike, StateUpdateDelivery } from '../entries/index.ts'
 import type { ToolHooks } from '../extensions/hooks/index.ts'
 import type { ApprovalAnswer } from '../policy/broker.ts'
-import type { PermissionHookPort } from '../policy/gate.ts'
+import type { PermissionHookPort, ReviewerPort } from '../policy/gate.ts'
 import type { ExecPort } from '../ports/exec.ts'
 import type { SecretProvider } from '../ports/secrets.ts'
 import type {
@@ -81,6 +81,8 @@ export type ProgressEvent =
   | { type: 'tool_update'; runId: string; toolCallId: string; toolName: string; partialResult: AgentToolResult<unknown> }
   /** In tool completion order; the committed toolResult entries keep the model's call order. */
   | { type: 'tool_end'; runId: string; toolCallId: string; toolName: string; isError: boolean; result: AgentToolResult<unknown>; durationMs?: number }
+  /** The Reviewer (ADR 0029) started on this call. No end event: the approval request, the result or run_end follows. */
+  | { type: 'review_start'; runId: string; toolCallId: string; toolName: string }
   | { type: 'retry'; runId: string; attempt: number; maxRetries: number; delayMs: number; errorMessage: string }
   /** After every committed assistant message: its usage (input + cacheRead + cacheWrite + output) and the model's context window. */
   | { type: 'context_usage'; runId: string; tokens: number; contextWindow: number }
@@ -277,6 +279,8 @@ export interface RuntimePermissions {
    * hooks, recorded as approval_decision { outcome: denied, by: headless }; the model sees `deniedText` and the Run continues.
    */
   unattended?: { deniedText: string }
+  /** 自动审查的 Reviewer（ADR 0029）：auto-review 下第 7 步的询问先交给它；缺省无，询问照常出卡片。 */
+  reviewer?: ReviewerPort
 }
 
 export interface AgentRuntime {

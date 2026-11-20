@@ -36,7 +36,7 @@ export interface ToolTrace {
   approvalWaitMs?: number
   /** 最后一次审批的结果；没有审批时省略。 */
   approval?: ToolApproval
-  approvalBy?: 'user' | 'hook' | 'headless'
+  approvalBy?: 'user' | 'hook' | 'headless' | 'reviewer'
   /** 能归属到这次调用的工具 Hook（PreToolUse、PermissionRequest、PostToolUse、PostToolUseFailure）。 */
   hooks: HookTrace[]
 }
@@ -129,7 +129,7 @@ export function deriveTrace(entries: readonly TraceEntry[]): RunTrace[] {
       if (!asked || !tool) continue
       tool.approvalWaitMs = (tool.approvalWaitMs ?? 0) + Math.max(0, entry.createdAt - asked.at)
       tool.approval = payload.outcome as ToolApproval
-      tool.approvalBy = payload.by === 'hook' || payload.by === 'headless' ? payload.by : 'user'
+      tool.approvalBy = (payload.by as ToolTrace['approvalBy']) ?? 'user'
       continue
     }
     const run = entry.runId ? runs.get(entry.runId) : undefined

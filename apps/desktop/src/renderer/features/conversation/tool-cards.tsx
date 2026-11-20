@@ -262,9 +262,11 @@ function ToolCallCard({
   const statusLabel = t(
     item.confirmation?.answer === null
       ? 'confirmation.status'
-      : item.status === 'pending' && item.result === null
-        ? 'tool.noRecordedResult'
-        : `tool.${item.status}`,
+      : item.reviewing
+        ? 'tool.reviewing'
+        : item.status === 'pending' && item.result === null
+          ? 'tool.noRecordedResult'
+          : `tool.${item.status}`,
   )
   if (!view) {
     return (

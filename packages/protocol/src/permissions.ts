@@ -6,16 +6,17 @@ import { PLAN_MAX_CHARS } from './planning.ts'
 const strict = { additionalProperties: false } as const
 const Id = Type.String({ minLength: 1 })
 
-/** Permission Mode 的四档（ADR 0005；规划是计划阶段而不是模式，ADR 0028）。 */
+/** Permission Mode 的五档（ADR 0005、ADR 0029；规划是计划阶段而不是模式，ADR 0028）。 */
 export const StandardPermissionMode = Type.Union([
   Type.Literal('read-only'),
   Type.Literal('default'),
   Type.Literal('accept-edits'),
+  Type.Literal('auto-review'),
   Type.Literal('full-access'),
 ])
 export type StandardPermissionMode = Static<typeof StandardPermissionMode>
 
-/** 与 StandardPermissionMode 相同（Permission Mode 只有四档，ADR 0028；保留旧名，免于改动全部引用）。 */
+/** 与 StandardPermissionMode 相同（规划不是 Permission Mode，ADR 0028；保留旧名，免于改动全部引用）。 */
 export const PermissionMode = StandardPermissionMode
 export type PermissionMode = StandardPermissionMode
 
@@ -28,13 +29,32 @@ export const PermissionRule = Type.Object(
 )
 export type PermissionRule = Static<typeof PermissionRule>
 
-/** permission_mode v3：只有四档（旧数据的 plan 在读取时迁移为进入前的模式，缺省 default；ADR 0028）。 */
+/** permission_mode v4：五档（v3 原样迁移；更早数据的 plan 在读取时迁移为进入前的模式，缺省 default；ADR 0028、ADR 0029）。 */
 export const PermissionModePayload = Type.Object({ mode: PermissionMode }, strict)
 export type PermissionModePayload = Static<typeof PermissionModePayload>
 
 export const PermissionRulePayload = Type.Object({ op: Type.Union([Type.Literal('add'), Type.Literal('remove')]), rule: PermissionRule }, strict)
 export type PermissionRulePayload = Static<typeof PermissionRulePayload>
 
+/** 审查没能给出结论的原因（ADR 0029）：界面按代码本地化。 */
+export const ReviewFailureCode = Type.Union([
+  Type.Literal('timeout'),
+  Type.Literal('request-failed'),
+  Type.Literal('invalid-output'),
+  Type.Literal('no-model'),
+  Type.Literal('budget'),
+  Type.Literal('too-long'),
+])
+export type ReviewFailureCode = Static<typeof ReviewFailureCode>
+
+/** 只在经过 Reviewer 后出给用户的请求上：转交的理由，或没能完成的原因。 */
+export const ApprovalReview = Type.Union([
+  Type.Object({ outcome: Type.Literal('escalated'), reason: Type.String({ minLength: 1 }) }, strict),
+  Type.Object({ outcome: Type.Literal('failed'), code: ReviewFailureCode }, strict),
+])
+export type ApprovalReview = Static<typeof ApprovalReview>
+
+/** approval_request v2：review 为可选的审查信息（v1 原样迁移）。 */
 export const ApprovalRequestPayload = Type.Object(
   {
     requestId: Id,
@@ -48,6 +68,7 @@ export const ApprovalRequestPayload = Type.Object(
     suggestions: Type.Array(PermissionRule),
     planId: Type.Optional(Id),
     revision: Type.Optional(Type.Integer({ minimum: 1 })),
+    review: Type.Optional(ApprovalReview),
   },
   strict,
 )
@@ -65,13 +86,20 @@ export type ApprovalOutcome = Static<typeof ApprovalOutcome>
 export const ApprovalScope = Type.Union([Type.Literal('once'), Type.Literal('session'), Type.Literal('workspace'), Type.Literal('global')])
 export type ApprovalScope = Static<typeof ApprovalScope>
 
-/** 回答审批的一方：用户，或 PermissionRequest Hook（ADR 0013）；缺省为用户。 */
-export const ApprovalDecider = Type.Union([Type.Literal('user'), Type.Literal('hook'), Type.Literal('headless')])
+/** 回答审批的一方：用户、PermissionRequest Hook（ADR 0013）、无界面运行（ADR 0019）或 Reviewer（ADR 0029）；缺省为用户。 */
+export const ApprovalDecider = Type.Union([Type.Literal('user'), Type.Literal('hook'), Type.Literal('headless'), Type.Literal('reviewer')])
 export type ApprovalDecider = Static<typeof ApprovalDecider>
 
-/** approval_decision v2：另带回答者 by（v1 原样迁移）。 */
+/** approval_decision v4：回答者 by；reason 为 Reviewer 放行的理由（只在 by reviewer 时有；旧版原样迁移）。 */
 export const ApprovalDecisionPayload = Type.Object(
-  { requestId: Id, outcome: ApprovalOutcome, scope: Type.Optional(ApprovalScope), feedback: Type.Optional(Type.String()), by: Type.Optional(ApprovalDecider) },
+  {
+    requestId: Id,
+    outcome: ApprovalOutcome,
+    scope: Type.Optional(ApprovalScope),
+    feedback: Type.Optional(Type.String()),
+    by: Type.Optional(ApprovalDecider),
+    reason: Type.Optional(Type.String()),
+  },
   strict,
 )
 export type ApprovalDecisionPayload = Static<typeof ApprovalDecisionPayload>
@@ -157,7 +185,7 @@ export const UpdatePermissionsRequest = Type.Union([
 ])
 export type UpdatePermissionsRequest = Static<typeof UpdatePermissionsRequest>
 
-/** PUT /api/sessions/:id/permission-mode：四档之一（plan 为 400；进入与退出规划经 POST …/plan，ADR 0028）。不改变计划阶段。 */
+/** PUT /api/sessions/:id/permission-mode：五档之一（plan 为 400；进入与退出规划经 POST …/plan，ADR 0028）。不改变计划阶段。 */
 export const SetPermissionModeRequest = Type.Object({ mode: StandardPermissionMode }, strict)
 export type SetPermissionModeRequest = Static<typeof SetPermissionModeRequest>
 
@@ -178,8 +206,11 @@ export const permissionPaths = {
   sessionPermissionRules: (id: string) => `/api/sessions/${encodeURIComponent(id)}/permission-rules`,
 } as const
 
-/** Shift+Tab 循环的三档；full-access 只能显式选择。 */
-export const CYCLED_PERMISSION_MODES = ['read-only', 'default', 'accept-edits'] as const satisfies readonly PermissionMode[]
+/** 五档的显示顺序（由窄到宽，与 agent 的 PERMISSION_MODE_ORDER 相同）。 */
+export const PERMISSION_MODES = ['read-only', 'default', 'accept-edits', 'auto-review', 'full-access'] as const satisfies readonly PermissionMode[]
+
+/** Shift+Tab 循环的四档；full-access 只能显式选择。 */
+export const CYCLED_PERMISSION_MODES = ['read-only', 'default', 'accept-edits', 'auto-review'] as const satisfies readonly PermissionMode[]
 
 const escapeContent = (content: string) => content.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')
 const unescapeContent = (content: string) => content.replace(/\\([\\()])/g, '$1')

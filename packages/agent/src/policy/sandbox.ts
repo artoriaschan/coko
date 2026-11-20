@@ -10,6 +10,7 @@ const SANDBOX_MODE: Record<PermissionMode, SandboxMode> = {
   'read-only': 'read-only',
   default: 'workspace-write',
   'accept-edits': 'workspace-write',
+  'auto-review': 'workspace-write',
   'full-access': 'danger-full-access',
 }
 

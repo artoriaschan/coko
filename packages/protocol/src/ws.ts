@@ -47,6 +47,8 @@ export const ProgressEvent = Type.Union([
     strict,
   ),
   Type.Object({ type: Type.Literal('tool_start'), toolCallId: Type.String(), toolName: Type.String(), args: Type.Unknown() }, strict),
+  /** Reviewer（自动审查，ADR 0029）开始审查这次调用；不另发结束事件，随后的审批请求、结果或 run_end 体现结束。 */
+  Type.Object({ type: Type.Literal('review_start'), toolCallId: Type.String(), toolName: Type.String() }, strict),
   Type.Object({ type: Type.Literal('tool_update'), toolCallId: Type.String(), toolName: Type.String(), partialResult: Type.Unknown() }, strict),
   Type.Object(
     {
@@ -121,6 +123,7 @@ export const DETACHED_PROGRESS: Readonly<Record<ProgressEvent['type'], boolean>>
   run_start: false,
   assistant_delta: false,
   tool_start: false,
+  review_start: false,
   tool_update: false,
   tool_end: false,
   retry: false,

@@ -28,7 +28,7 @@ lifecycle: active
 - [桌面工作台](subsystems/workbench.md)：三栏外壳与拖动宽度记忆、侧栏导航、内容区历史、设置返回与开发者开关、对话搜索、消息与思考、可调阅读宽度与左侧轮次指示器、专用工具详情与文件语法、详细过程与工具分组、三级折叠与阅读位置、历史与只读检查、主输入框、会话状态栏与 Token 用量、新对话归属与首次发送、模型生成标题、单份草稿、模型与推理档位、文件与图片附件、Artifacts 交付文件树，以及跨功能 Electron 验证。
 - [项目与会话列表](subsystems/projects.md)：项目模型、Workspace 迁移、多文件夹及空白项目创建与主要目录、删除项目保留对话、根会话归属、列表交互与恢复、会话详情、长标题、置顶、菜单、重命名、移入移出项目、归档恢复、永久删除与空目录清理。
 
-- [权限判定与审批](subsystems/permissions.md)：工具调用的判定顺序、审批请求的状态与条目、回答路由和审批卡。
+- [权限判定与审批](subsystems/permissions.md)：五档模式与工具调用的判定顺序、自动审查的 Reviewer、审批请求的状态与条目、回答路由和审批卡。
 - [启动恢复与结果确认](subsystems/recovery.md)：崩溃后被中断 Run 的判定、结果探测、待确认与继续。
 - [分层配置](subsystems/configuration.md)：主数据根与只读存储路径、默认/全局/项目设置的合并（项目只收紧）、诊断与配置接口。
 - [指令文件](subsystems/instructions.md)：AGENTS.md / CLAUDE.md 的发现顺序、@import、预算、注入格式与嵌套按需加载。

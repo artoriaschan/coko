@@ -28,6 +28,7 @@ import type { SessionHub } from './hub.ts'
 import { hostToolNames, PermissionService } from './permissions.ts'
 import { SessionRecovery, type RecoveryHook, type RecoveryReport, type RecoverySource } from './recovery.ts'
 import { SessionModels } from './session-models.ts'
+import { SessionReviews } from './session-reviews.ts'
 import { SessionFiles } from './session-files.ts'
 import { ownPermissionScope, SessionPermissions, type PermissionScopeResolver } from './session-permissions.ts'
 import { SessionRuns, type RunLauncher, type SessionCwd, type SessionExtension, type SessionExtensionContext } from './session-runs.ts'
@@ -159,6 +160,14 @@ export class SessionService {
       runtimes: this.#runtimes,
       ...(options.fallbackModel ? { fallbackModel: options.fallbackModel } : {}),
     })
+    const reviews = new SessionReviews({
+      store,
+      models: this.#models,
+      registry: options.registry,
+      clock: this.#clock,
+      runtimes: this.#runtimes,
+      rootSessionId: (id) => this.#permissions.scopes.rootSessionId(id),
+    })
     this.#runs = new SessionRuns({
       ...(options.attachments ? { attachments: options.attachments } : {}),
       store,
@@ -175,6 +184,7 @@ export class SessionService {
       recovery: this.#recovery,
       checkpoints: this.#checkpoints,
       models: this.#models,
+      reviews,
       ...(options.cwd ? { cwd: options.cwd } : {}),
     })
     this.#runs.useAdmission((id) => this.assertAdmission(id))

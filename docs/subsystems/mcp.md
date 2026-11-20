@@ -116,7 +116,7 @@ openai-completions 开启该选项后，按 Base URL 与模型 ID 查询安装�
 
 ## 资源
 
-- **注册**：Run 开始时，若该 Workspace 有已连接的 Server 在 `initialize` 中声明了 `resources` 能力，注册三个工具（权限类 context-read，effect read，四种模式都不审批；deny 规则照常生效，例如项目 `.coko/settings.json` 的 `permissions.deny: ["read_mcp_resource"]`）。没有这样的 Server 时三个工具都不注册。工具在调用时按池中当前的连接查找 Server，只覆盖本 Run 加载的 Server；没有声明 resources 的 Server 不可用（错误写明有资源的 Server）。它们不计入 `GET /api/mcp` 中各 Server 的 `tools`。
+- **注册**：Run 开始时，若该 Workspace 有已连接的 Server 在 `initialize` 中声明了 `resources` 能力，注册三个工具（权限类 context-read，effect read，所有模式都不审批；deny 规则照常生效，例如项目 `.coko/settings.json` 的 `permissions.deny: ["read_mcp_resource"]`）。没有这样的 Server 时三个工具都不注册。工具在调用时按池中当前的连接查找 Server，只覆盖本 Run 加载的 Server；没有声明 resources 的 Server 不可用（错误写明有资源的 Server）。它们不计入 `GET /api/mcp` 中各 Server 的 `tools`。
 - **`list_mcp_resources { server?, cursor? }`、`list_mcp_resource_templates { server?, cursor? }`**：结果为 JSON。给出 `server` 时列一页（`{ server, resources | resourceTemplates, nextCursor? }`），`cursor` 接着翻；不给时按名字顺序列出全部 Server 的全部分页，失败或不合格的部分放进 `errors: [{ server, error }]`，不使整个调用失败。不给 `server` 时不能给 `cursor`。每项带 `server`，去掉 `_meta` 与 `icons`；缺 `name` 时用 URI 代替。
 - **分页**：按 `nextCursor` 翻页（`null` 与空字符串视为结束），最多 1000 页；cursor 重复时停止（`duplicate-cursor`），超过上限时停止（`page-limit`），已取得的项保留。页不合 schema 时停止、单项不合 schema 时跳过（`invalid-result`）。与提示模板共用同一实现。
 - **`read_mcp_resource { server, uri }`**：`resources/read` 的每个内容：文本合并后按 2000 行 / 50KB 截断并注明 `[Resource truncated: showing N of M lines…]`（单行超过 50KB 时按字节截断）；`image/*` 的 blob 作为图片内容块透传；其他 blob 注明 `[binary resource <uri> (<mimeType>, <大小>) omitted]`；有多个内容时以 URI 标注。结果不合 schema（缺 `contents`、内容缺 `uri` 或 `text` / `blob`）时为错误结果。请求超时为该 Server 的 `timeout`。

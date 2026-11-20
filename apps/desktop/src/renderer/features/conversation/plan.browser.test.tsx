@@ -1,5 +1,5 @@
 // Plan Mode 的界面（ADR 0028：规划是计划阶段，不是 Permission Mode）：审阅卡（只有"批准并执行"、继续规划、右栏中的编辑随批准提交、新计划自动
-// 打开一次；卡上的执行权限即输入区同一个模式菜单，切换、风险确认与失败保留）、右栏 Plan tab（修订、状态、编辑）、Plan chip（计划阶段为规划中时显示，点击调用退出动作，失败时保留）与三项权限快捷菜单。多个含
+// 打开一次；卡上的执行权限即输入区同一个模式菜单，切换、风险确认与失败保留）、右栏 Plan tab（修订、状态、编辑）、Plan chip（计划阶段为规划中时显示，点击调用退出动作，失败时保留）与四项权限快捷菜单。多个含
 // Radix 菜单的界面在同一文件中依次渲染：每个用例等菜单关闭后才结束，共用 setup 断言没有遗留的 aria-hidden 与 pointer-events（testing/browser-setup.ts）。
 import '../../styles.css'
 import type { AnswerApprovalRequest, ApprovalRequestPayload, PlanActionRequest, PlanPayload, SessionEntry } from '@coko/protocol'
@@ -218,7 +218,7 @@ describe('plan-approve-edited', () => {
     )
 
     // ADR 0028 起批准不改变模式：原先“进入前为 full-access 时给出批准并允许编辑（mode accept-edits）”的用例改为断言任何模式下都没有该入口。
-    it.each(['read-only', 'default', 'accept-edits', 'full-access'])(
+    it.each(['read-only', 'default', 'accept-edits', 'auto-review', 'full-access'])(
       '%s 下：右栏中的编辑随批准提交（editedPlan），不带 mode；没有"批准并允许编辑"',
       async (mode) => {
         const answers: AnswerApprovalRequest[] = []
@@ -345,7 +345,7 @@ describe('plan-chip', () => {
   }
 
   describe('Plan chip 与模式菜单', () => {
-    it.each(['', 'dark'])('权限按钮的图文字形居中、三项菜单可关闭并返回焦点（%s）', async (theme) => {
+    it.each(['', 'dark'])('权限按钮的图文字形居中、四项菜单可关闭并返回焦点（%s）', async (theme) => {
       const picked: string[] = []
       const screen = await wrap(
         <div className={theme}>
@@ -364,7 +364,7 @@ describe('plan-chip', () => {
       expect(getComputedStyle(element).userSelect).toBe('none')
       await userEvent.click(button)
       expect(element.getBoundingClientRect().width).toBe(before.width)
-      expect(document.querySelectorAll('[role="menuitemradio"]')).toHaveLength(3)
+      expect(document.querySelectorAll('[role="menuitemradio"]')).toHaveLength(4)
       expect(getComputedStyle(document.querySelector('[role="menuitemradio"]')!).userSelect).toBe('none')
       await expect.element(page.getByRole('menuitemradio', { name: /Ask for approval/ })).toHaveAttribute('aria-checked', 'true')
       await userEvent.keyboard('{Escape}')
@@ -759,6 +759,13 @@ describe('plan-review-permission', () => {
     await expect.element(picker).toBeVisible()
     await userEvent.click(picker)
     await expect.element(page.getByRole('menuitemradio', { name: /Accept edits/ })).toHaveAttribute('aria-checked', 'true')
+    // 与输入区同一个菜单：四项，含自动审查。
+    expect([...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].map((item) => item.dataset.mode)).toEqual([
+      'default',
+      'accept-edits',
+      'auto-review',
+      'full-access',
+    ])
     await userEvent.click(page.getByRole('menuitemradio', { name: /Ask for approval/ }))
     await menuClosed()
     await expect.poll(() => modes).toEqual(['s-1:default'])

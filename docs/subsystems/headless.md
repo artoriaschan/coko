@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的无界面运行（headless）：入口与参数、装配（headlessLayer）、输出格式 text / json / stream-json、退出码与信号、审批自动拒绝（approval_decision by headless）与 --on-approval、--provider-config 与 COKO_CREDENTIAL_<ID>、日志位置、打包产物与已知限制。在脚本或 CI 中运行 Coko、修改 headless 的参数、输出或审批行为前查阅。"
+description: "当前的无界面运行（headless）：入口与参数、装配（headlessLayer）、输出格式 text / json / stream-json、退出码与信号、审批自动拒绝（approval_decision by headless）与 --on-approval、auto-review 下的 Reviewer、--provider-config 与 COKO_CREDENTIAL_<ID>、日志位置、打包产物与已知限制。在脚本或 CI 中运行 Coko、修改 headless 的参数、输出或审批行为前查阅。"
 lifecycle: active
 ---
 
@@ -32,7 +32,7 @@ ELECTRON_RUN_AS_NODE=1 <electron> <sidecar>/headless.mjs --data-dir <dir> (--wor
 
 - `--data-dir` 必填；桌面应用的默认数据目录是 `<COKO_HOME>/data`（缺省 `~/.coko/data`），与其相同时共用同一个库（租约互斥：桌面应用开着时 headless 启动失败，以 4 退出）。相对路径按当前目录解析。
 - `--workspace` 不在库中时登记为 Workspace；`--session` 继续已有的根 Session（与 `--workspace` 同时给出时须属于它）；省略 `--session` 时新建 Session（权限模式为默认模式）。
-- `--model` 写入 Session 的模型；`--permission-mode` 提交 `permission_mode` 条目（与界面切换相同），合法取值为 `read-only`、`default`、`accept-edits`、`full-access`；`plan` 不是 Permission Mode（[ADR 0028](../adr/0028-plan-phase-not-permission-mode.md)），与其他非法取值一样为参数错误（退出 4，`--permission-mode must be one of read-only, default, accept-edits, full-access`）。无界面运行没有规划入口。
+- `--model` 写入 Session 的模型；`--permission-mode` 提交 `permission_mode` 条目（与界面切换相同），合法取值为 `read-only`、`default`、`accept-edits`、`auto-review`、`full-access`；`plan` 不是 Permission Mode（[ADR 0028](../adr/0028-plan-phase-not-permission-mode.md)），与其他非法取值一样为参数错误（退出 4，`--permission-mode must be one of read-only, default, accept-edits, auto-review, full-access`）。无界面运行没有规划入口。
 - `--max-turns`：根 Session 第 n 条 assistant 仍在调用工具时 `stopAfterBatch(max_turns)`，本批完成后以 paused 结束。
 - `--log-dir` 缺省 `<data-dir>/logs`，日志写 `headless.jsonl`（JSONL、脱敏，字段同 Sidecar）。stdout 只有运行结果；console 输出与启动失败的说明写 stderr。
 - `--ripgrep` 缺省：打包产物用随包的 `Resources/ripgrep/rg`（日志 `grep implementation selected { implementation: ripgrep }`），源码运行用内置 grep。
@@ -78,6 +78,8 @@ SIGINT / SIGTERM：中止进行中的 Run，等待 run_end 提交，写出 resul
 
 需要免审批时由调用者给出更宽的 `--permission-mode` 或允许规则（全局、Workspace 或项目设置）。
 
+**auto-review（[ADR 0029](../adr/0029-auto-review-delegates-final-ask.md)）。** 显式给出 `--permission-mode auto-review` 即调用者对委托的授权：第 7 步的询问在 PermissionRequest Hook 没有决定后先交给 Reviewer（条件、输入与失败见 [权限判定与审批](permissions.md#自动审查reviewer)）。Reviewer 放行的调用照常执行（`approval_decision { by: reviewer }`）；转交与审查失败的调用没有审批者，按上文立即以 `by: headless` 拒绝，`approval_request` 带转交理由或失败代码（`review`），模型看到的文本与 `--on-approval fail` 的行为不变。询问规则、受保护路径、越出可写根与提权不经审查，直接拒绝。审查请求中的用户授权为启动时给出的提示。
+
 ## Provider 配置
 
 Provider 可带布尔字段 `incrementalTools`，行为与桌面设置一致；缺省值和使用条件见 [MCP 工具增量传输](mcp.md#provider-的工具增量传输)。启动配置更新或失败补偿会保留该字段的显式值。
@@ -98,5 +100,6 @@ Provider 可带布尔字段 `incrementalTools`，行为与桌面设置一致；�
 - `apps/server/src/application/providers.test.ts`：`upsertFromConfig` 的整份写入、第二个无效时库中没有 Provider、写入中途失败的补偿、密钥字段、schema 与 defaultModel。
 - `tests/integration/headless.test.ts`：stream-json 的每行 schema 与 result、text、`--session`、Workspace 登记、参数错误 4、SIGTERM 2、日志位置、`--provider-config` 与 `no-credential`；记忆开启时请求中有 Memory 段与 `memory_list`、没有 `memory_write` 与 `memory_delete`。
 - `tests/integration/headless-approvals.test.ts`（对手用例）：拒绝文本与 by headless、`--on-approval fail` 退出 3、Hook 代答、伪造的批准文本、子代理。
+- `tests/integration/headless-auto-review.test.ts`：auto-review 下 Reviewer 放行的调用执行、转交（含模型伪造的放行文本）与审查失败以 headless 拒绝且请求带 `review`、`--on-approval fail` 退出 3、Hook 先于 Reviewer、硬边界不送审；Seatbelt 用例（审查放行的越界写入被拒、提权不送审）仅在 darwin 运行。`tests/integration/headless.test.ts` 另覆盖参数错误文本中的五档。
 - `tests/integration/secrets-gate-headless.test.ts`：三种输出、stderr、日志、库与 faux requestLog 中没有 Credential、Secret 与宿主密钥。
 - `apps/desktop/e2e/package-smoke.e2e.test.ts`：打包应用中 `Resources/sidecar/headless.mjs` 的 stream-json 以 completed 结束、退出 0、使用随包 ripgrep。

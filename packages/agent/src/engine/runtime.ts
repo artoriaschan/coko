@@ -133,6 +133,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     broker,
     current: () => current,
     abortAgent: () => agent.abort(),
+    reviewStarted: (toolCallId, toolName) => current && progress({ type: 'review_start', runId: current.runId, toolCallId, toolName }),
   })
   const scheduling: SchedulingOptions = {
     scheduler: createToolScheduler(options.toolConcurrency),

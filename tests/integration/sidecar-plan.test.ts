@@ -390,8 +390,8 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('complete_plan 在四种 Permission Mode 下都不询问（只有计划审阅）；超长报告为错误结果且不提交', async () => {
-    const MODES = ['read-only', 'default', 'accept-edits', 'full-access'] as const
+  it('complete_plan 在五种 Permission Mode 下都不询问（只有计划审阅）；超长报告为错误结果且不提交', async () => {
+    const MODES = ['read-only', 'default', 'accept-edits', 'auto-review', 'full-access'] as const
     const h = await boot(
       MODES.flatMap((mode, i) => [
         exit(`e${i}`, PLAN),
@@ -424,7 +424,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
         .entries()
         .filter((e) => e.kind === 'approval_request')
         .map((e) => (e.payload as { kind: string }).kind),
-    ).toEqual(['plan', 'plan', 'plan', 'plan'])
+    ).toEqual(MODES.map(() => 'plan'))
     expect(h.plans().map((p) => p.status)).toEqual(MODES.flatMap(() => ['proposed', 'approved', 'completed']))
     expect(h.stream.invalidEntries).toEqual([])
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
@@ -836,11 +836,11 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect((await api.get(permissionPaths.sessionPermissionRules(withPrior))).body).toEqual({ mode: 'accept-edits', rules: [] })
     expect((await api.get(permissionPaths.sessionPermissionRules(withoutPrior))).body).toEqual({ mode: 'default', rules: [] })
     for (const id of [withPrior, withoutPrior]) expect((await api.get(planPaths.sessionPlan(id))).body).toEqual({ phase: 'none', plan: null })
-    // 读取结果为当前版本（v3，不带 prior）；已提交的计划仍在条目中（时间线的计划卡与右栏 Plan 页由它派生）。
+    // 读取结果为当前版本（v4，不带 prior）；已提交的计划仍在条目中（时间线的计划卡与右栏 Plan 页由它派生）。
     const entries = (await api.get(apiPaths.session(withPrior))).body.entries as SessionEntryRecord[]
     expect(entries.filter((e) => e.kind === 'permission_mode').map((e) => [e.payloadVersion, e.payload])).toEqual([
-      [3, { mode: 'default' }],
-      [3, { mode: 'accept-edits' }],
+      [4, { mode: 'default' }],
+      [4, { mode: 'accept-edits' }],
     ])
     expect(entries.filter((e) => e.kind === 'plan').map((e) => e.payload)).toEqual([proposed])
     // 数据库行不改写：原始版本号仍为 2。
@@ -850,7 +850,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
         .prepare("SELECT payload_version, payload FROM session_entries WHERE kind = 'permission_mode' AND session_id = ? ORDER BY seq")
         .all(withPrior)
       expect(rows.map((row) => [row.payload_version, JSON.parse(String(row.payload))])).toEqual([
-        [3, { mode: 'default' }],
+        [4, { mode: 'default' }],
         [2, { mode: 'plan', prior: 'accept-edits' }],
       ])
     } finally {

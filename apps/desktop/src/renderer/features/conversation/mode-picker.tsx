@@ -1,4 +1,4 @@
-import { CYCLED_PERMISSION_MODES, type PermissionMode, type StandardPermissionMode } from '@coko/protocol'
+import { CYCLED_PERMISSION_MODES, PERMISSION_MODES, type PermissionMode, type StandardPermissionMode } from '@coko/protocol'
 import {
   Button,
   cn,
@@ -11,22 +11,23 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@coko/ui'
-import { IconEye, IconHandStop, IconShieldExclamation, IconShield, IconTerminal } from '@tabler/icons-react'
+import { IconEye, IconHandStop, IconShieldExclamation, IconShieldSearch, IconShield, IconTerminal } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { PermissionRiskDialog } from './permission-risk-dialog.tsx'
 
-/** 设置中的默认模式仍为四档；输入区快捷菜单只展示三档。 */
-export const PERMISSION_MODES: readonly StandardPermissionMode[] = ['read-only', 'default', 'accept-edits', 'full-access']
+/** 设置中的默认模式为全部五档（PERMISSION_MODES）；输入区快捷菜单不含 read-only。 */
+const MENU_MODES = PERMISSION_MODES.filter((mode) => mode !== 'read-only')
 
 export const MODE_ICONS: Record<PermissionMode, React.ComponentType<{ className?: string }>> = {
   'read-only': IconEye,
   default: IconHandStop,
   'accept-edits': ShieldTerminalIcon,
+  'auto-review': IconShieldSearch,
   'full-access': IconShieldExclamation,
 }
 
-/** Shift+Tab 的下一档：只在前三档之间循环（只切换 Permission Mode，不影响规划）；从 full-access 回到第一档。 */
+/** Shift+Tab 的下一档：只在前四档之间循环（只切换 Permission Mode，不影响规划）；从 full-access 回到第一档。 */
 export function nextCycledMode(mode: PermissionMode): StandardPermissionMode {
   const index = CYCLED_PERMISSION_MODES.indexOf(mode as (typeof CYCLED_PERMISSION_MODES)[number])
   return CYCLED_PERMISSION_MODES[(index + 1) % CYCLED_PERMISSION_MODES.length]!
@@ -98,7 +99,7 @@ export function ModePicker({ value, disabled, onChange }: ModePickerProps) {
               else onChange(next as StandardPermissionMode)
             }}
           >
-            {(['default', 'accept-edits', 'full-access'] as const).map((mode) => {
+            {MENU_MODES.map((mode) => {
               const ModeIcon = MODE_ICONS[mode]
               const warned = mode === 'full-access'
               return (

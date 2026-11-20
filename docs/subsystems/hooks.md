@@ -111,6 +111,8 @@ H = ask 的审批在等待中遇到模式或规则变更时，重新判定的结
 
 **PermissionRequest** 只在最终为第 7 步（default）的询问、出卡片之前运行：deny 拒绝（同上，带 `hostBlock`）；allow 依次提交 `approval_request` 与 `approval_decision { outcome: allowed, scope: once, by: hook }` 后执行；其余出卡片。询问来自询问规则、受保护路径、越出可写根或 Hook 的 ask 时不运行。
 
+**与 Reviewer 的顺序（auto-review，[ADR 0029](../adr/0029-auto-review-delegates-final-ask.md)）。** 回答顺序为 PermissionRequest → Reviewer → 用户：PermissionRequest 给出 allow 或 deny 时不送审；没有决定时才交给 Reviewer。PreToolUse 的 deny 优先于一切，H = ask 的强制询问不经 Reviewer，直接问用户。Hook 输入中的 `permission_mode` 为 `auto-review`，没有新增字段。见 [权限判定与审批](permissions.md#自动审查reviewer)。
+
 模型或命令输出构造的内容不能成为决定：决定只来自 Hook 进程自己的退出码与 stdout，`tool_input` 中出现的 Hook JSON 只是参数文本。
 
 ## PostToolUse 与 PostToolUseFailure
@@ -200,6 +202,7 @@ Coko 产生桌面通知时运行（`NotificationService.notify` 先通知 Hook�
 
 - `packages/agent/src/extensions/hooks/hooks.test.ts`：配置解析与每种诊断、matcher、if（复合命令）、输出解释、聚合与组合表每一行（表驱动）。
 - `packages/agent/src/policy/gate-hooks.test.ts`：运行时中的组合（Hook deny 在 full-access 下、allow 免掉第 7 步、对手用例：allow 不免掉询问规则 / 受保护路径 / 越出可写根，ask 不随模式放宽消失）与 PermissionRequest 的三种结论。
+- auto-review：`tests/integration/sidecar-auto-review.test.ts` 的“Hook 先于 Reviewer”（PermissionRequest 的 allow / deny 时没有审查请求、没有决定时有，PreToolUse 的强制询问不经审查）；`sidecar-hooks.test.ts` 中 Hook 输入的 `permission_mode` 为 `auto-review`；`policy/gate-review.test.ts` 在运行时上覆盖同样的顺序。
 - `apps/server/src/adapters/hook-runner.test.ts`：stdin、环境过滤、输出上限、忽略 SIGTERM 时 2 秒后 SIGKILL 与登记释放（darwin）。
 - `tests/integration/sidecar-hooks.test.ts`：真实 Sidecar 与 Hook 夹具，覆盖上述事件、并行聚合、超时与进程组终止（darwin）、非法输出、项目 Hook 的批准与改动、能力开关与对手用例（含提权与 plan-exit、规划中的写入与 Hook 收到的真实模式、伪造的 Hook JSON、`if: Bash(rm *)` 的 guard）。
 - `tests/integration/sidecar-hooks-lifecycle.test.ts`：真实 Sidecar 与内联 bash Hook，覆盖 UserPromptSubmit（400 `hook-blocked` 且没有 user message 与 run_start、`<hook-context>` 块、continue: false、定时任务与 Goal Round 不运行）、Stop（继续与 stop_hook_active、第 4 次忽略、伪造的 Hook JSON 不继续、暂停与停止不运行）、PreCompact（手动 400 与 stdout 追加、自动跳过、溢出不运行）、Notification（输入字段、matcher、失败不影响通知）、PreToolUse 的 continue: false（含 Goal Round），以及对手用例：Stop 持续 block 时 Goal 的 maxTokens 在继续的请求前生效、未批准的项目 UserPromptSubmit 不运行、改动后为已改动。

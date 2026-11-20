@@ -309,7 +309,7 @@ describe('时间线：压缩分隔条', () => {
     const running: Conversation = {
       ...conversation([user('one'), reply('a1'), start]),
       running: true,
-      live: { runId: 'c', accepting: true, blocks: [], tools: {} },
+      live: { runId: 'c', accepting: true, blocks: [], tools: {}, reviewing: {} },
     }
     expect(shape(buildTimeline(running))).toEqual(['user:one*', 'text:a1'])
   })

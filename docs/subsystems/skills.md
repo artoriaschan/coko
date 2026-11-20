@@ -68,7 +68,7 @@ lifecycle: active
 
 | 项 | 行为 |
 | --- | --- |
-| `skill` 工具 | 权限类 context-read：四种模式都不审批 |
+| `skill` 工具 | 权限类 context-read：所有模式都不审批 |
 | 规则 | 规则名 `Skill`（`skill` 归一为 `Skill`，工具尚未注册时也接受），内容为 Skill 名：`Skill(pdf)` 可 deny 或 ask；项目设置的 `permissions.deny` 同样生效 |
 | 读取根 | 启用的 Skill 的基目录作为额外读取根：其下的 read、grep、find、ls 与 Workspace 内读取同样处理（不报 `outside-workspace`）。项目 Skill 只有真实路径在 Workspace 之内时才加载，不能把外部目录变成读取根 |
 | 脚本 | bash 运行 Skill 目录内的脚本照常判定（default 下审批）；`allowed-tools: Bash(*)` 不改变判定 |

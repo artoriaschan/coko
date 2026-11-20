@@ -1,5 +1,5 @@
-// 权限模式与规则：真实 Electron + 真实 Sidecar（faux）。Shift+Tab 循环三档、full-access 警示、Permissions 分区增删规则、
-// 审批卡的"总是允许"下拉（越界写入不显示）。
+// 权限模式与规则：真实 Electron + 真实 Sidecar（faux）。Shift+Tab 循环四档、full-access 警示、Permissions 分区增删规则、
+// 审批卡的"总是允许"下拉（越界写入不显示）；自动审查的放行标注与转交理由。
 import { randomBytes } from 'node:crypto'
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
@@ -33,6 +33,8 @@ async function send(app: LaunchedApp, text: string) {
   await composer(app).press('Enter')
 }
 const idle = (app: LaunchedApp) => app.window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
+/** 最后一条回复的正文（不含页脚的用量等）。 */
+const lastReply = (app: LaunchedApp) => app.window.getByRole('article', { name: 'Coko' }).last().locator('[data-slot="assistant-message-body"]').textContent()
 const card = (app: LaunchedApp) => app.window.locator('[data-slot="approval-card"]')
 const modePicker = (app: LaunchedApp) => app.window.locator('[data-permission-mode]')
 const dialog = (app: LaunchedApp) => app.window.locator('[data-settings-page]')
@@ -50,22 +52,22 @@ async function openPermissions(app: LaunchedApp) {
 }
 
 describe('权限模式选择', () => {
-  it('Shift+Tab 在只读、默认、自动接受编辑之间循环且不进入 full-access；菜单选 full-access 后有警示样式并免审批', async () => {
+  it('Shift+Tab 在只读、默认、帮我批准、自动审查之间循环且不进入 full-access；菜单选 full-access 后有警示样式并免审批', async () => {
     const { app, workspace } = await setup({ responses: [{ content: 'hello' }, { content: [bash('b1', 'printf hi > full.txt')] }, { content: 'done' }] })
     await send(app, 'start')
     // 首次发送接受并渲染真实 Session 后再测试会话模式，发送按钮在新对话中也已存在。
-    await expect.poll(() => app.window.getByRole('article', { name: 'Coko' }).textContent()).toBe('hello')
+    await expect.poll(() => lastReply(app)).toBe('hello')
     await idle(app)
     expect(await modePicker(app).getAttribute('data-permission-mode')).toBe('default')
 
     await composer(app).click()
     const seen: (string | null)[] = []
-    for (const mode of ['accept-edits', 'read-only', 'default', 'accept-edits']) {
+    for (const mode of ['accept-edits', 'auto-review', 'read-only', 'default', 'accept-edits']) {
       await composer(app).press('Shift+Tab')
       await expect.poll(() => modePicker(app).getAttribute('data-permission-mode')).toBe(mode)
       seen.push(await modePicker(app).getAttribute('data-permission-mode'))
     }
-    expect(seen).toEqual(['accept-edits', 'read-only', 'default', 'accept-edits'])
+    expect(seen).toEqual(['accept-edits', 'auto-review', 'read-only', 'default', 'accept-edits'])
     // 焦点留在编辑区。
     expect(await composer(app).evaluate((el) => el === document.activeElement)).toBe(true)
     await app.window.mouse.move(0, 0)
@@ -74,6 +76,12 @@ describe('权限模式选择', () => {
 
     await modePicker(app).click()
     await app.window.locator('[role="menuitemradio"][data-mode="full-access"]').click()
+    // 完全访问先确认风险。
+    await app.window
+      .locator('[data-permission-risk-dialog]')
+      .getByRole('button', { name: /^(Turn on anyway|仍要开启)$/ })
+      .click()
+    await app.window.locator('[data-permission-risk-dialog]').waitFor({ state: 'detached' })
     await expect.poll(() => modePicker(app).getAttribute('data-permission-mode')).toBe('full-access')
     // 按真实协议读回，不以乐观按钮状态替代服务端保存的事实。
     await expect
@@ -178,7 +186,54 @@ describe('Permissions 设置与总是允许', () => {
     expect(await decided.textContent()).toMatch(/^(Always allowed in this workspace|本工作区总是允许)$/)
 
     await send(app, 'again')
-    await expect.poll(() => app.window.getByRole('article', { name: 'Coko' }).last().textContent(), { timeout: 30_000 }).toBe('ok again')
+    await expect.poll(() => lastReply(app), { timeout: 30_000 }).toBe('ok again')
     expect(await card(app).count()).toBe(0)
+  })
+})
+
+describe('自动审查', () => {
+  it('新对话选"自动审查"：Reviewer 放行的命令在工具卡标注并可展开理由，转交的命令审批卡带理由，允许后 Run 完成', async () => {
+    const review = (decision: string, reason: string) => ({ match: 'COKO_PERMISSION_REVIEW', content: JSON.stringify({ decision, reason }) })
+    // 审查应答放在最前且带 match，只被审查请求取用。
+    const { app, workspace } = await setup({
+      responses: [
+        review('allow', 'Writing one.txt is what the user asked for.'),
+        review('escalate', 'Writing two.txt was not mentioned by the user.'),
+        { content: [bash('b1', 'printf one > one.txt')] },
+        { content: [bash('b2', 'printf two > two.txt')] },
+        { content: 'done' },
+      ],
+    })
+    await modePicker(app).click()
+    await app.window.locator('[role="menuitemradio"][data-mode="auto-review"]').click()
+    await expect.poll(() => modePicker(app).getAttribute('data-permission-mode')).toBe('auto-review')
+    // 普通档位，不是 full-access 的警示样式。
+    expect(await modePicker(app).getAttribute('data-warning')).toBeNull()
+
+    await send(app, 'write one.txt')
+    await card(app).waitFor({ timeout: 30_000 })
+    // b1 已由 Reviewer 放行执行；b2 被转交，尚未执行。
+    expect(await readFile(join(workspace, 'one.txt'), 'utf8')).toBe('one')
+    expect(await exists(join(workspace, 'two.txt'))).toBe(false)
+    expect(await card(app).locator('[data-review-detail]').textContent()).toBe('Writing two.txt was not mentioned by the user.')
+    expect(await card(app).locator('[data-action="allow-always"]').count()).toBe(1)
+    await card(app).locator('[data-action="allow-once"]').click()
+    await app.window.getByRole('article', { name: 'Coko' }).filter({ hasText: 'done' }).waitFor({ timeout: 30_000 })
+    await idle(app)
+    expect(await readFile(join(workspace, 'two.txt'), 'utf8')).toBe('two')
+
+    // 完成的 Run 收起整轮过程与过程组：展开后读工具卡。
+    await app.window.locator('[data-slot="run-process-control"][aria-expanded="false"]').click()
+    for (const header of await app.window.locator('[data-slot="process-group-header"][aria-expanded="false"]').all()) await header.click()
+    const reviewed = app.window.locator('[data-slot="tool-card"][data-tool="bash"]').first()
+    expect(await reviewed.locator('[data-approval-outcome="allowed"]').textContent()).toMatch(/^(Allowed by auto review|已由自动审查允许)$/)
+    await reviewed.getByRole('button').first().click()
+    expect(await reviewed.locator('[data-reviewer-reason]').textContent()).toMatch(/Writing one\.txt is what the user asked for\.$/)
+    // 首次发送带上的模式按真实协议读回。
+    const mode = await app.window.evaluate(async () => {
+      const { sessions } = (await (await fetch('/api/sessions')).json()) as { sessions: { id: string }[] }
+      return ((await (await fetch(`/api/sessions/${sessions[0]!.id}/permission-rules`)).json()) as { mode: string }).mode
+    })
+    expect(mode).toBe('auto-review')
   })
 })

@@ -269,6 +269,7 @@ function modeAllows(facts: Facts): boolean {
     case 'default':
       return readInside
     case 'accept-edits':
+    case 'auto-review':
       return readInside || (category === 'write' && target !== undefined && context.writableRoots.some((root) => pathContains(root, target.real)))
     case 'full-access':
       return true

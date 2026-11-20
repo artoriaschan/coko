@@ -23,7 +23,7 @@ lifecycle: active
 
 每次实际请求尝试开始前冻结 `snapshot { system, messages, tools }`，随该次尝试结束后的 `model_request` 一起提交。`system` 是 pi-ai 从规范化上下文合成的完整系统提示词；`messages` 是交给模型适配器的完整消息序列，保留 system sections、工具声明变化与原始内容块；`tools` 是这次请求的完整有效工具目录及参数 Schema，包含尚未调用的工具。快照不包含传输层认证或请求选项，后续消息追加和工具变更不改写既有快照。普通请求、重试、压缩、交接摘要和独立标题生成使用同一快照格式。宿主提交非用户条目前先按已登记 Secret／Credential 明文脱敏，trace 与导出再执行一次输出脱敏。旧记录可缺少 `snapshot`，明确显示未记录，不用当前系统提示或工具目录补造历史。
 
-运行时为每次实际启动的模型请求尝试提交一条 `model_request`（v1，与 assistant 消息同一提交链，失败、取消以及失败压缩的请求也提交）：`runId`、`provider`、`model`、`startedAt`、`durationMs`（仅该次尝试，不含重试退避等待）、`ttftMs?`（第一个文本或工具调用增量到达的时间）、`usage { input, output, cacheRead, cacheWrite, total }`、`cost?`（未定价时省略）、`stopReason`、`retries`（同次逻辑调用中之前失败的次数，首次为 0）、`errorCode?`（`aborted`、`context_overflow`、`model_error`）与 `purpose`（`turn`、压缩的 `compaction`、交接的 `summary`、会话标题的 `title`）。新请求另有唯一 `requestId`、`usageReport { complete, known }`（四分桶中实际已知的字段）、可选 `reasoning` 与 `costBreakdown`。`usageReport` 缺失的旧记录不能证明完整性，不补写历史计量；`reasoning` 是输出子集，不能再加到合计。配置的 Chat Completions、Responses 和 Anthropic 适配器通过 pi-ai 的原始流事件回调，在依赖填零之前记录计数字段是否存在；协议允许省略的缓存字段可解释为零，缺少必要字段保留其他已知值并标为不完整。OpenAI 输入总量扣除缓存读取/写入后才是未缓存输入，Anthropic 输入原本不含缓存。无效计数不升级为实测零。
+运行时为每次实际启动的模型请求尝试提交一条 `model_request`（v1，与 assistant 消息同一提交链，失败、取消以及失败压缩的请求也提交）：`runId`、`provider`、`model`、`startedAt`、`durationMs`（仅该次尝试，不含重试退避等待）、`ttftMs?`（第一个文本或工具调用增量到达的时间）、`usage { input, output, cacheRead, cacheWrite, total }`、`cost?`（未定价时省略）、`stopReason`、`retries`（同次逻辑调用中之前失败的次数，首次为 0）、`errorCode?`（`aborted`、`context_overflow`、`model_error`）与 `purpose`（`turn`、压缩的 `compaction`、交接的 `summary`、会话标题的 `title`、自动审查的 `review`）。审查请求（[ADR 0029](../adr/0029-auto-review-delegates-final-ask.md)）由 Sidecar 的 `SessionReviews` 提交，带所属 Run 的 runId，因此计入该 Run 与 Session 的合计；超时的为 `errorCode: timeout`，失败与被取消的照常记已报告的用量，不重试（`retries` 为 0）。新请求另有唯一 `requestId`、`usageReport { complete, known }`（四分桶中实际已知的字段）、可选 `reasoning` 与 `costBreakdown`。`usageReport` 缺失的旧记录不能证明完整性，不补写历史计量；`reasoning` 是输出子集，不能再加到合计。配置的 Chat Completions、Responses 和 Anthropic 适配器通过 pi-ai 的原始流事件回调，在依赖填零之前记录计数字段是否存在；协议允许省略的缓存字段可解释为零，缺少必要字段保留其他已知值并标为不完整。OpenAI 输入总量扣除缓存读取/写入后才是未缓存输入，Anthropic 输入原本不含缓存。无效计数不升级为实测零。
 
 重试的每次真实尝试各有独立 `requestId`；记录保留结束前取得的有效计数。失败尝试在退避前提交，退避时 Sidecar 崩溃后仍可读回；退避期间停止不产生尚未发出的下一次请求，失败压缩即使没有成功 `compaction` 条目也保留请求事实。后续部分报告省略先前字段时不清空已有计数；缺失、无效或矛盾报告保持不完整。
 
@@ -39,7 +39,7 @@ lifecycle: active
 
 - **Run。** `trigger` 取自 `run_start`；`status`、`errorCode` 与 `durationMs`（`run_end.createdAt − run_start.createdAt`）取自 `run_end`，没有 `run_end`（被中断或进行中）时省略。`requests` 为本 Run 的全部 `model_request`（含摘要请求），按 `requestId` 去重（旧记录按条目序号），相同计数的不同尝试分别累计；`usage` 为它们之和，`tokens = input + output + cacheRead + cacheWrite`（与 [Goal 预算](goal.md#预算) 的 Token 口径相同），`cost` 为已定价请求之和。
 - **工具耗时。** 每个工具调用从所在 assistant 消息的 `createdAt` 起算，到结果消息的 `createdAt`（`durationMs`，含审批等待与 Hook）；side-effect 调用另有 `execMs`（`tool_exec` 到结果）。并行执行的一批调用的结果一起提交，各自的 `durationMs` 约等于整批的时间。没有结果的调用（Run 被中断）没有 `durationMs`。不新增条目。
-- **审批等待。** `approval_request` 到 `approval_decision` 的 `createdAt` 差，同一调用的多次审批相加；`approval` 为最后一次的结果（没有回答时 `pending`），`approvalBy` 为 `user`、`hook`（PermissionRequest Hook）或 `headless`（[ADR 0019](../adr/0019-headless-runs-deny-approvals.md)）。决定按 `requestId` 找到请求，不依赖决定条目的 runId。
+- **审批等待。** `approval_request` 到 `approval_decision` 的 `createdAt` 差，同一调用的多次审批相加；`approval` 为最后一次的结果（没有回答时 `pending`），`approvalBy` 为 `user`、`hook`（PermissionRequest Hook）、`headless`（[ADR 0019](../adr/0019-headless-runs-deny-approvals.md)）或 `reviewer`（自动审查放行，[ADR 0029](../adr/0029-auto-review-delegates-final-ask.md)）。决定按 `requestId` 找到请求，不依赖决定条目的 runId。
 - **Hook 归属。** `hook_run` 不带 toolCallId：工具 Hook（PreToolUse、PermissionRequest、PostToolUse、PostToolUseFailure）只在本 Run 恰有一个调用尚未得到结果时记在该调用的 `hooks` 上；多个调用同时未结束（并行的一批或顺序执行时尚未开始的调用）时无法确定归属，与 UserPromptSubmit、Stop、PreCompact 等一起记在 Run 的 `hooks` 上。
 - **合计。** `traceTotals` 为 Run 数、请求数、工具调用数、Token、费用与已结束 Run 的时长之和；HTTP 的 Session 合计另外加上 `runId: null` 的 `title` 请求数、Token 与费用，Run 行不包含这些独立请求；只含本 Session 的条目（子 Session 的追踪单独读取，Goal 用量另计入子 Session，见 [子代理](subagents.md)）。
 
@@ -50,7 +50,7 @@ lifecycle: active
 | kind | 来源 | 字段 |
 | --- | --- | --- |
 | `approval` | `approval_request` + `approval_decision` | 在回答时给出（seq 为决定条目）：`requestId`、`toolCallId`、`toolName`、`approvalKind`、`subject`（已脱敏的命令或路径）、`requestedAt`、`outcome`、`by`（缺省 `user`）、`scope?`；没有回答的以请求的位置给出 `outcome: pending` |
-| `permission_mode`、`permission_rule` | 同名条目 | 模式（四档；旧数据的 plan 已在读取时迁移，不带 `prior`）；规则的增删 |
+| `permission_mode`、`permission_rule` | 同名条目 | 模式（五档，含 `auto-review`；旧数据的 plan 已在读取时迁移，不带 `prior`）；规则的增删 |
 | `plan_phase` | 同名条目 | 计划阶段的转换（`phase`；执行中带 `planId`）。完成与放弃表现为转换到 `none`；`plan` 条目（含完成报告）不进入审计 |
 | `hook` | `hook_run` | 事件、hookId、来源（含插件名）、结论、退出码、耗时、`message?`（入库时已脱敏，≤ 2 KB） |
 | `confirmation` | `confirmation_answer` | 结果确认的回答 |
@@ -111,7 +111,7 @@ Session 不存在时三者都是 404 `not-found`。三者的响应在返回前�
 | 字段 | 含义 |
 | --- | --- |
 | `prompt` | 提交的文本 |
-| `permissionMode?` | 缺省 `full-access`；`read-only` 与 `default` 下的审批由运行器带反馈拒绝（Run 继续） |
+| `permissionMode?` | 五档之一，缺省 `full-access`；其他模式下出现的审批请求（含 `auto-review` 中 Reviewer 转交的）由运行器带反馈拒绝（Run 继续） |
 | `memories?` | `[{ content }]`：Run 开始前经记忆接口（`POST /api/memories`，来源为 user）按次序新建的用户级条目（评测的 Workspace 不属于项目），由旧到新。不写库文件。加载用例时校验格式 |
 | `faux` | faux 模式的回复脚本（与 `COKO_FAUX_SCRIPT` 的 `responses` 相同）；其中的 `{{memory:N}}` 在预置后替换为 `memories` 第 N 条（从 0 起）的实际 id，序号不是整数或超出 `memories` 时加载用例即报错 |
 | `expect.files?` | 路径 → 完整内容，或 `"/正则/"` |
@@ -134,6 +134,7 @@ Session 不存在时三者都是 404 `not-found`。三者的响应在返回前�
 - `tests/integration/request-snapshots.test.ts`、`sidecar-titles.test.ts`：完整 system／messages／tools 与模型收到的上下文一致，保留未调用工具，覆盖多次请求、标题生成与 Sidecar 重启读回。
 - `packages/agent/src/observability/trace.test.ts`：`deriveTrace`（多轮、重试、压缩与交接摘要、工具并行、审批等待与回答者、Hook 归属、被中断的 Run）、`deriveAudit` 的每类事件与顺序、`loadExport` 的格式校验。
 - `tests/integration/sidecar-trace.test.ts`：含审批与 Hook 的 Goal Round 之后的请求数、工具耗时 ≥ 审批等待、Goal Round 的追踪与 Goal 用量一致、审计的 approval 与 hook；导出的 ndjson 与 `?children=1`；回放往返。
+- `tests/integration/sidecar-auto-review.test.ts`：审查请求以 `purpose: review` 出现在追踪中并带 runId、计入 Run 与 Session 的费用合计、`approvalBy: reviewer`；`apps/server/src/application/session-reviews.test.ts`：取消与超时的审查请求记已报告的用量。
 - `tests/integration/secrets-gate-trace.test.ts`：请求快照入库前脱敏；trace、audit、export 与 requestLog 中没有登记 Secret 的明文（含用户输入的）。
 - `apps/desktop/src/renderer/features/trajectory/json-tree.browser.test.tsx`：JSON 树方向键导航、逐节点复制菜单、属性路径与长字符串折叠和换行偏好。
 - `apps/desktop/src/renderer/features/trajectory/trajectory-view.browser.test.tsx` 与 `apps/desktop/e2e/trace.e2e.test.ts`：标题栏入口、主视图切换与状态保留、轨迹工具栏与时间条、键盘详情、搜索／折叠后的精确定位、重复 Inspect、实时追加与同帧合并、导出（E2E 中由 main 的 `will-download` 保存文件）、明暗主题与 390 px。

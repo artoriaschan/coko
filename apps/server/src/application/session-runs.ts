@@ -61,6 +61,7 @@ import type { SessionHub } from './hub.ts'
 import type { SessionRecovery } from './recovery.ts'
 import { createProgressRedactor, redactModelMessages, secretRedactionHook } from './secret-redaction.ts'
 import type { SessionModels } from './session-models.ts'
+import type { SessionReviews } from './session-reviews.ts'
 import type { SessionPermissions } from './session-permissions.ts'
 import { requireSession, toProgress, type SessionRuntimes } from './session-runtimes.ts'
 import { standaloneWriteRoots } from './session-directory.ts'
@@ -153,6 +154,8 @@ export interface SessionRunsOptions {
   recovery: SessionRecovery
   checkpoints: SessionCheckpoints
   models: SessionModels
+  /** 自动审查的 Reviewer（ADR 0029）：每个运行时的权限 gate 经它送审。 */
+  reviews: SessionReviews
   /** Session 的工作目录；缺省 Workspace 目录（workspaceCwd）。 */
   cwd?: SessionCwd
 }
@@ -837,6 +840,16 @@ export class SessionRuns {
         hooks: {
           preToolUse: (call, signal) => runContext.permissionHooks?.preToolUse(call, signal) ?? NO_VERDICT,
           permissionRequest: (call, signal) => runContext.permissionHooks?.permissionRequest(call, signal) ?? NO_VERDICT,
+        },
+        // Reviewer（ADR 0029）：只在 auto-review 下由 gate 调用；请求前检查与对话请求同一入口（Goal 预算）。
+        reviewer: {
+          review: (request, signal) =>
+            this.#options.reviews.review({
+              sessionId: session.id,
+              request,
+              ...(signal ? { signal } : {}),
+              beforeRequest: async (state) => (context.beforeRequest ? ((await context.beforeRequest(state, runContext.scope)) ?? undefined) : undefined),
+            }),
         },
       },
       // 权限判定在链首；之后是贡献的准入 hook（只拦截，例如 Goal 预算），被拦下的调用不经过扩展（checkpoint 备份）等有副作用的 hook；

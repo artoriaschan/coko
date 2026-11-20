@@ -48,6 +48,13 @@ describe('parseAgentDefinition', () => {
     expect(result.diagnostics.map((d) => d.code)).toEqual(['unknown-tool', 'unknown-tool', 'unknown-model'])
   })
 
+  it('permission-mode 接受 auto-review；取值错误的文本列出五档', () => {
+    expect(parse(fm('name: a\ndescription: d\npermission-mode: auto-review')).definition!.permissionMode).toBe('auto-review')
+    expect(parse(fm('name: a\ndescription: d\npermission-mode: plan')).diagnostics.map((d) => d.message)).toEqual([
+      expect.stringContaining('permission-mode must be read-only, default, accept-edits, auto-review or full-access'),
+    ])
+  })
+
   it('完整字段：模型、档位、模式；model inherit 等同省略；缺省 max-turns 50', () => {
     expect(parse(fm('name: a\ndescription: d\nmodel: faux/faux-1\nthinking: low\npermission-mode: accept-edits')).definition).toMatchObject({
       model: 'faux/faux-1',
@@ -126,6 +133,20 @@ describe('subagentTools', () => {
 })
 
 describe('effectiveSubagentMode', () => {
+  it('五档的全部组合取较窄者：read-only < default < accept-edits < auto-review < full-access', () => {
+    const modes = ['read-only', 'default', 'accept-edits', 'auto-review', 'full-access'] as const
+    // 行为根模式，列为定义上限（顺序同 modes）。
+    const expected = [
+      ['read-only', 'read-only', 'read-only', 'read-only', 'read-only'],
+      ['read-only', 'default', 'default', 'default', 'default'],
+      ['read-only', 'default', 'accept-edits', 'accept-edits', 'accept-edits'],
+      ['read-only', 'default', 'accept-edits', 'auto-review', 'auto-review'],
+      ['read-only', 'default', 'accept-edits', 'auto-review', 'full-access'],
+    ]
+    expect(modes.map((root) => modes.map((cap) => effectiveSubagentMode(root, cap)))).toEqual(expected)
+    expect(modes.map((root) => effectiveSubagentMode(root, undefined))).toEqual([...modes])
+  })
+
   it.each([
     ['default', 'full-access', 'default'],
     ['full-access', 'read-only', 'read-only'],

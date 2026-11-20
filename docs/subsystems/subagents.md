@@ -21,7 +21,7 @@ lifecycle: active
 
 内置 `general`（父级全部可用工具）与 `explore`（read、grep、find、ls、bash，`permission-mode: read-only`，只调研并给出文件与行号）。用户定义在 `~/.coko/agents/*.md`，项目定义在 Session 工作目录的 `.coko/agents/*.md`；同名时 project > user > builtin，被覆盖的一方记 `shadowed`。每次派发与列出时按目录现读，文件内容按 mtime 与大小缓存。能力开关 `agents.enabled`（缺省 true，项目文件只能关闭）。
 
-frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（必填）、`tools` 与 `disallowed-tools`（逗号分隔或列表）、`model`（`inherit` 或 `<providerId>/<modelId>`）、`thinking`、`permission-mode`（read-only / default / accept-edits / full-access）、`max-turns`（1–200，缺省 50）；正文为角色提示。诊断（source `agents`）：
+frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（必填）、`tools` 与 `disallowed-tools`（逗号分隔或列表）、`model`（`inherit` 或 `<providerId>/<modelId>`）、`thinking`、`permission-mode`（read-only / default / accept-edits / auto-review / full-access）、`max-turns`（1–200，缺省 50）；正文为角色提示。诊断（source `agents`）：
 
 | 代码 | 时机 | 结果 |
 | --- | --- | --- |
@@ -53,9 +53,11 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 
 ## 有效权限与审批
 
-子 Session 没有自己的模式与规则：每次判定时取根 Session 当前的状态。模式 = min(根当前模式, 定义 `permission-mode`)，序为 read-only < default < accept-edits < full-access；规划不改变根的模式，因此根在规划中时子级的有效模式仍是这个较窄者（例如根为 full-access、定义没有上限时为 full-access，命令不询问），不被压成 read-only。规则为根 Session 的 Session 规则加全局、Workspace 与 project 规则。根中途切换模式时子级的待审批请求重新判定，下一次调用按新模式。可写根与沙箱按子 Session 的工作目录。
+子 Session 没有自己的模式与规则：每次判定时取根 Session 当前的状态。模式 = min(根当前模式, 定义 `permission-mode`)，序为 read-only < default < accept-edits < auto-review < full-access；规划不改变根的模式，因此根在规划中时子级的有效模式仍是这个较窄者（例如根为 full-access、定义没有上限时为 full-access，命令不询问），不被压成 read-only。规则为根 Session 的 Session 规则加全局、Workspace 与 project 规则。根中途切换模式时子级的待审批请求重新判定，下一次调用按新模式。可写根与沙箱按子 Session 的工作目录。
 
 是否规划中同样取根 Session 的计划阶段（[ADR 0028](../adr/0028-plan-phase-not-permission-mode.md)），根中途进入或退出即时生效：规划期间子 Session 的写入直接拒绝（不询问）、命令在只读沙箱中运行且不能提权，与根 Session 相同（见 [Plan Mode](plan-mode.md#进入退出与判定)）。开始时根在规划中的子 Session Run 的系统消息带子 Session 的 `<plan_mode>`：只说明父 Session 在规划中、不可改动 Workspace、把发现与拟做的改动报告给父代理，不提提交计划。
+
+**自动审查（[ADR 0029](../adr/0029-auto-review-delegates-final-ask.md)）。** 有效模式为 auto-review 时（根为 auto-review 且定义上限不更窄，或根为 full-access 而定义上限为 auto-review），子 Session 第 7 步的询问同样先交给 Reviewer：审查请求使用根 Session 的模型，用户授权（用户消息、Goal、已批准的 Plan）取自根 Session，子 Session 自己的首条消息（派发说明）只在“助手委派的任务”分区，团队消息两边都不进入；审查记在子 Run 的 `model_request { purpose: review }`，经父 Goal 计入 Token 与费用。Reviewer 转交的请求在子 Session 等待、带转交理由，回答方式同下。根在审查途中切换模式时，子 Session 按自己 gate 读到的新有效模式复核，结论作废后出不带审查结果的普通请求。定义上限为 default 或 accept-edits 的子代理不送审。子 Session 的“自动审查中”只在子 Session 的视图中显示，父视图的 agent 卡不显示。见 [权限判定与审批](permissions.md#自动审查reviewer)。
 
 审批在子 Session 中等待，不自动拒绝；经 `POST /api/sessions/<child>/approvals/<id>` 回答，PermissionRequest Hook 可代答。"本会话总是允许"把规则写入根 Session。任一 running 子代理等待审批时父 Session 的 `activity` 为 `awaiting-approval`；后台子代理提交 `approval_request` 时发 `approval-waiting` 通知。
 
@@ -109,6 +111,7 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 - `packages/agent/src/agents/definitions.test.ts`：每种诊断、同名覆盖与符号链接、工具交集、有效模式、结果截断与标签转义、通知内联。
 - `tests/integration/sidecar-subagents.test.ts`：前台独立上下文、并行、后台的送达与挂起、agent_wait（含第一次派发的同一个 Run）、approval-waiting 与 agent-finished 的 notify、cancel 与第 5 个、列表与 409、GET …/agents 与定义、max-turns 与伪造的结果标签。max-turns 按本 Run 已提交的 assistant 条目计数（自动压缩不重置）。
 - `apps/server/src/application/subagents-recovery.test.ts`、`subagents-dispatch.test.ts`：重启时后台与 agent_start 之前的调用、派发失败的清理、max-turns 的计数。
+- `tests/integration/sidecar-subagents-auto-review.test.ts`：根为 auto-review 时子 Session 的命令经审查（授权来自根 Session、派发说明在委派分区、审查记在子 Run）、转交的请求在子 Session 回答与“本会话总是允许”写入根、根在审查途中切到 default、定义上限 default / accept-edits 不送审、定义上限 auto-review 在根为 full-access 时送审且越界写入被沙箱拒绝、teammate 的调用与团队消息、审查用量计入子 Run 与根 Goal；`packages/agent/src/agents/definitions.test.ts`：`permission-mode: auto-review` 与五档取窄。
 - `tests/integration/sidecar-subagents-permissions.test.ts`：审批在子 Session 回答、规则写入根、PermissionRequest Hook、定义不能放宽、根切到 read-only、工具表与固定排除、`Agent(general)` 拒绝。
 - `tests/integration/sidecar-subagents-budget.test.ts`、`sidecar-subagents-cancel.test.ts`、`sidecar-subagents-restart.test.ts`、`sidecar-subagents-isolation.test.ts`、`secrets-gate-subagents.test.ts`。
 - 界面：`apps/desktop/src/renderer/stores/agents-store.test.ts`（进度合并、较早的列表不覆盖结束状态、停止的 409、审批只回答一次）；Browser Mode 的 `features/conversation/agent-card.browser.test.tsx`（六种状态的中英文、进度随 `agent_update` 更新、用量、后台 chip、worktree、派发失败与打开请求）、`approval-bubbling.browser.test.tsx`（父会话与两个子代理的请求按时间顺序接管、来源标注、回答发往子 Session、草稿不丢；子代理结束或界面卸载后释放子 Session 的订阅）、`features/right-panel/agents-tab.browser.test.tsx`（列表、只读子时间线、键盘停止与选中、标题栏按钮）、`features/settings/agents-section.browser.test.tsx`；Electron E2E `apps/desktop/e2e/subagents.e2e.test.ts`（真实 Sidecar 与 faux：前台进度与结果、子时间线、写入审批在父会话中允许、后台子代理键盘停止为 cancelled、标题栏 running 数、明暗主题对比度与 390 px、设置 → Agents 的内置 / COKO_HOME / 项目定义与诊断）；`apps/desktop/e2e/subagent-notifications.e2e.test.ts`（接收侧：后台子代理等待审批时 desktop.jsonl 有 `notification shown { kind: approval-waiting }`，回答后结束时有 `agent-finished`，都属于父 Session）。

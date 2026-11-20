@@ -16,6 +16,7 @@ export const PAUSED_BEFORE_APPROVAL_TEXT = 'Not run: the user paused the run bef
 
 /** 权限接线读写的 Run 状态（运行时的 RunState 的一部分）。 */
 export interface PermissionRun {
+  runId: string
   rejected: boolean
   paused: boolean
   /** Aborted by pause(): cancels approvals that are waiting (not running tools). */
@@ -45,6 +46,8 @@ export function createPermissionWiring(options: {
   current: () => PermissionRun | undefined
   /** 提交失败时停止 agent 循环。 */
   abortAgent: () => void
+  /** Reviewer 开始审查一次调用（发出 review_start 进度）。 */
+  reviewStarted?: (toolCallId: string, toolName: string) => void
 }): PermissionWiring {
   const { permissions, registry, current } = options
   /** 已批准的单次提权，按 toolCallId；执行时取用并删除，Run 结束时清空。 */
@@ -83,6 +86,9 @@ export function createPermissionWiring(options: {
         grantEscalation: (toolCallId, mode) => void escalations.set(toolCallId, mode),
         ...(permissions.hooks ? { hooks: permissions.hooks } : {}),
         ...(permissions.unattended ? { unattended: permissions.unattended } : {}),
+        ...(permissions.reviewer ? { reviewer: permissions.reviewer } : {}),
+        ...(options.reviewStarted ? { reviewStarted: options.reviewStarted } : {}),
+        runId: () => current()?.runId,
       })
     : undefined
 

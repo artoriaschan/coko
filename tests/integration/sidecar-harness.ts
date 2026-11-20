@@ -574,6 +574,7 @@ export interface ApprovalRequestEntry {
   targetMode?: string
   justification?: string
   suggestions: unknown[]
+  review?: { outcome: 'escalated'; reason: string } | { outcome: 'failed'; code: string }
 }
 
 /** 等第 n 条（从 1 起）approval_request 条目，返回其 payload。 */
