@@ -1,5 +1,5 @@
 // Plan Mode 的界面（ADR 0028：规划是计划阶段，不是 Permission Mode）：审阅卡（只有"批准并执行"、继续规划、右栏中的编辑随批准提交、新计划自动
-// 打开一次）、右栏 Plan tab（修订、状态、编辑）、Plan chip（计划阶段为规划中时显示，点击调用退出动作，失败时保留）与三项权限快捷菜单。多个含
+// 打开一次；卡上的执行权限即输入区同一个模式菜单，切换、风险确认与失败保留）、右栏 Plan tab（修订、状态、编辑）、Plan chip（计划阶段为规划中时显示，点击调用退出动作，失败时保留）与三项权限快捷菜单。多个含
 // Radix 菜单的界面在同一文件中依次渲染：每个用例等菜单关闭后才结束，共用 setup 断言没有遗留的 aria-hidden 与 pointer-events（testing/browser-setup.ts）。
 import '../../styles.css'
 import type { AnswerApprovalRequest, ApprovalRequestPayload, PlanActionRequest, SessionEntry } from '@coko/protocol'
@@ -14,6 +14,7 @@ import { I18nProvider } from '../../app/i18n.tsx'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
 import { PlanTab } from '../right-panel/plan-tab.tsx'
 import { RIGHT_PANEL_TABS } from '../right-panel/tabs.ts'
+import { ApprovalPanel } from './approval-panel.tsx'
 import { ModePicker } from './mode-picker.tsx'
 import { PlanChip } from './plan-chip.tsx'
 import { planDraftStore, PlanReviewPanel, setPlanDraft } from './plan-review-panel.tsx'
@@ -432,5 +433,126 @@ describe('plan-chip', () => {
       await userEvent.click(dialog.getByRole('button', { name: 'Turn on anyway' }))
       await expect.poll(() => picked).toEqual(['full-access'])
     })
+  })
+})
+
+describe('plan-review-permission', () => {
+  const PLAN = '# Fix the parser\n\n1. Read the code\n2. Add a test'
+  let seq = 0
+  /** 协议形状的条目（测试数据，按 kind 的 payload 由调用处保证）。 */
+  const entry = (kind: string, payload: unknown, runId: string | null = 'run-1') =>
+    ({
+      sessionId: 's-1',
+      seq: ++seq,
+      kind,
+      payloadVersion: 1,
+      payload,
+      runId,
+      createdAt: seq,
+    }) as unknown as SessionEntry
+  const request: ApprovalRequestPayload = {
+    requestId: 'r1',
+    toolCallId: 'e1',
+    toolName: 'exit_plan_mode',
+    kind: 'plan',
+    subject: 'Fix the parser',
+    suggestions: [],
+    planId: 'p1',
+    revision: 1,
+  }
+  /** 菜单关闭后才结束用例（关闭中卸载会留下 Radix 对其余节点的 aria-hidden）。 */
+  async function menuClosed() {
+    await expect.poll(() => document.querySelector('[role="menu"]')).toBeNull()
+  }
+
+  /** 当前会话 s-1 等待计划审阅（accept-edits）；审阅卡经 ApprovalPanel 读取会话的模式与切换动作。 */
+  async function reviewing() {
+    seq = 100
+    const fixture = createFixtureChat({
+      entries: {
+        's-1': [
+          entry('permission_mode', { mode: 'accept-edits' }, null),
+          entry('plan_phase', { phase: 'planning' }, null),
+          entry('run_start', { trigger: 'submit' }),
+          entry('plan', { planId: 'p1', revision: 1, markdown: PLAN, status: 'proposed' }, null),
+          entry('approval_request', request),
+        ],
+      },
+    })
+    const modes: string[] = []
+    const answers: AnswerApprovalRequest[] = []
+    fixture.api.setPermissionMode = async (id, mode) => {
+      modes.push(`${id}:${mode}`)
+      return { mode, rules: [] }
+    }
+    fixture.api.answerApproval = async (_id, _requestId, answer) => {
+      answers.push(answer)
+    }
+    fixture.chat.getState().openSession('s-1')
+    await expect.poll(() => fixture.chat.getState().conversations['s-1']?.status).toBe('ready')
+    const screen = await render(
+      <I18nProvider locale="en">
+        <ChatStoreProvider store={fixture.chat}>
+          <TooltipProvider>
+            <ApprovalPanel request={request} call={undefined} onAllow={async () => true} onReject={async () => true} />
+          </TooltipProvider>
+        </ChatStoreProvider>
+      </I18nProvider>,
+    )
+    const card = screen.getByRole('region', { name: 'Review plan' })
+    return { ...fixture, screen, card, modes, answers }
+  }
+
+  it('标出执行权限（当前 Permission Mode）；切换后显示新模式，模式条目到达后审阅仍在等待，批准不带 mode', async () => {
+    const { card, modes, answers, sendServer } = await reviewing()
+    const runsWith = card.getByRole('group', { name: 'Runs with' })
+    await expect.element(runsWith).toBeVisible()
+    const picker = runsWith.getByRole('button', { name: 'Permission mode: Accept edits' })
+    await expect.element(picker).toBeVisible()
+    await userEvent.click(picker)
+    await expect.element(page.getByRole('menuitemradio', { name: /Accept edits/ })).toHaveAttribute('aria-checked', 'true')
+    await userEvent.click(page.getByRole('menuitemradio', { name: /Ask for approval/ }))
+    await menuClosed()
+    await expect.poll(() => modes).toEqual(['s-1:default'])
+    await expect.element(runsWith.getByRole('button', { name: 'Permission mode: Ask for approval' })).toBeVisible()
+    sendServer({ type: 'entry', sessionId: 's-1', entry: entry('permission_mode', { mode: 'default' }, null) })
+    await expect.element(runsWith.getByRole('button', { name: 'Permission mode: Ask for approval' })).toBeVisible()
+    await userEvent.click(card.getByRole('button', { name: 'Approve and run', exact: true }))
+    await expect.poll(() => answers).toEqual([{ decision: 'allow' }])
+  })
+
+  it('选择完全访问权限先确认风险：取消不切换，确认后才切换', async () => {
+    const { card, modes } = await reviewing()
+    const picker = card.getByRole('button', { name: 'Permission mode: Accept edits' })
+    await userEvent.click(picker)
+    await userEvent.click(page.getByRole('menuitemradio', { name: /Full access/ }))
+    const dialog = page.getByRole('alertdialog', { name: /Turn on full access/ })
+    await expect.element(dialog).toBeVisible()
+    await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+    await expect.element(dialog).not.toBeInTheDocument()
+    expect(modes).toEqual([])
+    await expect.element(card.getByRole('button', { name: 'Permission mode: Accept edits' })).toBeVisible()
+    await userEvent.click(picker)
+    await userEvent.click(page.getByRole('menuitemradio', { name: /Full access/ }))
+    await userEvent.click(dialog.getByRole('button', { name: 'Turn on anyway' }))
+    await expect.element(dialog).not.toBeInTheDocument()
+    await expect.poll(() => modes).toEqual(['s-1:full-access'])
+    await expect.element(card.getByRole('button', { name: 'Permission mode: Full access' })).toBeVisible()
+  })
+
+  it('切换失败：保留原显示，审批请求仍可回答', async () => {
+    const { card, api, answers } = await reviewing()
+    let attempts = 0
+    api.setPermissionMode = async () => {
+      attempts++
+      throw new ApiError('network', 'down', 0)
+    }
+    await userEvent.click(card.getByRole('button', { name: 'Permission mode: Accept edits' }))
+    await userEvent.click(page.getByRole('menuitemradio', { name: /Ask for approval/ }))
+    await menuClosed()
+    await expect.poll(() => attempts).toBe(1)
+    await expect.element(card.getByRole('button', { name: 'Permission mode: Accept edits' })).toBeVisible()
+    await userEvent.click(card.getByRole('button', { name: 'Approve and run', exact: true }))
+    await expect.poll(() => answers).toEqual([{ decision: 'allow' }])
   })
 })

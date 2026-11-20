@@ -1,5 +1,13 @@
 import { effectiveEntries } from '@coko/agent/entries'
-import { planMarkdownProblem, planTitle, type AnswerApprovalRequest, type ApprovalRequestPayload, type SessionEntry } from '@coko/protocol'
+import {
+  planMarkdownProblem,
+  planTitle,
+  type AnswerApprovalRequest,
+  type ApprovalRequestPayload,
+  type PermissionMode,
+  type SessionEntry,
+  type StandardPermissionMode,
+} from '@coko/protocol'
 import { Button, cn, Textarea } from '@coko/ui'
 import { IconLayoutSidebarRightExpand } from '@tabler/icons-react'
 import * as React from 'react'
@@ -8,6 +16,7 @@ import { createStore } from 'zustand/vanilla'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { Markdown } from './markdown.tsx'
+import { ModePicker } from './mode-picker.tsx'
 
 // Plan Mode 的界面状态（ADR 0005）：计划修订由 plan 条目派生；审阅中的编辑草稿在 renderer 内存（不入记录），右栏编辑、审阅卡批准共用。
 
@@ -78,16 +87,31 @@ export interface PlanReviewPanelProps {
   answer: (answer: AnswerApprovalRequest) => Promise<boolean>
   /** 打开右栏的 Plan tab（右栏关闭时先打开）。 */
   onOpenPanel?: (() => void) | undefined
+  /** 批准后执行所用的 Permission Mode（会话当前的，含待确认的切换）；与 onPermissionModeChange 同时给出时卡上显示"执行权限"与模式菜单。 */
+  permissionMode?: PermissionMode | undefined
+  onPermissionModeChange?: ((mode: StandardPermissionMode) => void) | undefined
   autoFocus?: boolean
   className?: string
 }
 
 /**
  * 计划审阅接管输入区：主按钮"批准并执行"、"继续规划"（反馈）与"在右栏查看"。批准只结束规划，按 Session 当前的 Permission Mode 执行
- * （ADR 0028）。右栏中的编辑随批准一起提交（editedPlan）。新计划出现时自动打开右栏一次。
+ * （ADR 0028）。卡上标出执行权限并放入输入区同一个模式菜单：审阅等待期间切换照常提交 permission_mode，批准后按切换后的模式执行。
+ * 右栏中的编辑随批准一起提交（editedPlan）。新计划出现时自动打开右栏一次。
  */
-export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPanel, autoFocus, className }: PlanReviewPanelProps) {
+export function PlanReviewPanel({
+  sessionId,
+  request,
+  entries,
+  answer,
+  onOpenPanel,
+  permissionMode,
+  onPermissionModeChange,
+  autoFocus,
+  className,
+}: PlanReviewPanelProps) {
   const { t } = useI18n()
+  const permissionLabel = React.useId()
   const planId = request.planId
   const revision = request.revision
   const proposed = React.useMemo(
@@ -178,6 +202,14 @@ export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPan
         </div>
       )}
       <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-3">
+        {permissionMode && onPermissionModeChange && (
+          <div role="group" aria-labelledby={permissionLabel} data-slot="plan-review-permission" className="mr-auto flex min-w-0 items-center gap-1">
+            <span id={permissionLabel} className="shrink-0 text-ui-small text-muted-foreground">
+              {t('plan.review.permission')}
+            </span>
+            <ModePicker value={permissionMode} disabled={answered} onChange={onPermissionModeChange} />
+          </div>
+        )}
         {onOpenPanel && (
           <Button type="button" variant="ghost" size="sm" data-action="open-plan" onClick={onOpenPanel}>
             <IconLayoutSidebarRightExpand aria-hidden />
