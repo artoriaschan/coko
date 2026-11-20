@@ -4,6 +4,7 @@ import {
   effectiveSubagentMode,
   narrowerMode,
   nextPlanRef,
+  NO_PLAN_IN_PROGRESS_TEXT,
   planPhaseOf,
   type AgentRuntime,
   type PermissionMode,
@@ -255,6 +256,22 @@ export class SessionPermissions implements PlanHost {
     })
     await this.reevaluate(this.#sameRoot(sessionId))
     return this.sessionPlan(sessionId)
+  }
+
+  /**
+   * complete_plan（ADR 0028）：在该 Session 的锁内现取计划阶段。不在执行中时抛出 NO_PLAN_IN_PROGRESS_TEXT（工具的错误结果），不提交；否则依次提交
+   * completed 的 plan 条目（与被执行的 approved 条目同一 planId、revision 与正文，带报告）与 plan_phase none。报告的登记明文由提交时的替换处理。
+   */
+  async completePlan(sessionId: string, report: string): Promise<void> {
+    await this.locked(sessionId, async () => {
+      const state = await this.state(await requireSession(this.#store, sessionId))
+      const plan = state.phase.phase === 'executing' ? activePlanOf(await this.#store.sessions.listEntries(sessionId)) : undefined
+      if (!plan) throw new Error(NO_PLAN_IN_PROGRESS_TEXT)
+      const { planId, revision, markdown } = plan
+      await this.#runtimes.commit(sessionId, { kind: 'plan', payload: { planId, revision, markdown, status: 'completed', report } })
+      await this.#commitPhase(sessionId, state, { phase: 'none' })
+      log.info('plan completed', { sessionId, planId, revision })
+    })
   }
 
   async #commitPhase(sessionId: string, state: SessionPermissionState, phase: PlanPhasePayload): Promise<void> {

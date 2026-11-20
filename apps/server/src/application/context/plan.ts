@@ -1,10 +1,13 @@
-// Plan Mode 的上下文贡献（ADR 0005、ADR 0028）：开始时计划阶段为规划中的 Run 注入 <plan_mode> 并注册 exit_plan_mode；执行中的计划被压缩摘要掉后注入
+// Plan Mode 的上下文贡献（ADR 0005、ADR 0028）：开始时计划阶段为规划中的 Run 注入 <plan_mode> 并注册 exit_plan_mode，规划中或执行中的 Run 注册
+// complete_plan（执行中时提交完成报告并结束计划）；执行中的计划被压缩摘要掉后注入
 // <approved_plan>，根 Session 执行中时 State Update plan 的值为该计划的标识、修订与标题（否则 null，送达过时清空一次）；
 // 内置命令 /plan 的动作（/plan [消息] 进入规划，有消息时随后作为普通提交；/plan off 退出规划）：与 POST …/plan 是同一组动作，不改变 Permission Mode。
 // 计划阶段与计划审阅的状态在 SessionPermissions（session-permissions.ts），它创建时经 bindPlanHost 接到本贡献；没有接上时 /plan 以 bad-request 拒绝。
 import {
   approvedPlanSection,
   approvedPlanToReinject,
+  COMPLETE_PLAN_TOOL,
+  createCompletePlanTool,
   createExitPlanModeTool,
   EXIT_PLAN_MODE_TOOL,
   planModeSection,
@@ -28,6 +31,8 @@ export interface PlanHost {
   entries(sessionId: string): Promise<readonly SessionEntry[]>
   /** 计划阶段与活动的 Plan（执行中为被执行的计划）。 */
   sessionPlan(sessionId: string): Promise<SessionPlanResponse>
+  /** complete_plan：结束执行中的 Plan；不在执行中时抛出 NO_PLAN_IN_PROGRESS_TEXT。 */
+  completePlan(sessionId: string, report: string): Promise<void>
 }
 
 const hosts = new WeakMap<ContextContribution, PlanHost>()
@@ -40,11 +45,22 @@ export function bindPlanHost(contributions: readonly ContextContribution[], host
 export function planContribution(_options: ContextContributionOptions): ContextContribution {
   const contribution: ContextContribution = {
     name: 'plan',
-    ruleTools: [{ name: EXIT_PLAN_MODE_TOOL, permissionClass: 'plan-exit' }],
+    ruleTools: [
+      { name: EXIT_PLAN_MODE_TOOL, permissionClass: 'plan-exit' },
+      { name: COMPLETE_PLAN_TOOL, permissionClass: 'session-state' },
+    ],
+    // complete_plan 在规划中也注册：批准发生在 Run 中途，同一 Run 的工具集在开始时取值；子 Session 由固定排除去掉两者。
     async tools(scope) {
       const host = hosts.get(contribution)
-      if (!host || scope.sessionId === undefined || (await host.phase(scope.sessionId)) !== 'planning') return []
-      return [{ tool: createExitPlanModeTool(host.review(scope.sessionId)), permissionClass: 'plan-exit' }]
+      if (!host || scope.sessionId === undefined) return []
+      const sessionId = scope.sessionId
+      const phase = await host.phase(sessionId)
+      if (phase === 'none') return []
+      const complete = {
+        tool: createCompletePlanTool({ complete: (report) => host.completePlan(sessionId, report) }),
+        permissionClass: 'session-state' as const,
+      }
+      return phase === 'planning' ? [{ tool: createExitPlanModeTool(host.review(sessionId)), permissionClass: 'plan-exit' as const }, complete] : [complete]
     },
     async systemSections(scope) {
       const host = hosts.get(contribution)

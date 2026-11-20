@@ -1,11 +1,12 @@
 // Plan Mode 的 agent 部分：条目派生（planId 与 revision、压缩后的再注入）、system section 文本与计划校验，以及经 createAgentRuntime 的
-// 审阅闭环（proposed → kind plan 的审批 → 批准执行 / 带反馈继续规划 / 无反馈拒绝停止；参数错误不提交也不询问）。
+// 审阅闭环（proposed → kind plan 的审批 → 批准执行 / 带反馈继续规划 / 无反馈拒绝停止；参数错误不提交也不询问），以及 complete_plan 的
+// 判定（四种模式都不询问，拒绝与询问规则照常）、参数校验与结果文本。
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createAgentRuntime } from '../engine/runtime.ts'
 import type { RunEntry } from '../engine/types.ts'
 import { activePlanOf, planPhaseOf } from '../entries/index.ts'
 import type { EntryLike } from '../entries/types.ts'
-import type { PermissionMode } from '../session-entries/index.ts'
+import type { PermissionMode, PermissionRule } from '../session-entries/index.ts'
 import { createFauxModels, fauxAssistantMessage, fauxToolCall } from '../testing/faux.ts'
 import { createTempWorkspace, type TempWorkspace } from '../testing/workspace.ts'
 import { createToolRegistry } from '../tools/registry.ts'
@@ -13,7 +14,10 @@ import {
   APPROVED_PLAN_MAX_CHARS,
   approvedPlanSection,
   approvedPlanToReinject,
+  COMPLETE_PLAN_TOOL,
+  createCompletePlanTool,
   createExitPlanModeTool,
+  NO_PLAN_IN_PROGRESS_TEXT,
   latestPlan,
   nextPlanRef,
   planMarkdownProblem,
@@ -241,5 +245,84 @@ describe('审阅闭环（createAgentRuntime）', () => {
     expect(h.calls).toEqual([])
     expect(h.entries.some((e) => e.kind === 'approval_request')).toBe(false)
     expect(h.results()).toEqual([{ isError: true, text: expect.stringContaining('Invalid plan: the plan must start with a Markdown heading') }])
+  })
+})
+
+describe('complete_plan（createAgentRuntime）', () => {
+  let ws: TempWorkspace
+  beforeEach(async () => {
+    ws = await createTempWorkspace('coko-plan-')
+  })
+  afterEach(async () => {
+    await ws.dispose()
+  })
+
+  const COMPLETED = 'The plan is complete and your report was recorded; the user sees it with the plan. Continue only if the user asks for more.'
+
+  /** 模型调用一次 complete_plan；询问时（没有回答）停止 Run。 */
+  async function run(report: string, options: { mode?: PermissionMode; rules?: PermissionRule[]; complete?: (report: string) => Promise<void> } = {}) {
+    const { faux, models, model } = createFauxModels()
+    const reports: string[] = []
+    const tools = createToolRegistry()
+    tools.register(createCompletePlanTool({ complete: options.complete ?? (async (r) => void reports.push(r)) }), { permissionClass: 'session-state' })
+    const runtime = createAgentRuntime({
+      models,
+      model,
+      cwd: ws.dir,
+      sessionId: 's1',
+      tools,
+      commit: async () => {},
+      permissions: { mode: () => options.mode ?? 'default', planning: () => false, rules: () => options.rules ?? [] },
+    })
+    const entries: RunEntry[] = []
+    runtime.subscribe((event) => {
+      if (event.kind !== 'entry') return
+      entries.push(event.entry)
+      if (event.entry.kind === 'approval_request') runtime.abort()
+    })
+    faux.setResponses([
+      fauxAssistantMessage(fauxToolCall(COMPLETE_PLAN_TOOL, { report }, { id: 'c1' }), { stopReason: 'toolUse' }),
+      fauxAssistantMessage('done'),
+    ])
+    await runtime.run('go')
+    const results = entries.flatMap((e) =>
+      e.kind === 'message' && e.payload.role === 'toolResult'
+        ? [{ isError: e.payload.isError, text: e.payload.content.map((b) => ('text' in b ? b.text : '')).join('') }]
+        : [],
+    )
+    return { reports, asked: entries.some((e) => e.kind === 'approval_request'), results }
+  }
+
+  it.each<PermissionMode>(['read-only', 'default', 'accept-edits', 'full-access'])('%s 下不询问：报告原样交给宿主，结果为完成文本', async (mode) => {
+    const report = '## 1. Read src/parse.ts\nDone; verified by `pnpm test`.'
+    expect(await run(report, { mode })).toEqual({ reports: [report], asked: false, results: [{ isError: false, text: COMPLETED }] })
+  })
+
+  it('拒绝规则与询问规则照常生效', async () => {
+    const denied = await run('# r', { mode: 'full-access', rules: [{ behavior: 'deny', tool: COMPLETE_PLAN_TOOL }] })
+    expect([denied.reports, denied.asked, denied.results[0]?.isError]).toEqual([[], false, true])
+    const asked = await run('# r', { mode: 'full-access', rules: [{ behavior: 'ask', tool: COMPLETE_PLAN_TOOL }] })
+    expect([asked.reports, asked.asked]).toEqual([[], true])
+  })
+
+  it.each([
+    ['空报告', ' \n\t ', 'Invalid report: the report is empty. Call complete_plan again with the complete report.'],
+    ['超过 64000 字符', 'x'.repeat(64_001), 'Invalid report: the report is longer than 64000 characters. Call complete_plan again with the complete report.'],
+  ])('%s：错误结果，不交给宿主', async (_name, report, expected) => {
+    expect(await run(report)).toEqual({ reports: [], asked: false, results: [{ isError: true, text: expected }] })
+  })
+
+  it('宿主拒绝（没有执行中的 Plan）：错误结果为宿主给出的文本', async () => {
+    const result = await run('# r', {
+      complete: async () => {
+        throw new Error(NO_PLAN_IN_PROGRESS_TEXT)
+      },
+    })
+    expect(result.results).toEqual([
+      {
+        isError: true,
+        text: 'No plan is being carried out: there is no approved plan in progress (it was completed or abandoned, or none was approved). Continue with the task.',
+      },
+    ])
   })
 })

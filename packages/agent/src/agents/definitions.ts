@@ -43,7 +43,7 @@ export function narrowerMode(mode: PermissionMode, cap: StandardPermissionMode |
 }
 
 /**
- * 子 Session 固定排除的工具：不能再派发子代理（深度 1）、不能读写 Goal、退出规划、定时任务、后台任务与 Memory 的写入。
+ * 子 Session 固定排除的工具：不能再派发子代理（深度 1）、不能读写 Goal、退出规划与完成计划、定时任务、后台任务与 Memory 的写入。
  * schedule_* 按前缀排除（含之后新增的定时任务工具）。
  */
 export const SUBAGENT_EXCLUDED_TOOLS: readonly string[] = [
@@ -54,6 +54,7 @@ export const SUBAGENT_EXCLUDED_TOOLS: readonly string[] = [
   'create_goal',
   'update_goal',
   'exit_plan_mode',
+  'complete_plan',
   'job_output',
   'job_list',
   'job_kill',

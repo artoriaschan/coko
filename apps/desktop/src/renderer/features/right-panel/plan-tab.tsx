@@ -11,7 +11,7 @@ import type { RightPanelTabProps } from './tabs.ts'
 const EMPTY: never[] = []
 
 /**
- * 右栏 Plan tab：选中的修订（缺省为最新）的静态 Markdown、修订下拉与状态；审阅中的修订可编辑（mono Textarea），编辑随批准提交。
+ * 右栏 Plan tab：选中的修订（缺省为最新）的静态 Markdown、修订下拉与状态；审阅中的修订可编辑（mono Textarea），编辑随批准提交；已完成的修订在正文前显示完成报告。
  */
 export function PlanTab({ sessionId }: RightPanelTabProps) {
   const { t } = useI18n()
@@ -111,7 +111,17 @@ export function PlanTab({ sessionId }: RightPanelTabProps) {
             )}
           </>
         ) : (
-          <PlanMarkdown text={text} className="text-ui-body" />
+          <>
+            {current.report !== undefined && (
+              <section data-slot="plan-report" aria-labelledby="plan-report-title" className="mb-4 border-b pb-4">
+                <h3 id="plan-report-title" className="pb-1 text-ui-small font-medium text-muted-foreground">
+                  {t('plan.report')}
+                </h3>
+                <PlanMarkdown text={current.report} className="text-ui-body" />
+              </section>
+            )}
+            <PlanMarkdown text={text} className="text-ui-body" />
+          </>
         )}
       </div>
     </div>

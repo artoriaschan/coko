@@ -194,7 +194,7 @@ renderer 提交期间禁止重复首次发送，失败时保留文字与配置�
 
 `apps/desktop/src/renderer/features/conversation/composer.tsx` 组合共享 Lexical `ComposerEditor` 与底部工具栏。欢迎页的输入区基准最大宽 768px；已有会话继续沿用消息列与输入列的原有宽度轴。主输入框基准高 120px、内边距 12px、R28 与 soft elevation；编辑区独立滚动，底部工具栏高 32px。压缩进度与图片缩略图各占一行，显示时输入框允许增高。
 
-工具栏依次为附件、权限、仅在规划中或执行中出现的计划状态组（由计划阶段条目派生，与权限模式无关；规划中显示“计划”，执行中显示“执行中”）、弹性间距、上下文环、模型与档位、发送。权限和模型分别有独立插槽；上下文环与模型选择保持其原接口。窄窗口中权限可仅显示图标，名称仍由 Tooltip 与可访问名称提供。
+工具栏依次为附件、权限、仅在规划中或执行中出现的计划状态组（由计划阶段条目派生，与权限模式无关；规划中显示“计划”，执行中显示“执行中”，计划完成后不再显示）、弹性间距、上下文环、模型与档位、发送。权限和模型分别有独立插槽；上下文环与模型选择保持其原接口。窄窗口中权限可仅显示图标，名称仍由 Tooltip 与可访问名称提供。
 
 Run 中停止取代主发送位置，仍可暂停；有文字时另显示追加指令按钮，Enter 也提交追加指令。输入法组合期间不提交，Shift+Enter 换行。审批、确认、计划审阅接管时输入框保持挂载，草稿和选区保留。计划审阅卡在按钮行左侧标出“执行权限”并放入与输入区相同的权限菜单，批准前可在卡上切换批准后执行所用的 Permission Mode（见 [Plan Mode](plan-mode.md#界面)）。
 
@@ -296,7 +296,7 @@ Artifact 以 `directory/outputs/` 的磁盘内容为唯一事实源，不写 Ses
 - [模型选择 Electron E2E](../../apps/desktop/e2e/model-picker.e2e.test.ts)：更换供应商和档位后读回 Sidecar。
 - [输入区 Browser Mode](../../apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx)：布局、文件选择/粘贴/拖入、运行控制与草稿。
 - [文件与草稿 Electron E2E](../../apps/desktop/e2e/references-drafts.e2e.test.ts)：原生文件选择到持久化引用与模型请求。
-- [权限判定与审批](permissions.md#界面)、[计划模式](plan-mode.md#界面)：权限选择与计划胶囊。
+- [权限判定与审批](permissions.md#界面)、[计划模式](plan-mode.md#界面)：权限选择、计划胶囊、计划卡与右栏 Plan 页（含已完成计划的完成报告）。
 - [上下文管理](context.md)、[会话模型协议](../../packages/protocol/src/http.ts)：上下文统计与模型选择接口。
 
 - [跨功能 Electron 验证](../../apps/desktop/e2e/conversation-workbench-closeout.e2e.test.ts)：创建项目到首次发送与模型标题、只发图片到提示词估算、归档到搜索排除、全部来源最终五项菜单、两主题窄窗口与已有会话的计划和自动压缩。

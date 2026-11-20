@@ -113,6 +113,7 @@ describe('subagentTools', () => {
     'memory_write',
     'memory_read',
     'exit_plan_mode',
+    'complete_plan',
     'mcp__x__y',
   ]
   it.each([

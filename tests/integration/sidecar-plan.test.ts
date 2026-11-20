@@ -1,6 +1,6 @@
 // Plan Mode（ADR 0005、ADR 0028）：真实 Sidecar（faux 模型）经协议驱动 /plan 与计划接口进入和退出（不改变 Permission Mode）、规划中的约束（写入拒绝、命令只读
 // 沙箱且不能提权，其余调用按当前模式）、Run 中途进入与退出、exit_plan_mode 的提交与审阅（编辑后批准、带反馈继续规划，批准只结束规划，审阅等待中切换模式后
-// 按新模式执行）、回答的校验、压缩后的
+// 按新模式执行）、回答的校验、complete_plan 的完成报告（同一 Run 与跨 Run、错误情形、完成后的清空与回退）、压缩后的
 // <approved_plan> 与分叉。
 // 本票不新增文件读取（没有读取根或注入点涉及路径），不需要符号链接越界用例。
 import { execFileSync } from 'node:child_process'
@@ -120,6 +120,10 @@ const APPROVED = (markdown: string) =>
   ].join('\n')
 const PLAN_STATE = (title: string, revision: number) =>
   `<state_update name="plan">\nAn approved plan is still in progress: "${title}" (revision ${revision}). Keep carrying it out; when the work is done and verified, call complete_plan with a report against the plan.\n</state_update>`
+const COMPLETED = 'The plan is complete and your report was recorded; the user sees it with the plan. Continue only if the user asks for more.'
+const NO_PLAN =
+  'No plan is being carried out: there is no approved plan in progress (it was completed or abandoned, or none was approved). Continue with the task.'
+const REPORT = '## 1. Read src/parse.ts\nDone.\n\n## 2. Add a test\nNot done: no test runner in this workspace.'
 const PLAN_STATE_CLEARED = '<state_update name="plan">\nThis item currently has no content. Previous updates with this name no longer apply.\n</state_update>'
 /** 一次请求中最后一条 user message 的各块文本。 */
 const userBlocks = (logged: Logged): string[] => {
@@ -319,6 +323,104 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(firstBlock(logged.at(-2)!)).toBe(PLAN_STATE_CLEARED)
     expect(planBlock(logged.at(-1)!)).toBeUndefined()
     expect(updates().map((e) => (e.payload as { value: unknown }).value)).toEqual([{ planId, revision: 1, title: 'Fix the parser' }, null])
+    expect(h.stream.invalidEntries).toEqual([])
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('complete_plan：规划中注册但没有执行中的 Plan 时出错；批准后同一个 Run 中空报告出错且不提交；成功时依次提交 completed（带报告）、plan_phase none 与工具结果，不询问，模式不变', async () => {
+    const h = await boot([
+      call('complete_plan', 'c0', { report: '# too early' }),
+      exit('e1', PLAN),
+      call('complete_plan', 'c1', { report: '  \n ' }),
+      call('complete_plan', 'c3', { report: REPORT }),
+      { content: 'all done' },
+      { content: 'just chatting' },
+    ])
+    const phases = () =>
+      h
+        .entries()
+        .filter((e) => e.kind === 'plan_phase')
+        .map((e) => e.payload)
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan fix it' })).status).toBe(202)
+    const review = await waitApproval(h.stream, h.sessionId, 1)
+    // 规划中调用：没有执行中的 Plan，不提交条目，阶段不变。
+    expect([(await h.resultOf('c0')).isError, text(await h.resultOf('c0'))]).toEqual([true, NO_PLAN])
+    expect(phases()).toEqual([{ phase: 'planning' }])
+    expect((await h.tools())[0]).toEqual(expect.arrayContaining(['exit_plan_mode', 'complete_plan']))
+    expect((await h.answer(review.requestId, { decision: 'allow' })).status).toBe(204)
+    await h.runEnds(1)
+    const planId = review.planId!
+    // 超长报告的错误结果见 planning.test.ts（faux 逐块流式输出 64 000 字符的参数过慢）。
+    expect([(await h.resultOf('c1')).isError, text(await h.resultOf('c1'))]).toEqual([
+      true,
+      'Invalid report: the report is empty. Call complete_plan again with the complete report.',
+    ])
+    expect([(await h.resultOf('c3')).isError, text(await h.resultOf('c3'))]).toEqual([false, COMPLETED])
+    expect(h.plans().map((p) => p.status)).toEqual(['proposed', 'approved', 'completed'])
+    expect(h.plans().at(-1)).toEqual({ planId, revision: 1, markdown: PLAN, status: 'completed', report: REPORT })
+    expect(phases()).toEqual([{ phase: 'planning' }, { phase: 'executing', planId }, { phase: 'none' }])
+    // 条目顺序：completed → plan_phase none → complete_plan 的工具结果。
+    const tail = h.entries().filter((e) => e.kind === 'plan' || e.kind === 'plan_phase' || kindOf(e) === 'toolResult')
+    expect(tail.slice(-3).map((e) => (kindOf(e) === 'toolResult' ? (e.payload as ToolResult).toolCallId : kindOf(e)))).toEqual(['plan', 'plan_phase', 'c3'])
+    // 不询问（只有计划审阅一条审批），Permission Mode 不变。
+    expect(h.entries().filter((e) => e.kind === 'approval_request')).toHaveLength(1)
+    expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'default', rules: [] })
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'none', plan: null })
+
+    // 完成后是普通对话：没有提交与完成工具、没有计划 section；从未送达过的 plan State Update 不发送清空。
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'thanks' })).status).toBe(202)
+    await h.runEnds(2)
+    const logged = await h.requests()
+    expect((await h.tools()).at(-1)).not.toEqual(expect.arrayContaining(['complete_plan']))
+    expect((await h.tools()).at(-1)).not.toContain('exit_plan_mode')
+    expect(h.sections(logged.at(-1)!).map((s) => s.name)).not.toEqual(expect.arrayContaining(['plan_mode']))
+    expect(planBlock(logged.at(-1)!)).toBeUndefined()
+    expect(h.stream.invalidEntries).toEqual([])
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('跨 Run 完成：下一个 Run 送达一次清空、不再注入计划；回退到完成所在 Run 的用户消息后读回执行中、计划回到已批准', async () => {
+    const h = await boot([
+      exit('e1', PLAN),
+      { content: 'approved' },
+      call('complete_plan', 'c1', { report: REPORT }),
+      { content: 'finished' },
+      { content: 'run three' },
+      { content: 'run four' },
+    ])
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan fix it' })).status).toBe(202)
+    const review = await waitApproval(h.stream, h.sessionId, 1)
+    expect((await h.answer(review.requestId, { decision: 'allow' })).status).toBe(204)
+    await h.runEnds(1)
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'continue' })).status).toBe(202)
+    await h.runEnds(2)
+    let logged = await h.requests()
+    expect(firstBlock(logged.at(-2)!)).toBe(PLAN_STATE('Fix the parser', 1))
+    expect((await h.tools()).at(-1)).toContain('complete_plan')
+    expect(text(await h.resultOf('c1'))).toBe(COMPLETED)
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'none', plan: null })
+
+    for (const [n, t] of [
+      [3, 'thanks'],
+      [4, 'anything else'],
+    ] as const) {
+      expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: t })).status).toBe(202)
+      await h.runEnds(n)
+    }
+    logged = await h.requests()
+    expect(firstBlock(logged.at(-2)!)).toBe(PLAN_STATE_CLEARED)
+    expect(planBlock(logged.at(-1)!)).toBeUndefined()
+    for (const request of logged.slice(-2)) expect(h.sections(request).map((s) => s.name)).not.toEqual(expect.arrayContaining(['approved_plan']))
+
+    const completedRun = h
+      .entries()
+      .filter((e) => kindOf(e) === 'user')
+      .at(1)!
+    expect((await h.api.post(checkpointPaths.sessionRewind(h.sessionId), { targetSeq: completedRun.seq, mode: 'conversation' })).status).toBe(200)
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({
+      phase: 'executing',
+      plan: { planId: review.planId, revision: 1, markdown: PLAN, status: 'approved' },
+    })
     expect(h.stream.invalidEntries).toEqual([])
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })

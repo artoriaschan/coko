@@ -52,7 +52,7 @@ lifecycle: active
 | context-read | skill、memory_list、list_mcp_resources、list_mcp_resource_templates、read_mcp_resource | 所有模式都放行 |
 | memory-write | memory_write、memory_delete（规则组名 `Memory`） | 所有模式都放行（含 read-only 与规划中，[ADR 0027](../adr/0027-memory-follows-project-writes-without-approval.md)）；拒绝与询问规则、PreToolUse Hook 照常先于模式生效，全局、Workspace 与项目设置中的 `Memory` 规则都可收紧。因不再询问，也不再建议“总是允许”规则；已保存的 `Memory` 允许规则保持有效但不起作用，不做清理 |
 | external | `mcp__<server>__<tool>`；没有给出类的 `mcp__` 名字同样按 external | 只有 full-access |
-| session-state（M4） | 只改本 Session 状态的工具：todo_write、create_goal、update_goal、job_kill | 所有模式都放行（含 read-only 与规划中） |
+| session-state（M4） | 只改本 Session 状态的工具：todo_write、create_goal、update_goal、job_kill、complete_plan（规则以工具原名书写，见 [Plan Mode](plan-mode.md#完成)） | 所有模式都放行（含 read-only 与规划中） |
 | plan-exit（M4） | exit_plan_mode | 无：任何模式都询问且不建议规则，允许规则不生效 |
 | agent（M5） | agent（规则组名 `Agent`，内容为子代理类型；建议规则为 `Agent(<类型>)`） | 所有模式都放行；带 `isolation: 'worktree'` 时只有 full-access 放行，其余询问 |
 | automation（M5） | schedule_create、schedule_update（规则组名 `Schedule`） | 只有 full-access |

@@ -1,6 +1,6 @@
 // 秘密不外泄总闸的 Plan Mode 通道（ADR 0004）：模型服务在错误中回显 Credential，模型把它写进计划，用户审阅时又把它编辑进计划。Plan 引入的通道——
 // plan 条目（WebSocket 帧与库）、kind plan 的审批卡 payload（subject 为计划标题）、exit_plan_mode 的结果、压缩后 faux requestLog 中的 <approved_plan>、
-// 执行中的 plan State Update（值中的计划标题，条目帧与发给模型的块）——
+// 执行中的 plan State Update（值中的计划标题，条目帧与发给模型的块）、complete_plan 的完成报告（completed 的 plan 条目）与结果——
 // 以及日志与库中都不得出现明文。模型自己的工具调用参数（assistant 消息与 tool_start 进度）是模型输出原文，与其他工具相同，不属于本通道。
 import { randomBytes } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -30,6 +30,8 @@ describe('秘密不外泄总闸：Plan Mode', () => {
         { content: 'ok3' },
         { content: 'summary' },
         { content: 'after compaction' },
+        { content: [{ type: 'toolCall', name: 'complete_plan', id: 'c1', arguments: { report: `## Rotate\nRotated ${credential} and revoked it.` } }] },
+        { content: 'closed' },
       ],
     })
     const sidecar = await startSidecar({ dirs, ipc: false, env: { COKO_FAUX_SCRIPT: script, COKO_CREDENTIAL_GATE_PROVIDER: credential } })
@@ -60,12 +62,14 @@ describe('秘密不外泄总闸：Plan Mode', () => {
     for (const text of ['a'.repeat(40_000), 'b'.repeat(40_000), 'c'.repeat(40_000)]) await turn(text)
     await turn('/compact')
     await turn('continue')
+    await turn('wrap up')
 
     // 前置：各通道确实被驱动。
     const plans = stream.entries(sessionId).filter((e) => e.kind === 'plan')
-    expect(plans.map((e) => (e.payload as { status: string }).status)).toEqual(['proposed', 'approved'])
+    expect(plans.map((e) => (e.payload as { status: string }).status)).toEqual(['proposed', 'approved', 'completed'])
     expect(JSON.stringify(plans[0]!.payload)).toContain('[REDACTED]')
     expect(JSON.stringify(plans[1]!.payload)).toContain('Use [REDACTED] only once')
+    expect((plans[2]!.payload as { report: string }).report).toBe('## Rotate\nRotated [REDACTED] and revoked it.')
     const approval = stream.entries(sessionId).find((e) => e.kind === 'approval_request')!
     expect(approval.payload).toMatchObject({ kind: 'plan', subject: 'Rotate [REDACTED]' })
     const requests = (await readFile(requestLog, 'utf8')).split('\n').filter(Boolean)
@@ -95,11 +99,11 @@ describe('秘密不外泄总闸：Plan Mode', () => {
       if (m.type === 'entry')
         return (
           ['plan', 'approval_request', 'state_update'].includes(m.entry!.kind) ||
-          (m.entry!.payload.role === 'toolResult' && m.entry!.payload.toolName === 'exit_plan_mode')
+          (m.entry!.payload.role === 'toolResult' && ['exit_plan_mode', 'complete_plan'].includes(m.entry!.payload.toolName!))
         )
-      return m.type === 'progress' && m.event!.type === 'tool_end' && m.event!.toolName === 'exit_plan_mode'
+      return m.type === 'progress' && m.event!.type === 'tool_end' && ['exit_plan_mode', 'complete_plan'].includes(m.event!.toolName!)
     })
-    expect(planFrames.length).toBeGreaterThanOrEqual(5)
+    expect(planFrames.length).toBeGreaterThanOrEqual(8)
 
     sidecar.child.kill('SIGTERM')
     expect(await sidecar.exited).toEqual({ code: 0, signal: null })

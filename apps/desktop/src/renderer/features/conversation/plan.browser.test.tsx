@@ -465,6 +465,62 @@ describe('plan-chip', () => {
       await expect.poll(() => [card('p1').getAttribute('data-status'), tab().getAttribute('data-status')]).toEqual(['approved', 'approved'])
     })
 
+    it('完成：chip 消失，计划卡与 Plan 页显示“已完成”，Plan 页显示完成报告；回退到完成之前回到执行中、报告不再显示', async () => {
+      seq = 0
+      const user = (text: string) => entry('message', { role: 'user', content: [{ type: 'text', text }], timestamp: 0 }, null)
+      const rows = [
+        entry('permission_mode', { mode: 'default' }, null),
+        entry('plan_phase', { phase: 'planning' }, null),
+        entry('plan', { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'proposed' }, null),
+        entry('plan', { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'approved' }, null),
+        entry('plan_phase', { phase: 'executing', planId: 'p1' }, null),
+        user('continue'),
+      ]
+      const { chat, sendServer } = createFixtureChat({ entries: { 's-1': rows } })
+      await expect.poll(() => chat.getState().conversations['s-1']?.status).toBe('ready')
+      const completed = entry(
+        'plan',
+        { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'completed', report: '## Done\n\nVerified by **unit tests**.' },
+        null,
+      )
+      function Card() {
+        const entries = useChat((s) => s.conversations['s-1']?.entries ?? [])
+        return (
+          <TimelineSessionContext.Provider value={{ sessionId: 's-1', entries, actionsDisabled: false, openPlan: () => {} }}>
+            <PlanCard item={{ kind: 'plan', key: String(completed.seq), plan: completed.payload as PlanPayload }} />
+          </TimelineSessionContext.Provider>
+        )
+      }
+      const screen = await wrap(
+        <>
+          <PlanChip sessionId="s-1" />
+          <PlanTab sessionId="s-1" />
+          <Card />
+        </>,
+        chat,
+      )
+      const chip = () => screen.container.querySelector('[data-slot="plan-chip"]')
+      const tab = () => screen.container.querySelector('[data-slot="plan-tab"]')!
+      const report = () => screen.container.querySelector('[data-slot="plan-report"]')
+      await expect.poll(() => tab().getAttribute('data-status')).toBe('executing')
+      expect([chip() !== null, report()]).toEqual([true, null])
+
+      sendServer({ type: 'entry', sessionId: 's-1', entry: completed })
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('plan_phase', { phase: 'none' }, null) })
+      await expect.poll(() => chip()).toBeNull()
+      await expect.poll(() => tab().getAttribute('data-status')).toBe('completed')
+      const card = screen.container.querySelector('[data-slot="plan-card"]')!
+      expect([card.getAttribute('data-status'), card.querySelector('[data-slot="plan-status"]')!.textContent]).toEqual(['completed', 'Completed'])
+      await expect.element(screen.getByRole('heading', { name: 'Completion report' })).toBeVisible()
+      await expect.poll(() => report()?.textContent).toContain('Verified by unit tests.')
+      // 计划正文仍在。
+      expect(tab().textContent).toContain('Fix it')
+
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('rewind', { targetSeq: rows[5]!.seq }, null) })
+      await expect.poll(() => tab().getAttribute('data-status')).toBe('executing')
+      expect([chip() !== null, report()]).toEqual([true, null])
+    })
+
     // ADR 0028：renderer 与服务端同用 planPhaseOf（有效条目），回退条目到达后 chip 与 Plan 页随之变化，与协议读回一致。
     it('回退后按有效条目派生：回退到批准之前 chip 重新出现、被回退的已批准修订不再显示；回退到进入规划之前 chip 消失、没有计划', async () => {
       seq = 0
