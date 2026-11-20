@@ -178,6 +178,31 @@ describe('Session Entry payload 定义', () => {
     expect(check('approval_decision', { ...reviewed, reason: 3 })).toEqual(expect.any(String))
   })
 
+  it('approval_request v1 → v2（原样）：v2 另接受转交理由或失败代码，v1 不接受；取值不合法被拒绝', () => {
+    const versions = definition('approval_request').versions
+    expect(versions).toHaveLength(2)
+    const v1 = { requestId: 'q', toolCallId: 't', toolName: 'bash', kind: 'tool', subject: 'ls', suggestions: [] }
+    const escalated = { ...v1, review: { outcome: 'escalated', reason: 'Not sure this was asked for.' } }
+    const failed = { ...v1, review: { outcome: 'failed', code: 'timeout' } }
+    expect(versions[0]!.check(escalated)).toEqual(expect.any(String))
+    expect(versions[1]!.migrate!(v1)).toEqual(v1)
+    for (const payload of [
+      v1,
+      escalated,
+      failed,
+      ...['request-failed', 'invalid-output', 'no-model', 'budget', 'too-long'].map((code) => ({ ...v1, review: { outcome: 'failed', code } })),
+    ])
+      expect(check('approval_request', payload)).toBeUndefined()
+    for (const review of [
+      { outcome: 'escalated', reason: '' },
+      { outcome: 'escalated', code: 'timeout' },
+      { outcome: 'failed', code: 'slow' },
+      { outcome: 'failed', code: 'timeout', reason: 'x' },
+      { outcome: 'allowed', reason: 'x' },
+    ])
+      expect([review, check('approval_request', { ...v1, review })]).toEqual([review, expect.any(String)])
+  })
+
   it('model_request 的 purpose 接受 review（v1 上扩展，不升版）', () => {
     expect(definition('model_request').versions).toHaveLength(1)
     const payload = {

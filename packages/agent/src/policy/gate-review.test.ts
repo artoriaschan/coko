@@ -8,7 +8,7 @@ import { createAgentRuntime } from '../engine/runtime.ts'
 import type { RunEntry } from '../engine/types.ts'
 import type { HookVerdict } from '../extensions/hooks/types.ts'
 import { createLocalExecPort } from '../ports/local-exec.ts'
-import type { PermissionMode, PermissionRule } from '../session-entries/index.ts'
+import type { ApprovalReview, PermissionMode, PermissionRule } from '../session-entries/index.ts'
 import { createFauxModels, fauxAssistantMessage, fauxToolCall } from '../testing/faux.ts'
 import { createTempWorkspace, type TempWorkspace } from '../testing/workspace.ts'
 import { createBuiltinToolRegistry } from '../tools/builtin/index.ts'
@@ -163,22 +163,27 @@ describe('Reviewer 放行', () => {
 })
 
 describe('Reviewer 转交与失败', () => {
-  it.each<[string, Setup['review']]>([
-    ['转交', () => ({ verdict: 'escalate', reason: 'Not sure.' })],
-    ['审查失败', () => ({ verdict: 'failed', code: 'timeout' })],
+  it.each<[string, Setup['review'], ApprovalReview]>([
+    ['转交', () => ({ verdict: 'escalate', reason: 'Not sure.' }), { outcome: 'escalated', reason: 'Not sure.' }],
+    ...(['timeout', 'request-failed', 'invalid-output', 'no-model', 'budget', 'too-long'] as const).map((code): [string, Setup['review'], ApprovalReview] => [
+      `审查失败 ${code}`,
+      () => ({ verdict: 'failed', code }),
+      { outcome: 'failed', code },
+    ]),
     [
       '端口抛错',
       () => {
         throw new Error('boom')
       },
+      { outcome: 'failed', code: 'request-failed' },
     ],
-  ])('%s：出现带建议规则的普通请求；允许后执行，决定为用户的', async (_name, review) => {
+  ])('%s：出现带建议规则与审查信息的请求；允许后执行，决定为用户的', async (_name, review, expected) => {
     const h = harness({ review })
     h.script(bash('b1', 'printf hi > out.txt'))
     const pending = h.runtime.run('go')
     const asked = await h.approval()
     expect(asked.payload.suggestions).toEqual([{ behavior: 'allow', tool: 'Bash', content: 'printf hi > out.txt' }])
-    expect(asked.payload).not.toHaveProperty('review')
+    expect(asked.payload.review).toEqual(expected)
     expect(h.runtime.pendingApprovals.map((p) => p.requestId)).toEqual([asked.payload.requestId])
     await h.runtime.answerApproval(asked.payload.requestId, { decision: 'allow' })
     await pending
@@ -225,6 +230,32 @@ describe('Reviewer 转交与失败', () => {
   })
 })
 
+describe('迟到的审查结果', () => {
+  it('端口按超时返回后，模型的放行结论才到达：不生效，请求带超时代码继续等待，调用未执行', async () => {
+    let late!: (outcome: ReviewOutcome) => void
+    let timedOut!: () => void
+    const answered = new Promise<ReviewOutcome>((resolve) => (late = resolve))
+    const timer = new Promise<ReviewOutcome>((resolve) => (timedOut = () => resolve({ verdict: 'failed', code: 'timeout' })))
+    // 与 SessionReviews 相同的形状：模型结论与超时赛跑，先到者为端口的返回值。
+    const h = harness({ review: () => Promise.race([answered, timer]) })
+    h.script(bash('b1', 'printf hi > out.txt'))
+    const pending = h.runtime.run('go')
+    await expect.poll(() => h.reviews.length).toBe(1)
+    timedOut()
+    const asked = await h.approval()
+    expect(asked.payload.review).toEqual({ outcome: 'failed', code: 'timeout' })
+    late(allow)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(h.runtime.pendingApprovals.map((p) => p.requestId)).toEqual([asked.payload.requestId])
+    expect(decisions(h.entries)).toEqual([])
+    expect(await exists(ws.path('out.txt'))).toBe(false)
+    await h.runtime.answerApproval(asked.payload.requestId, { decision: 'deny', feedback: 'no' })
+    await pending
+    expect(decisions(h.entries).map((d) => d.by ?? 'user')).toEqual(['user'])
+    expect(await exists(ws.path('out.txt'))).toBe(false)
+  })
+})
+
 describe('不经 Reviewer 的调用', () => {
   it('没有端口时与之前相同：auto-review 下照常出审批请求', async () => {
     const h = harness({})
@@ -244,6 +275,7 @@ describe('不经 Reviewer 的调用', () => {
     h.script(bash('b1', 'printf hi > out.txt'))
     const pending = h.runtime.run('go')
     const asked = await h.approval()
+    expect(asked.payload).not.toHaveProperty('review')
     await h.runtime.answerApproval(asked.payload.requestId, { decision: 'deny', feedback: 'no' })
     await pending
     expect(h.reviews).toEqual([])
@@ -273,6 +305,7 @@ describe('不经 Reviewer 的调用', () => {
     h.script(call)
     const pending = h.runtime.run('go')
     const asked = await h.approval()
+    expect(asked.payload).not.toHaveProperty('review')
     await h.runtime.answerApproval(asked.payload.requestId, { decision: 'deny', feedback: 'no' })
     await pending
     expect(h.reviews).toEqual([])

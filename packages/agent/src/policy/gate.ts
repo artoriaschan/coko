@@ -6,7 +6,7 @@ import type { BeforeToolCallContext, BeforeToolCallResult } from '@earendil-work
 import { blockedByHookText, combinePreToolUse, type CombinedDecision } from '../extensions/hooks/combine.ts'
 import type { HookCondition } from '../extensions/hooks/config.ts'
 import type { ToolBlockResult } from '../extensions/hooks/tool-hooks.ts'
-import type { PermissionMode, PermissionRule, SandboxMode } from '../session-entries/index.ts'
+import type { ApprovalReview, PermissionMode, PermissionRule, ReviewFailureCode, SandboxMode } from '../session-entries/index.ts'
 import {
   invalidPlanText,
   NOT_IN_PLAN_MODE_TEXT,
@@ -74,8 +74,7 @@ export interface PermissionHookPort {
   permissionRequest(call: HookToolCall, signal?: AbortSignal): Promise<HookVerdict>
 }
 
-/** 审查没能给出结论的原因（界面按代码本地化）。 */
-export type ReviewFailureCode = 'timeout' | 'request-failed' | 'invalid-output' | 'no-model' | 'budget' | 'too-long'
+export type { ReviewFailureCode }
 
 export interface ReviewRequest {
   /** 所属 Run（审查请求记为该 Run 的 model_request）。 */
@@ -133,7 +132,7 @@ export interface PermissionGateOptions {
   unattended?: { deniedText: string }
   /**
    * Reviewer（ADR 0029，缺省无）：auto-review 下最终为第 7 步的询问、PermissionRequest Hook 没有决定且不是 automation 类时，先交给它；
-   * 放行时以 by reviewer 的单次允许执行，转交或失败时照常询问。没有端口时 gate 的行为与没有 auto-review 的审查时相同。
+   * 放行时以 by reviewer 的单次允许执行，转交或失败时询问，请求带转交理由或失败代码（review）。没有端口时 gate 的行为与没有 auto-review 的审查时相同。
    */
   reviewer?: ReviewerPort
   /** 当前 Run 的 runId；没有 Run 时 undefined（不送审，按普通询问）。 */
@@ -273,6 +272,8 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     isolation = false,
     /** 重新判定的结果与 PreToolUse Hook 的组合（Hook 不重跑）；省略时按 decide。 */
     combine?: (next: { decision: PermissionDecision; step: DecisionStep }) => Reasked,
+    /** Reviewer 转交的理由或失败原因：只放进第一次提交的请求，重新询问的请求不带。 */
+    review?: ApprovalReview,
   ): Promise<string | undefined> => {
     let asked = first
     let latestTarget: PermissionTarget | undefined
@@ -280,7 +281,14 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       let resolution: ApprovalResolution
       try {
         resolution = await ask(
-          { toolCallId, toolName: name, kind: 'tool', subject: subject ?? '', suggestions: asked.suggestions },
+          {
+            toolCallId,
+            toolName: name,
+            kind: 'tool',
+            subject: subject ?? '',
+            suggestions: asked.suggestions,
+            ...(asked === first && review ? { review } : {}),
+          },
           signal,
           async (): Promise<ReevaluateVerdict> => {
             const evaluated = await evaluate(name, subject, isolation)
@@ -476,6 +484,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
         }
       }
       // Reviewer（ADR 0029）：PermissionRequest 没有决定之后、出卡片之前；只回答第 7 步的询问，不能拒绝。
+      let reviewed: ApprovalReview | undefined
       const runId = options.runId?.()
       if (
         options.reviewer &&
@@ -497,7 +506,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
         }
         // 停止或暂停：不提交审批条目，迟到的结论不被使用（wiring 把暂停改写为暂停前未批准）。
         if (signal?.aborted) return { block: true, reason: OPERATION_ABORTED_TEXT }
-        // ponytail: 结论生效前按当时的模式与规则复核（设计稿第 4 节）属于票 07；转交与失败的原因进入请求（review 字段）属于票 04。
+        // ponytail: 结论生效前按当时的模式与规则复核（设计稿第 4 节）属于票 07。
         if (outcome.verdict === 'allow') {
           try {
             await options.broker.recordReviewerAllowed(
@@ -510,6 +519,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
           remember(undefined)
           return undefined
         }
+        reviewed = outcome.verdict === 'escalate' ? { outcome: 'escalated', reason: outcome.reason } : { outcome: 'failed', code: outcome.code }
       }
       const reason = await askTool(
         context.toolCall.id,
@@ -520,6 +530,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
         remember,
         isolation,
         combined.by === 'hook' ? (next) => hookAskAgain(verdict, next, combined.decision) : undefined,
+        reviewed,
       )
       return reason === undefined ? undefined : { block: true, reason }
     },
