@@ -1,0 +1,41 @@
+docs/subsystems/context.md
+  s_085ed727045dd9::t_f490f8124f5826 341
+  s_085ed727045dd9::t_630ca598dd36ef 188
+  s_085ed727045dd9::t_e8149eec3d15c5 335
+docs/subsystems/commands.md
+  s_085ed727045dd9::t_91a9389d2ba028 100
+.scratch/session-reference/issues/06-acceptance-and-docs.md
+  s_085ed727045dd9::t_4a550e5b5294d9 102-159
+  s_085ed727045dd9::t_bbdeca957b8ce5 92
+  s_085ed727045dd9::t_4c9915df0f19b0 26-91,93-101
+apps/desktop/e2e/plugins.e2e.test.ts
+  s_085ed727045dd9::t_782970a97d0011 153-170
+.scratch/session-reference/spec.md
+  s_085ed727045dd9::t_0e37718fa48b10 103
+  s_085ed727045dd9::t_be91098c655ff6 187
+  s_085ed727045dd9::t_5012ae886cd99a 196
+  s_085ed727045dd9::t_4a8375551e8f88 275-298
+  s_085ed727045dd9::t_f5fe864f97ce3f 4
+apps/desktop/e2e/references-drafts.e2e.test.ts
+  s_085ed727045dd9::t_548ca9bb348bdb 183,188-190
+  s_085ed727045dd9::t_4d085fe66c9563 1-2
+  s_085ed727045dd9::t_6eea3502c20da4 142-182,184-187,191-200
+docs/subsystems/plugins.md
+  s_085ed727045dd9::t_81a0ee8f079a48 145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "ce8bd6c68fe1d2804364831a38b56d0a3f1a34f5",
+  "prompts": {},
+  "sessions": {
+    "s_085ed727045dd9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d626f66c-4285-483b-b8a1-1e40637e2a6c",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
