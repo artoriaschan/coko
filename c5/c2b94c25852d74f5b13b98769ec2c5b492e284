@@ -1,0 +1,23 @@
+packages/agent/src/policy/review.test.ts
+  s_085ed727045dd9::t_b4406345add3d6 271-287
+packages/agent/src/context/references/session.test.ts
+  s_085ed727045dd9::t_1d8e61cdc50244 56-70
+tests/integration/secrets-gate-session-references.test.ts
+  s_085ed727045dd9::t_26d49d24c9c854 68-88,91,93-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "c5c2b94c25852d74f5b13b98769ec2c5b492e284",
+  "prompts": {},
+  "sessions": {
+    "s_085ed727045dd9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d626f66c-4285-483b-b8a1-1e40637e2a6c",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
