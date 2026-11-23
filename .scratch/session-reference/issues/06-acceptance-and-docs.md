@@ -178,7 +178,7 @@ Closed: true
 | C4 规格状态 | `Spec status` 改回 draft，写明实现所在分支、票 01–06 关闭与待用户确认的条目；本票“Spec status 更新为 delivered”取消勾选 | 读回规格头部 |
 | C5 文档与规格回写 | `docs/subsystems/context.md`（模块表、加引号、替换顺序、记录取舍、单条消息截断、无界面范围、自动审查输入、验证清单）、`docs/subsystems/permissions.md`（审查输入的 `user_authorization`、验证清单）、`docs/README.md` 与 `context.md` 的摘要；规格“实施中的改变”新增第 6–10 条，原文两处就地注明 | `pnpm run check:docs`：460 个文件 0 个问题 |
 
-**实际运行的检查。** 都在本 worktree；E2E 没有运行。
+**实际运行的检查。** 都在本 worktree；E2E 见下文“Electron E2E”。
 
 - `pnpm run typecheck`：通过。`pnpm exec oxlint`：通过。`pnpm exec oxfmt --check`（本次改动的 26 个 ts / tsx 文件）：通过。`pnpm run check:docs`：0 个问题。
 - `pnpm exec vitest run --project agent --project protocol --project server`：143 个文件 2028 例，2021 通过、7 失败。其中 6 例与集成分支相同：暂存本次改动后在同一 worktree（`ce8bd6c6`）重跑这几个文件，同样的 6 例失败（`engine/host-stop.test.ts` 2、`policy/approvals.test.ts` 1、`policy/gate-hooks.test.ts` 1、`instructions/shared/shared.test.ts` 1、`packages/protocol/src/entries.test.ts` 1）。第 7 例是 `apps/server/src/adapters/pty.test.ts` 的 1 例等待超时，只在这次三个项目并行时出现；单独重跑 3 例通过，基线上也通过，本次没有改 pty。
@@ -201,4 +201,17 @@ Closed: true
 - A2 按开头的标签识别宿主块，不核对前置条目：被引用会话里用户自己输入的、以宿主标签开头的文本，以及助手以这些标签开头的文字回复，都不进入记录。
 - 压缩摘要请求对会话引用块的识别改用共用的开标签识别，不再要求闭合标签；对宿主生成的块没有差别。
 
-**未验证。** Electron E2E 没有运行（本次没有改 E2E 覆盖的交互；`references-drafts.e2e` 的会话引用用例不断言被改动的文本）。真实模型与真实 Reviewer 拿到缩成一行的会话引用后的判断质量没有评估。A4 只验证了序列化函数与解析的往返，没有在真实 `@` 菜单里选中一个名为 `session:x` 的文件。
+**未验证。** Electron E2E 只在临时绕过系统代理的条件下运行过（见下文），仓库现有的 harness 在这台机器当前的代理状态下跑不起来。真实模型与真实 Reviewer 拿到缩成一行的会话引用后的判断质量没有评估。A4 只验证了序列化函数与解析的往返，没有在真实 `@` 菜单里选中一个名为 `session:x` 的文件。
+
+**Electron E2E（同日补，提交 `c5c2b94c`）。** 都是后台模式（`COKO_E2E_BACKGROUND=1`）。
+
+- 现象：`pnpm exec vitest run --project desktop-e2e apps/desktop/e2e/commands.e2e.test.ts` 2 例全部失败，连接失败的遮罩挡住输入框；集成工作树上 4 个文件 11 例全部失败（`Timed out waiting for sidecar connected`）。
+- 根因不在本次修复，是这台机器当时的系统代理：系统设置里启用了 PAC（`scutil --proxy`：`ProxyAutoConfigEnable : 1`，地址是本机代理工具在 `127.0.0.1` 上提供的 PAC），而该地址接受连接后不返回任何内容（`curl --max-time 15` 两次都超时，0 字节）。Chromium 在取到 PAC 之前把请求排队，renderer 到本机 Sidecar 的 WebSocket 也在其中，10 秒后报 `ws-timeout`。
+- 依据：
+  - 以后台模式手动启动同一构建，`desktop.jsonl` 为 `sidecar ready` 之后 `connection failed { code: "ws-timeout", detail: "WebSocket did not open" }`；`sidecar.jsonl` 只有 main 发出的 `POST /api/auth/exchange` 204 与 `GET /api/health` 200，没有来自 renderer 的任何请求。
+  - 打包后的 Sidecar（`apps/desktop/dist/sidecar/index.mjs`）单独启动正常：用 node 与用 Electron 自带的 Node（`ELECTRON_RUN_AS_NODE=1`）都输出 `ready`，认证交换 204，带 cookie 的 `/api/ws` 握手成功。所以不是打包后的模块初始化顺序问题。
+  - 同一构建加 Chromium 开关 `--no-proxy-server` 手动启动：没有 `connection failed`，Sidecar 收到 renderer 的后续请求。
+- 4 个文件的结果：临时把 `apps/desktop/e2e/harness.ts` 的启动参数改为 `[mainEntry, '--no-proxy-server']`（没有提交，运行后已还原）后运行 `pnpm exec vitest run --project desktop-e2e apps/desktop/e2e/references-drafts.e2e.test.ts apps/desktop/e2e/plugins.e2e.test.ts apps/desktop/e2e/commands.e2e.test.ts apps/desktop/e2e/rewind.e2e.test.ts`：4 个文件 11 例，10 通过、1 失败。失败的是上文基线对照中的既有用例“主输入框的系统附件选择插入 Workspace 引用”（同样在等待 `[data-file-reference="src/a.ts"]`）。不加该开关时，这台机器当前的代理状态下 11 例都失败，与修复无关。
+- 没有做同一时刻的基线构建对照（`ce8bd6c6` 重新打包后在同样的代理状态下运行）；结论依据的是上面三条。
+- 没有改的：E2E harness 是否固定带 `--no-proxy-server`（E2E 只访问本机，依赖宿主的系统代理状态是隔离上的缺口），以及产品是否应让到本机 Sidecar 的连接不经系统代理（按同样的机制，系统 PAC 无响应时正式构建的应用也应当连不上自己的 Sidecar；没有在正式构建上验证）。两者都超出本次修复清单，留给用户决定。
+- 结束时没有遗留的 Electron 或 Sidecar 进程（`ps` 核对）。
