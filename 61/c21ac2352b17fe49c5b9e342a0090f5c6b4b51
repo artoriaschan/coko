@@ -1,0 +1,19 @@
+.scratch/sidecar-loopback-proxy/issues/01-renderer-ws-waits-on-system-pac.md
+  s_085ed727045dd9::t_3116a99f5f6fe0 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "61c21ac2352b17fe49c5b9e342a0090f5c6b4b51",
+  "prompts": {},
+  "sessions": {
+    "s_085ed727045dd9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d626f66c-4285-483b-b8a1-1e40637e2a6c",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
