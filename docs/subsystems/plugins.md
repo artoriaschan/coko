@@ -142,7 +142,7 @@ digest 为 SHA-256，输入是规范化 JSON（键排序，数组保持顺序）
 - `apps/desktop/e2e/package-smoke.e2e.test.ts`：打包应用中从仓库夹具目录安装、批准后插件的 MCP Server 被启动，语言服务器列在 `executables` 中。
 - `apps/desktop/src/renderer/stores/plugins-store.test.ts`：六个接口的路径与请求体、更新后的 `digestChanged`、错误体按 `ErrorResponse` 校验（不合规与响应不符 schema 为 `bad-response`）、`digest-mismatch` 后读回。
 - `apps/desktop/src/renderer/features/settings/plugins-section.browser.test.tsx`：五种状态、来源与 commit、贡献计数与诊断，明暗主题下状态文字的对比度；批准对话框的全部命令（长命令换行不截断），取消与 Esc 不发 approve，Tab 到"批准"后 Enter 才发；409 后提示已变化并用新 digest 再批准；开关、更新回到待批准、卸载确认；文件夹与 git 安装、诊断与不合规错误体。
-- `apps/desktop/e2e/plugins.e2e.test.ts`：真实 Electron 与 Sidecar。夹具副本经目录选择安装 → 待批准 → 对话框显示 Hook 完整命令（Esc 不批准）→ 键盘批准 → 启用；新会话的 `/` 菜单出现 `sample:hello`，禁用后消失；改动副本中的 Hook 命令后更新回到待批准、对话框显示新命令；明暗主题下状态文字的对比度；卸载后列表为空、安装目录被删除。
+- `apps/desktop/e2e/plugins.e2e.test.ts`：真实 Electron 与 Sidecar。夹具副本经目录选择安装 → 待批准 → 对话框显示 Hook 完整命令（Esc 不批准）→ 键盘批准 → 启用；新会话的 `/` 菜单出现 `sample:hello`，插件的命令与 Skill 都在“插件”组、不在其他组，分组顺序正确，禁用后消失；改动副本中的 Hook 命令后更新回到待批准、对话框显示新命令；明暗主题下状态文字的对比度；卸载后列表为空、安装目录被删除。
 
 ## 延伸阅读
 

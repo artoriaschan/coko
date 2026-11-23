@@ -150,6 +150,24 @@ describe('插件分区', () => {
     // 新会话的 / 菜单出现 sample:hello。
     await backToApp()
     await expect.poll(() => hasSampleHello(page), { timeout: 15_000 }).toBe(true)
+    // 插件的命令与 Skill 归在“插件”组（按名字），不在其他组；分组顺序为内置、项目、用户、Skill、插件、MCP。
+    await page.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ }).click()
+    await page.keyboard.type('/')
+    const commands = page.getByRole('listbox', { name: /^(Commands|命令)$/ })
+    await commands.waitFor()
+    const sample = [expect.stringMatching(/^\/sample:greet/), expect.stringMatching(/^\/sample:hello/)]
+    expect(
+      await commands
+        .getByRole('group', { name: /^(Plugin|插件)$/ })
+        .getByRole('option')
+        .allTextContents(),
+    ).toEqual(sample)
+    expect((await commands.getByRole('option').allTextContents()).filter((text) => text.startsWith('/sample:'))).toEqual(sample)
+    const order = await commands.getByRole('group').evaluateAll((items) => items.map((g) => g.getAttribute('data-group')))
+    expect(order).toEqual(['builtin', 'project', 'user', 'skill', 'plugin', 'mcp'].filter((group) => order.includes(group)))
+    await page.keyboard.press('Escape')
+    await commands.waitFor({ state: 'detached' })
+    await page.keyboard.press('Backspace')
 
     // 禁用后消失。
     await openPlugins()

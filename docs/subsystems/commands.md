@@ -97,7 +97,7 @@ frontmatter 只认两个键，其余键（`model`、`allowed-tools` 等）忽略
 - `tests/integration/sidecar-commands.test.ts`：真实 Sidecar 上的条目顺序与 faux requestLog、未知命令、追加指令展开、`commands.disabled` / `commands.enabled`、`GET /api/commands`。
 - `tests/integration/sidecar-rewind.test.ts` 与 `apps/desktop/e2e/rewind.e2e.test.ts`：命令回退/分叉返回原始调用、展开正文与源条目保持不变、已有草稿保留，以及 Checkpoint 的真实文件恢复。
 - `tests/integration/sidecar-plugins.test.ts`：真实 Sidecar 上命令目录中插件的命令与 Skill 带 `plugin`、`source` 不变，其余条目没有该字段。
-- `apps/desktop/src/renderer/features/conversation/command-menu.browser.test.tsx`：“插件”组的位置、归属与组内顺序，↑↓ 按显示顺序移动，没有可用的插件条目时没有该组，中英文组名。
+- `apps/desktop/src/renderer/features/conversation/command-menu.browser.test.tsx`：“插件”组的位置、归属与组内顺序，↑↓ 按显示顺序移动，没有可用的插件条目时没有该组，中英文组名。Electron 中的“插件”组见 `apps/desktop/e2e/plugins.e2e.test.ts`。
 - `packages/ui/src/composer/composer-typeahead.browser.test.tsx`：typeahead 的键盘、Esc、输入法（Chromium CDP 组合）、指针与定位。
 - `apps/desktop/e2e/commands.e2e.test.ts`：Electron 中的分组菜单与 argument-hint、键盘与指针选择、命令 chip 展开全文。
 

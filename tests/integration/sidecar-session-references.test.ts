@@ -3,16 +3,17 @@
 // 打头，被回退的消息不出现，命令消息为原始调用，超过 50KB 时截断；范围之外只有一行说明，不存在的 id 不产生块。
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 import { API_ROUTES, apiPaths, checkpointPaths, handoffPaths, permissionPaths, runPaths, type SessionEntryRecord } from '@coko/protocol'
+import { createGitWorkspace } from '../fixtures/git/index.ts'
 import { DATE_TEST_BLOCK as dateBlock, DATE_TEST_ENV } from './date-state-fixture.ts'
 import { tempDir } from './sidecar-harness.ts'
 import { bootAgents, call, runEnds, starts } from './sidecar-subagents-harness.ts'
 
 type Block = { type: string; text?: string }
 
-async function boot(responses: unknown[], options: { script?: Record<string, unknown>; env?: Record<string, string> } = {}) {
-  const workspace = join(await tempDir(), 'ws')
+async function boot(responses: unknown[], options: { script?: Record<string, unknown>; env?: Record<string, string>; workspace?: string } = {}) {
+  const workspace = options.workspace ?? join(await tempDir(), 'ws')
   await mkdir(join(workspace, '.coko', 'commands'), { recursive: true })
   await mkdir(join(workspace, 'src'))
   await writeFile(join(workspace, 'src', 'a.ts'), 'FILE-MARK\n')
@@ -402,6 +403,30 @@ describe('其余展开入口', () => {
       .filter((m) => m.role === 'user')
       .at(-1)!.content as Block[]
     expect(sent.map((c) => c.text)).toEqual([`补充 @session:${a}`, aBlock])
+  })
+
+  it('Worktree Session：首次发送带 newWorktree 时按同一 Project 判定范围；Worktree Session 作为被引用方照常附上记录', { timeout: 60_000 }, async () => {
+    const fixture = await createGitWorkspace()
+    onTestFinished(() => fixture.dispose())
+    const { api, stream, subscribe, session, send, lastUser } = await boot([{ content: 'A-REPLY' }, { content: 'W-REPLY' }, { content: 'seen' }], {
+      workspace: fixture.root,
+      env: fixture.env,
+    })
+    const a = await session('方案')
+    await send(a, 'A-MESSAGE')
+    const projectId = (await api.get(apiPaths.session(a))).body.session.projectId as string
+    const text = `接着 @session:${a} 的结论`
+    const created = await api.post(API_ROUTES.firstSend, { draftId: 'worktree', projectId, newWorktree: true, text })
+    expect(created.status).toBe(201)
+    expect(created.body.session).toMatchObject({ projectId, worktree: { name: expect.any(String) } })
+    const w = created.body.session.id as string
+    await subscribe(w)
+    await stream.waitFor(() => runEnds(stream, w).length >= 1)
+    expect(lastUser(w)).toEqual([text, block(a, '方案', '[User]: A-MESSAGE\n\n[Assistant]: A-REPLY')])
+
+    const b = await session('实施')
+    await send(b, `看 @session:${w}`)
+    expect(lastUser(b)).toEqual([`看 @session:${w}`, block(w, '接着 @方案 的结论', `[User]: ${text}\n\n[Assistant]: W-REPLY`)])
   })
 
   it('被引用会话正在运行：提交不等待，块中只有已提交的条目', { timeout: 60_000 }, async () => {
