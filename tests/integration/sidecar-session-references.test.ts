@@ -323,10 +323,10 @@ describe('文件引用与会话引用共用额度', () => {
     expect(blocks[5]).not.toContain('m1 x')
     expect(
       blocks[6]!.startsWith(
-        `<session_reference id="${fill}" title="填满">\n[1 earlier message omitted to fit the session reference limit]\n\n[Assistant]: fff`,
+        `<session_reference id="${fill}" title="填满">\n[1 earlier message omitted to fit the session reference limit]\n\n[Assistant]: [Earlier part of this message omitted to fit the session reference limit]\nfff`,
       ),
     ).toBe(true)
-    expect(blocks[6]!.endsWith('f\n\n[Message truncated to fit the session reference limit]\n</session_reference>')).toBe(true)
+    expect(blocks[6]!.endsWith('fff\n</session_reference>')).toBe(true)
     expect(blocks.slice(7)).toEqual([
       aBlock,
       block(tail, '放不下', '[Not attached: references in this message exceed 200KB in total.]'),

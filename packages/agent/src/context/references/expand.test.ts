@@ -294,7 +294,7 @@ describe('expandFileReferences：Session Reference', () => {
     expect(long).toContain('[User]: m3 x')
     expect(long).not.toContain('m1 x')
     // fill 只剩约 4.7KB：截断这一条消息；之后放得下的短记录照常附上。
-    expect(fill).toContain('[Message truncated to fit the session reference limit]')
+    expect(fill).toContain('[User]: [Earlier part of this message omitted to fit the session reference limit]\n')
     expect(s1).toBe('<session_reference id="s1" title="方案 &quot;讨论&quot;">\n[User]: 用方案 A\n\n[Assistant]: 好的。\n</session_reference>')
     // 剩余不足以放下任何记录内容：附超限说明，不附只有省略说明的块。
     expect(tail).toBe(`<session_reference id="tail" title="tail">\n${SESSION_REFERENCE_NOTES.budget}\n</session_reference>`)
@@ -305,5 +305,38 @@ describe('expandFileReferences：Session Reference', () => {
       .reduce((sum, text) => sum + Buffer.byteLength(text, 'utf-8'), 0)
     expect(attachedBytes).toBeLessThanOrEqual(FILE_REFERENCE_MESSAGE_BYTES)
     expect(attachedBytes).toBeGreaterThan(FILE_REFERENCE_MESSAGE_BYTES - 200)
+  })
+})
+
+// 登记明文的替换（ADR 0007）由宿主经 redact 给出：必须在转义与截断之前作用，否则转义后的形态与被截断留下的前缀都匹配不上。
+describe('expandFileReferences：redact 先于转义与截断', () => {
+  const SECRET = 'p&ssw0rd<1>'
+  const MULTILINE = 'KEY-LINE-A\nKEY-LINE-B'
+  const redact = (text: string) => text.replaceAll(SECRET, '[REDACTED:secret]').replaceAll(MULTILINE, '[REDACTED:key]')
+  const message = (content: string) => ({ seq: 1, kind: 'message', runId: 'r', payload: { role: 'user', content, timestamp: 1 } })
+  const expandWith = (text: string, title: string, entries: ReturnType<typeof message>[]) =>
+    expandFileReferences(text, { cwd: ws.dir, rules: [], redact, resolveSession: async () => ({ status: 'attached', title, entries }) })
+
+  it('会话标题与文件路径中带 & < > 的明文被替换，不以转义后的形态留在开标签里', async () => {
+    await ws.write(`${SECRET}.md`, 'A')
+    const out = await expandWith(`@session:s1 @${SECRET}.md`, `${SECRET} 方案`, [])
+    expect(out.blocks.map((b) => b.text)).toEqual([
+      '<session_reference id="s1" title="[REDACTED:secret] 方案">\n[No messages in this session.]\n</session_reference>',
+      '<file_reference path="[REDACTED:secret].md">\nA\n</file_reference>',
+    ])
+  })
+
+  it('会话记录在截断之前替换：截断边界落在明文中间时不留下明文的前缀', async () => {
+    const out = await expandWith('@session:s1', 't', [message(SECRET.repeat(10_000))])
+    expect(out.sessionReferences).toEqual([{ status: 'attached', truncated: true }])
+    expect(out.blocks[0]!.text).toContain('[REDACTED:secret]')
+    expect(out.blocks[0]!.text).not.toContain('p&ss')
+  })
+
+  it('文件内容在截断之前替换：跨行的明文不会被行数上限切开', async () => {
+    await ws.write('keys.txt', `${'x\n'.repeat(1999)}${MULTILINE}\n${'y\n'.repeat(50)}`)
+    const [text] = (await expandFileReferences('@keys.txt', { cwd: ws.dir, rules: [], redact })).blocks.map((b) => b.text)
+    expect(text).toContain('[REDACTED:key]')
+    expect(text).not.toContain('KEY-LINE-A')
   })
 })

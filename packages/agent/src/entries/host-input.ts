@@ -14,6 +14,24 @@ export const SCHEDULED_TASK_TAG = '<scheduled_task'
 /** 团队消息（teammate、lead 或子代理之间）的开头（其后是属性）。 */
 export const TEAM_MESSAGE_TAG = '<team-message'
 
+/**
+ * 宿主放进模型上下文的块的标签名（唯一清单，按系统提示中列出的顺序）：系统提示据此告诉模型哪些标签来自宿主（engine/system-message.ts），
+ * Session Reference 的记录据此去掉被引用会话里的宿主块（context/references/session.ts）。新增宿主块时在这里登记。
+ */
+export const HOST_BLOCK_TAGS = [
+  'instructions',
+  'file_reference',
+  'session_reference',
+  'instruction_file',
+  'job-notification',
+  'agent-notification',
+  'team-message',
+  'hook-context',
+  'scheduled_task',
+  'goal_round',
+  'state_update',
+] as const
+
 /** 前置在送达通知的 user message 之前的条目 kind：这样的 user message 是宿主通知，不是用户写的。 */
 export const HOST_NOTIFICATION_KINDS: ReadonlySet<string> = new Set(['job_notification', 'agent_notification', 'team_message'])
 

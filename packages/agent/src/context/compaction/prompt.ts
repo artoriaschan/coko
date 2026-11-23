@@ -3,6 +3,7 @@
 // 省略；输入超过上限时从最早处省略（先工具结果，再消息），摘要请求本身不会溢出。序列化参照 pi coding-agent 1.4.0
 // core/compaction/utils.ts 的 serializeConversation 与 formatFileOperations（MIT, Copyright (c) 2025 Mario Zechner）。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { sessionReference } from '@coko/protocol'
 import type { CompactionPlan } from './plan.ts'
 
 /** 摘要请求的输出上限。 */
@@ -88,15 +89,14 @@ type Block = { type: string; text?: string; name?: string; arguments?: unknown }
 
 /** 附加的文件内容块（File Reference、指令文件）：摘要只需知道附加了哪个文件，内容可再读取。 */
 const ATTACHED = /^<(file_reference|instruction_file) path="([^"]*)"[^>]*>[\s\S]*<\/\1>$/
-/** Session Reference 块：摘要只需知道附了哪次会话（标题），被引用会话的记录不进入摘要请求。 */
-const SESSION_ATTACHED = /^<session_reference id="[^"]*" title="([^"]*)">[\s\S]*<\/session_reference>$/
 const unescapeAttribute = (value: string) => value.replaceAll('&quot;', '"').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&')
 
 const blockText = (block: Block): string | undefined => {
   if (block.type === 'image') return '[image omitted]'
   if (block.type !== 'text' || typeof block.text !== 'string') return undefined
-  const session = SESSION_ATTACHED.exec(block.text.trim())
-  if (session) return `[session reference attached: ${unescapeAttribute(session[1]!)}]`
+  // Session Reference 块：摘要只需知道附了哪次会话（标题），被引用会话的记录不进入摘要请求（审查输入用同一行，policy/review.ts）。
+  const session = sessionReference(block.text.trim())
+  if (session) return `[session reference attached: ${session.title}]`
   const attached = ATTACHED.exec(block.text.trim())
   if (!attached) return block.text
   return `[${attached[1] === 'file_reference' ? 'file reference' : 'instruction file'} attached: ${unescapeAttribute(attached[2]!)}]`

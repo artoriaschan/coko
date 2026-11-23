@@ -8,7 +8,7 @@ import { createAppearanceStore } from '../../app/appearance-store.ts'
 import { createConnectionStore } from '../../app/connection-store.ts'
 import { createPreferences } from '../../app/preferences.ts'
 import { createSettingsPageStore } from '../../app/settings-page-store.ts'
-import { createFixtureChat } from '../../testing/fixture-chat.ts'
+import { createFixtureChat, fixtureSessions } from '../../testing/fixture-chat.ts'
 
 afterEach(async () => {
   vi.restoreAllMocks()
@@ -452,4 +452,26 @@ it.each([
   await userEvent.click(page.getByRole('button', { name: `${label}Lease notes`, exact: true }))
   await expect.poll(() => fixture.chat.getState().activeSessionId).toBe('s-3')
   await expect.element(page.getByRole('heading', { level: 1, name: 'SQLite 迁移与租约' })).toBeVisible()
+})
+
+it('a chip for an archived session cannot be opened: archived sessions leave the session list', async () => {
+  const fixture = await open([
+    record(1, {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Continue @session:s-3' },
+        { type: 'text', text: sessionBlock('s-3', 'Lease notes') },
+      ],
+      timestamp: 1,
+    }),
+  ])
+  const chip = page.getByRole('button', { name: 'Referenced session Lease notes', exact: true })
+  await expect.element(chip).toBeEnabled()
+  const archived = fixtureSessions.find((session) => session.id === 's-3')!
+  fixture.chat.lists.getState().setArchiveState({ ...archived, archivedAt: 5 })
+  await expect.element(chip).toBeDisabled()
+  // 标题仍是提交时的快照；不经 userEvent（它会一直等待被停用的按钮变为可操作）。
+  expect(chip.element().textContent).toBe('Lease notes')
+  document.querySelector<HTMLElement>('[data-session-id="s-3"]')!.click()
+  expect(fixture.chat.getState().activeSessionId).toBe('s-1')
 })

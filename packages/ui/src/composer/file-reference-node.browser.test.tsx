@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { ComposerEditor, type ComposerEditorHandle } from './composer-editor.tsx'
+import { formatFileReference } from './file-reference-node.ts'
 import { ComposerTypeahead, type ComposerTypeaheadItem, type ComposerTypeaheadSelection } from './composer-typeahead.tsx'
 
 const FILES = ['src/', 'src/a.ts', 'docs/my notes.md', 'README.md']
@@ -73,6 +74,11 @@ describe('File Reference 节点', () => {
     await userEvent.keyboard('please')
     expect(handle.current!.getText()).toBe('@"docs/my notes.md" please')
     expect(chips().map((c) => c.textContent)).toEqual(['@"docs/my notes.md"'])
+  })
+
+  it('以 session: 开头的路径序列化时加引号：提交后按路径解析，不会被当作会话引用', () => {
+    expect(formatFileReference('session:x')).toBe('@"session:x"')
+    expect(formatFileReference('sessions/x.md')).toBe('@sessions/x.md')
   })
 
   it('EditorState JSON 往返后节点仍在；不合法的 JSON 与未知节点被拒绝且编辑区不变', async () => {

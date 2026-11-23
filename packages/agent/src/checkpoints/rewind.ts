@@ -1,6 +1,7 @@
 // 回退（ADR 0006）：rewind 条目把 [targetSeq, 本条目) 区间移出有效上下文；原条目保留。多次回退叠加：
 // 目标只能是当时有效的用户消息，各区间要么嵌套、要么不相交，被任一区间覆盖的条目都不在有效上下文中。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { fileReferencePath, sessionReference } from '@coko/protocol'
 import { effectiveEntries, modelContext, pairedStateUpdates, type EntryLike } from '../entries/index.ts'
 import { isProtectedPath, pathContains } from '../policy/decide.ts'
 import { realLocation } from '../policy/paths.ts'
@@ -62,7 +63,7 @@ export interface RewindPlanOptions {
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 /** 随消息附上的 File Reference 与 Session Reference 块（docs/subsystems/context.md）：追加在用户输入的文本之后，不是用户输入的文本。 */
-const REFERENCE_BLOCK = /^<(file_reference path|session_reference id)="/
+const isReferenceBlock = (text: string) => fileReferencePath(text) !== undefined || sessionReference(text) !== undefined
 
 /**
  * 用户消息的文本（字符串或 text 块，块之间换行）。第一个文本块之后的引用块不返回：回到输入区的 `@path` 与 `@session:<id>` 再次提交时
@@ -75,7 +76,7 @@ export function userMessageText(payload: unknown): string | undefined {
   if (!Array.isArray(content)) return ''
   return content
     .flatMap((block: unknown) => (isRecord(block) && block.type === 'text' && typeof block.text === 'string' ? [block.text] : []))
-    .filter((text, index) => index === 0 || !REFERENCE_BLOCK.test(text))
+    .filter((text, index) => index === 0 || !isReferenceBlock(text))
     .join('\n')
 }
 

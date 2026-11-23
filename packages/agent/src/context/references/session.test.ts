@@ -53,6 +53,21 @@ describe('sessionTranscript：各类消息的取舍', () => {
     expect(out).toBe('[User]: 看 @a.ts 和 @session:s9\n\n[Assistant]: 好。')
   })
 
+  it('宿主通知不进入记录：后台任务输出、Hook 上下文、子代理结果与团队消息；定时任务提示词与 Goal Round 继续提示是文本输入，保留', () => {
+    const out = body(() => [
+      user('<job-notification>\n<job-id>j1</job-id>\n<output>JOB-OUTPUT-MARK</output>\n</job-notification>'),
+      user([text('继续'), text('<hook-context>\nHOOK-MARK\n</hook-context>')]),
+      user([text('<agent-notification agent-id="a1" agent-type="explore" status="completed">\n<result>\nAGENT-MARK\n</result>\n</agent-notification>')]),
+      user([text('<team-message from="lead" message-id="m1">\nTEAM-MARK\n</team-message>'), text('收到')]),
+      user('<scheduled_task title="日报">\n写日报\n</scheduled_task>'),
+      user('<goal_round>\n继续推进\n</goal_round>'),
+      assistant([text('好。')]),
+    ])
+    expect(out).toBe(
+      '[User]: 继续\n\n[User]: 收到\n\n[User]: <scheduled_task title="日报">\n写日报\n</scheduled_task>\n\n[User]: <goal_round>\n继续推进\n</goal_round>\n\n[Assistant]: 好。',
+    )
+  })
+
   it('命令展开而来的用户消息以原始调用 /name 参数 出现（紧邻的 command 条目属于同一 Run）', () => {
     const out = body(() => [
       e('command', { name: 'explain', args: '@a.ts', source: 'project' }),
@@ -153,16 +168,22 @@ describe('sessionTranscript：上限', () => {
     expect(result.truncated).toBe(true)
   })
 
-  it('最近的一条消息自身放不下时截断它并注明', () => {
+  it('最近的一条消息自身放不下时保留它的结尾（最近的部分），在说话方标记之后注明省略了开头', () => {
     const result = sessionTranscript(
-      build(() => [user('m1'), user(`last ${'y'.repeat(5000)}`)]),
+      build(() => [user('m1'), user(`HEAD-MARK ${'尾'.repeat(3000)} 结论：用方案 A`)]),
       { maxBytes: 1000 },
     )
     const parts = result.body.split('\n\n')
+    expect(parts).toHaveLength(2)
     expect(parts[0]).toBe('[1 earlier message omitted to fit the session reference limit]')
-    expect(parts[1]!.startsWith('[User]: last yyy')).toBe(true)
-    expect(parts[2]).toBe('[Message truncated to fit the session reference limit]')
+    expect(parts[1]!.startsWith('[User]: [Earlier part of this message omitted to fit the session reference limit]\n尾尾')).toBe(true)
+    expect(parts[1]!.endsWith('尾尾 结论：用方案 A')).toBe(true)
+    expect(result.body).not.toContain('HEAD-MARK')
+    // 多字节字符不被切成半个。
+    expect(result.body).not.toContain('\uFFFD')
     expect(result.bytes).toBeLessThanOrEqual(1000)
+    expect(result.bytes).toBeGreaterThan(900)
+    expect(result.truncated).toBe(true)
   })
 })
 

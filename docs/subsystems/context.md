@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的上下文管理契约：系统消息的组成与环境信息、日期 State Update、@ File Reference 的语法、展开与上限、Read 拒绝规则、@session:<id> Session Reference 的语法、展开、上限（与 File Reference 共用额度）与范围、引用块在回退、分叉、压缩与标题中的处理、文件候选接口、@ 菜单（文件组与会话组）、草稿中的引用节点与引用 chip、输入区草稿的持久化，上下文用量（估算、阈值、接口与上下文环）、时间裁剪、压缩（自动、溢出、/compact、熔断、摘要结构、回退与分叉、界面），以及内置遍历与 ripgrep 共同的忽略来源。修改系统消息、环境信息、引用展开、文件候选、composer、用量、裁剪与压缩或 walk / grep / find 的忽略规则前查阅。"
+description: "当前的上下文管理契约：系统消息的组成与环境信息、日期 State Update、@ File Reference 的语法、展开与上限、Read 拒绝规则、@session:<id> Session Reference 的语法、展开、上限（与 File Reference 共用额度）与范围、引用块在回退、分叉、压缩、自动审查输入与标题中的处理、文件候选接口、@ 菜单（文件组与会话组）、草稿中的引用节点与引用 chip、输入区草稿的持久化，上下文用量（估算、阈值、接口与上下文环）、时间裁剪、压缩（自动、溢出、/compact、熔断、摘要结构、回退与分叉、界面），以及内置遍历与 ripgrep 共同的忽略来源。修改系统消息、环境信息、引用展开、文件候选、composer、用量、裁剪与压缩或 walk / grep / find 的忽略规则前查阅。"
 lifecycle: active
 ---
 
@@ -36,9 +36,11 @@ MCP 工具默认按需加载；关闭时直接提供全部 MCP 定义。按需�
 | 位置 | 职责 |
 | --- | --- |
 | `apps/server/src/application/context/environment.ts`、`date.ts`、`types.ts` | 稳定环境 section、按 Sidecar 时钟计算日期的 State Update；作用域中的模型与 Project 附加文件夹 |
-| `packages/agent/src/context/references/parse.ts` | `parseFileReferences`、`formatFileReferenceToken`：`@path` / `@"path"` 的语法；`parseSessionReferences`：`@session:<id>` 的语法 |
-| `packages/agent/src/context/references/expand.ts` | `expandFileReferences`：读取、截断、上限与说明文本，生成 `<file_reference>` 块；同一循环经 `resolveSession` 生成 `<session_reference>` 块 |
-| `packages/agent/src/context/references/session.ts` | `sessionTranscript`（被引用会话的条目 → 文字记录与截断）、`sessionReferenceBlock`、`SESSION_REFERENCE_NOTES` |
+| `packages/protocol/src/reference-tokens.ts` | `parseFileReferences`、`formatFileReferenceToken`：`@path` / `@"path"` 的语法；`parseSessionReferences`、`withSessionReferenceTitles`：`@session:<id>` 的语法与显示为 `@标题` 的替换。Sidecar 与 renderer 共用这一份 |
+| `packages/protocol/src/files.ts` | 两种引用块开标签的生成与识别：`formatFileReferenceOpen` / `fileReferencePath`、`formatSessionReferenceOpen` / `sessionReference`。展开、回退、压缩摘要请求、自动审查输入与时间线都用这一份识别 |
+| `packages/agent/src/context/references/expand.ts` | `expandFileReferences`：读取、截断、上限与说明文本（`FILE_REFERENCE_NOTES`、`SESSION_REFERENCE_NOTES`），生成 `<file_reference>` 块；同一循环经 `resolveSession` 生成 `<session_reference>` 块；`redact` 选项在转义与截断之前替换登记明文 |
+| `packages/agent/src/context/references/session.ts` | `sessionTranscript`（被引用会话的条目 → 文字记录与截断）、`sessionReferenceBlock` |
+| `packages/agent/src/entries/host-input.ts` | `HOST_BLOCK_TAGS`：宿主块标签的唯一清单，基础提示据此列出宿主块，Session Reference 的记录据此去掉被引用会话里的宿主块 |
 | `packages/agent/src/context/references/search.ts` | `searchWorkspaceFiles`：@ 菜单的候选（复用 `tools/builtin/walk.ts`） |
 | `packages/protocol/src/files.ts` | 块的开标签（`formatFileReferenceOpen`、识别函数 `fileReferencePath`）、`WorkspaceFilesResponse`、`filePaths` |
 | `apps/server/src/application/context/references.ts` | 引用贡献的 `expandInput`（读取 `ContextScope.permissionRules`）；Session Reference 的范围判定与条目读取（`ContextScope.projectId`） |
@@ -85,11 +87,11 @@ MCP 工具默认按需加载；关闭时直接提供全部 MCP 定义。按需�
 - 未加引号的路径在空白或中文全角标点（，。；：！？、）】」』》）处结束，结尾的 `. , ; : ! ? ' " ) ] } >` 不属于路径。加引号的路径原样保留。
 - 路径相对 Workspace；也接受绝对路径与 `~/`。以 `/` 结尾或指向目录时按目录处理。
 - 不存在的路径不产生块，`@someone` 这类提及原样留在文本中。同一个文件（按真实路径）只附一次。
-- 未加引号、以 `session:` 开头的 token 保留给 [Session Reference](#session-reference)，不作为路径解析；加引号的 `@"session:x"` 仍是路径。
+- 未加引号、以 `session:` 开头的 token 保留给 [Session Reference](#session-reference)，不作为路径解析；加引号的 `@"session:x"` 仍是路径。从 @ 菜单选中的路径以 `session:` 开头时，节点序列化为加引号的形式。
 
 ### 展开
 
-提交的文本、Run 进行中的追加指令、首次发送的文本与无界面运行的提示词经同一个上下文装配展开，顺序是命令、File Reference（[Session Reference](#session-reference) 在同一步骤），所以模板展开后的文本中的引用同样生效。每个引用在同一条 user message 中追加一个文本块，块以 `<file_reference path="…">` 开头、`</file_reference>` 结尾；展开结果中原文在引用块之前；没有引用时，输入展开只产生原文。Run 开始送达的 State Update 仍按上文规则前置，所以实际 user message 可以先有状态块，再有原文与引用块。引用块不是独立的条目 kind。块中已登记 Secret 与 Credential 的明文在生成时替换为标记（与 read 工具的结果相同，见 [按值脱敏](mcp.md#secret-的来源)），用户自己写的原文不变。
+提交的文本、Run 进行中的追加指令、首次发送的文本与无界面运行的提示词经同一个上下文装配展开，顺序是命令、File Reference（[Session Reference](#session-reference) 在同一步骤），所以模板展开后的文本中的引用同样生效。每个引用在同一条 user message 中追加一个文本块，块以 `<file_reference path="…">` 开头、`</file_reference>` 结尾；展开结果中原文在引用块之前；没有引用时，输入展开只产生原文。Run 开始送达的 State Update 仍按上文规则前置，所以实际 user message 可以先有状态块，再有原文与引用块。引用块不是独立的条目 kind。块中已登记 Secret 与 Credential 的明文在生成时替换为标记（见 [按值脱敏](mcp.md#secret-的来源)），用户自己写的原文不变。替换先于转义与截断：开标签中的路径在按 XML 属性转义之前替换，文件内容在按行数与字节截断之前替换，所以带 `&`、`<` 的明文与被截断边界切开的明文（含跨行的）都不会留下可辨认的部分。
 
 | 情形 | 块的内容 |
 | --- | --- |
@@ -123,12 +125,12 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ### 展开
 
-与 File Reference 在同一个展开步骤、同样的入口（提交的文本、Run 进行中的追加指令、首次发送、无界面运行的提示词），位于命令展开之后；首次发送按新建 Session 所属的 Project 判定范围。文件引用与会话引用按在文本中出现的顺序处理，每个引用在同一条 user message 中追加一个文本块，原文在引用块之前。块以 `<session_reference id="…" title="…">` 开头、`</session_reference>` 结尾；`title` 是展开那一刻被引用会话的标题，`id` 与 `title` 按 XML 属性转义 `& " < >`。块不是独立的条目 kind，不新增条目版本。块中已登记 Secret 与 Credential 的明文在生成时替换为标记，与 File Reference 的块相同；用户自己输入的原文不变。
+与 File Reference 在同一个展开步骤、同样的入口（提交的文本、Run 进行中的追加指令、首次发送、无界面运行的提示词），位于命令展开之后；首次发送按新建 Session 所属的 Project 判定范围。文件引用与会话引用按在文本中出现的顺序处理，每个引用在同一条 user message 中追加一个文本块，原文在引用块之前。块以 `<session_reference id="…" title="…">` 开头、`</session_reference>` 结尾；`title` 是展开那一刻被引用会话的标题，`id` 与 `title` 按 XML 属性转义 `& " < >`。块不是独立的条目 kind，不新增条目版本。块中已登记 Secret 与 Credential 的明文在生成时替换为标记，与 File Reference 的块相同：标题在转义之前替换，记录逐条在截断之前替换；用户自己输入的原文不变。基础提示的宿主块清单列出 `<session_reference>`（与 `<file_reference>` 并列）。
 
 记录取被引用会话有效上下文（回退与压缩都已应用）中已提交的条目，各条以空行分隔：
 
 - 有有效的 Compaction 时，以 `[Summary of the earlier conversation]: ` 加摘要打头，摘要之前的消息不出现。
-- 用户消息以 `[User]: ` 标出，只取用户提交的文本。State Update、File Reference 与 Session Reference 的块、附件块与图片不进入记录；其余文本块（例如定时任务的提示词、Goal Round 的继续提示）按原样进入。
+- 用户消息以 `[User]: ` 标出，只取用户提交的文本。宿主块与图片不进入记录：State Update、File Reference 与 Session Reference 的块、附件块，以及后台任务的完成通知（含内联的任务输出）、后台子代理的结束通知、团队消息与 Hook 追加的上下文；只剩宿主块的消息不出现。定时任务的提示词（`<scheduled_task>`）与 Goal Round 的继续提示（`<goal_round>`）是文本输入，按原样进入。宿主块按文本块开头的标签识别（清单为 `HOST_BLOCK_TAGS`，另加附件块），不核对前置条目：被引用会话里用户自己输入的、以这些标签开头的文本同样不进入记录。
 - 由命令展开而来的用户消息取原始调用 `/name 参数`：紧邻其前、属于同一 Run 的 `command` 条目给出名字与参数，与回退恢复原始调用的判定相同。
 - 助手消息以 `[Assistant]: ` 标出，只取文字回复；思考、工具调用与工具结果不进入记录，没有文字的助手消息不出现。
 - 记录中的 `@session:<id>` 与 `@path` 是文本，不再展开。
@@ -139,13 +141,13 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ### 上限
 
-单个会话引用的记录不超过 50KB（UTF-8 字节，与单个文件相同）。超出时保留摘要与最近的消息，从摘要之后最早的消息开始省略，并在省略处写 `[N earlier messages omitted to fit the session reference limit]`。摘要自身放不下时截断摘要，后跟 `[Summary truncated to fit the session reference limit]`；最近的一条消息自身放不下时截断它，后跟 `[Message truncated to fit the session reference limit]`。
+单个会话引用的记录不超过 50KB（UTF-8 字节，与单个文件相同）。超出时保留摘要与最近的消息，从摘要之后最早的消息开始省略，并在省略处写 `[N earlier messages omitted to fit the session reference limit]`。摘要自身放不下时截断摘要（保留开头），后跟 `[Summary truncated to fit the session reference limit]`；最近的一条消息自身放不下时保留它的结尾，说话方标记之后先写一行 `[Earlier part of this message omitted to fit the session reference limit]`，再接保留的部分。
 
 会话引用与 File Reference 在同一个循环中按出现顺序计入每条消息 10 个的数量与合计 200KB 的额度；超出数量时块中为 `[Not attached: at most 10 references per message.]`，合计额度用尽时为 `[Not attached: references in this message exceed 200KB in total.]`，接近合计上限的那个会话引用按剩余额度截断。剩余额度放不下完整记录、又不足 200 字节（截断说明行的预留）时同样附合计额度的说明，不附只有省略说明的块，附上的内容合计不超过 200KB。只附说明的块（含范围之外的）计入数量，不计入字节额度。File Reference 的说明文本不变（见上文表格）。
 
 ### 范围
 
-范围在展开时由 Sidecar 判定，不依赖界面的过滤。当前会话的 Project 取自 `ContextScope.projectId`（根 Session 所属的 Project）。
+范围在展开时由 Sidecar 判定，不依赖界面的过滤。当前会话的 Project 取自 `ContextScope.projectId`（根 Session 所属的 Project）。无界面运行（`coko -p`）创建的会话不属于任何 Project，按独立对话处理：它可以引用的是所有不属于任何 Project 的根 Session（不限于同一个 Workspace），引用不到项目内的会话。
 
 | 情形 | 块的内容 |
 | --- | --- |
@@ -163,6 +165,7 @@ File Reference 与 Session Reference 的块在以下位置同样对待：
 - **Checkpoint 列表与回退、分叉返回的输入文本** 不含引用块，只有用户当时输入的文本；由命令展开的消息仍返回原始调用 `/name 参数`（见 [命令](commands.md)）。第一个文本块是用户输入的文本，其后以 `<file_reference path="` 或 `<session_reference id="` 开头的文本块不返回。回到输入区的 `@path` 与 `@session:<id>` 再次提交时重新展开，附上的是再次提交那一刻的内容。
 - **分叉** 复制的用户消息保留已附上的块，不重新读取被引用的会话。交接不复制消息，见 [交接](handoff.md)。
 - **压缩摘要请求** 把会话引用块缩为一行 `[session reference attached: <title>]`（见 [摘要请求](#摘要请求)）；已保存的消息不变。
+- **自动审查的输入** 把会话引用块缩为同样的一行：被引用会话的记录（其中的助手正文、压缩摘要等）不是用户在当前会话中输入的，不进入 `user_authorization`，Reviewer 只知道附了哪个会话。File Reference 块在审查输入中原样保留。见 [自动审查](permissions.md)。
 - **首条消息的标题** 把 `@session:<id>` 显示为 `@<被引用会话的标题>`，见 [首条消息的标题](workbench.md#首条消息的标题)。
 
 ### 日志
@@ -185,7 +188,7 @@ File Reference 与 Session Reference 的块在以下位置同样对待：
 - **File Reference 节点**：token 模式的文本节点，以小号链接色 chip 显示，作为整体选中与删除，不能在其中输入。文本即序列化形式 `@path`（含空白、全角标点或会被当作结尾标点的字符时为 `@"path"`），因此提交的文本就是 Sidecar 解析的语法。
 - **Session Reference 节点**：行内的原子节点（Lexical DecoratorNode，不可编辑），以与 File Reference 相同的 chip 显示 `@会话标题`，作为整体选中与删除，不能在其中输入，不可点击，方向键直接越过。标题是选中那一刻的快照，载入草稿后不随会话改名刷新。节点的文本内容为 `@session:<id>`：提交的文本、读出的纯文本与复制出的文本都是这个形式，粘贴回输入区得到的是这段文本而不是 chip。一条消息里可以同时有文件节点与多个会话节点。
 - **引用 chip**：时间线中，用户消息的 `<file_reference>` 与 `<session_reference>` 块不进入气泡文本，按出现顺序显示为气泡下方同一列表中的文件、目录或会话 chip（会话用对话图标）；文件内容与会话记录只发给模型，未附上的会话说明块同样显示 chip。
-- **会话 chip 与 `@标题`**：会话 chip 显示块中的标题，即提交那一刻的标题，被引用的会话后来改名或删除都不变；标题为空时显示“未命名”。chip 是按钮，可用键盘聚焦与激活，点击打开该会话；会话不在界面的会话列表中（已删除；归档的会话也不在该列表中）时不可点击。气泡文本、命令消息的参数与展开全文中的 `@session:<id>` 在该消息带有对应的会话引用块时显示为 `@标题`（词首与结尾标点规则与 Sidecar 的解析相同），没有对应块时原样显示；复制消息得到的仍是原文。[轮次指示器](workbench.md#对话消息与思考) 的提示词预览不做这个替换，显示原文 `@session:<id>`。
+- **会话 chip 与 `@标题`**：会话 chip 显示块中的标题，即提交那一刻的标题，被引用的会话后来改名或删除都不变；标题为空时显示“未命名”。chip 是按钮，可用键盘聚焦与激活，点击打开该会话；会话不在界面的会话列表中（已删除；归档的会话也不在该列表中）时不可点击。气泡文本、命令消息的参数与展开全文中的 `@session:<id>` 在该消息带有对应的会话引用块时显示为 `@标题`（与 Sidecar 用同一份 token 解析），没有对应块时原样显示；复制消息得到的仍是原文。[轮次指示器](workbench.md#对话消息与思考) 的提示词预览不做这个替换，显示原文 `@session:<id>`。
 
 ## 草稿
 
@@ -329,15 +332,16 @@ teammate 的子 Session 在 `<subagent>` 之后另有静态 `<team name="…">`�
 
 - `tests/integration/sidecar-environment.test.ts`：真实 Sidecar 的普通仓库、Worktree 与非 git 目录、附加文件夹、环境顺序与跨 Run 稳定性、更换模型、草稿缺省模型及环境的 system 用量。
 
-- `packages/agent/src/context/references/parse.test.ts`、`expand.test.ts`、`search.test.ts`：语法（引号、标点、邮箱等不误判）；截断、目录上限、10 个 / 200KB、拒绝规则、Workspace 外与二进制的说明；候选的忽略规则、排序与上限。
-- `tests/integration/secrets-gate-references.test.ts`：引用块中的登记 Secret 在 user message 条目、faux requestLog、推送、库与日志中都是标记。
+- `packages/protocol/src/reference-tokens.test.ts`、`packages/agent/src/context/references/expand.test.ts`、`search.test.ts`：语法（引号、标点、邮箱等不误判，`session:` 开头的路径加引号）；截断、目录上限、10 个 / 200KB、拒绝规则、Workspace 外与二进制的说明；`redact` 先于转义与截断；候选的忽略规则、排序与上限。
+- `tests/integration/secrets-gate-references.test.ts`、`secrets-gate-session-references.test.ts`：引用块中的登记 Secret 在 user message 条目、faux requestLog、推送、库与日志中都是标记；会话标题与文件路径中带 `&` 的登记明文在两种块的开标签里是标记，没有转义后的形态。
 - `tests/integration/sidecar-references.test.ts`：真实 Sidecar 上的 user message 块与 faux requestLog、project 作用域的 Read 拒绝规则、命令与引用的顺序、`GET /api/workspaces/:id/files`。
+- `packages/agent/src/context/references/session.test.ts`：记录的取舍（宿主通知不进入，定时任务提示词与 Goal Round 继续提示保留）与截断（摘要优先、省略条数、单条消息保留结尾）；`packages/agent/src/policy/review.test.ts`：审查输入把会话引用块缩为一行；`packages/agent/src/engine/system-message-rebuild.test.ts`：基础提示的宿主块清单。
 - `tests/integration/sidecar-session-references.test.ts`：Session Reference 的记录取舍、范围与单个上限；文件与会话混合超过 10 个、合计超过 200KB；首次发送（范围与标题）、追加指令、被引用会话运行中、Worktree Session 作为引用方（首次发送带 `newWorktree`）与被引用方；回退与分叉返回的文本、分叉保留已附上的块；带会话引用的消息进入压缩时的摘要请求。无界面运行的提示词见 `tests/integration/headless.test.ts`。
 - `packages/ui/src/composer/file-reference-node.browser.test.tsx`：节点的插入与整体删除、序列化、EditorState JSON 往返与拒绝、目录 Tab、onDraftChange。
 - `packages/ui/src/composer/session-reference-node.browser.test.tsx`：Session Reference 节点的 chip 文本、读出与复制的 `@session:<id>`、整体删除、与文件节点并存、EditorState JSON 往返与缺少 id 或标题时的拒绝。
 - `apps/desktop/src/renderer/features/conversation/file-menu.browser.test.tsx`、`session-reference.browser.test.tsx`：@ 菜单两组的顺序、空查询的 5 个、标题过滤与 20 个上限、范围过滤（另一个 Project、独立对话、归档、当前会话）、只有一组有匹配时的显示、中英文文案；应用内会话与新对话草稿的候选、提交的文本、带 chip 的草稿在切换会话与重新挂载后恢复及损坏时丢弃。
 - `apps/desktop/src/renderer/stores/draft-store.test.ts`、`features/conversation/timeline.test.ts`：草稿的键、防抖与损坏处理；引用 chip 的派生。
-- `apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx`：时间线的会话引用（气泡中的 `@标题`、会话 chip 的键盘与指针打开、不在列表中的会话不可点击、没有对应块时原样显示、与文件 chip 混排的顺序、中英文名称）。
+- `apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx`：时间线的会话引用（气泡中的 `@标题`、会话 chip 的键盘与指针打开、不在列表中的会话与归档后的会话不可点击、没有对应块时原样显示、与文件 chip 混排的顺序、中英文名称）。
 - `apps/desktop/e2e/references-drafts.e2e.test.ts`：Electron 中的 @ 菜单与 chip、草稿在切换会话与重启后保留、提交后清除、损坏的草稿；会话引用的一条：新对话草稿的 @ 菜单两组的顺序与标题过滤、选中后的草稿 chip、faux requestLog 中的 `@session:<id>` 原文与 `<session_reference>` 块、气泡的 `@标题`、侧栏占位标题不含 id、点击会话 chip 回到被引用的会话。
 - `packages/agent/src/context/usage/usage.test.ts`：128k、400k、1M 窗口的阈值与预警、估算（有 / 无 usage、跳过出错与中止的回复）、时间裁剪（59 分钟不裁、61 分钟裁、保留最近 5 个、2KB 以下保留、输入不变、后续请求前缀稳定）。`apps/server/src/application/context/usage.test.ts`：注入时钟与 `context.trimOldToolResults` 开关。
 - `tests/integration/sidecar-tool-accounting.test.ts`：本地模型 HTTP 服务记录根会话与受限子会话的实际工具定义，用量接口与请求一致，普通列表的历史声明不重复计数；[设置集成](../../tests/integration/sidecar-tool-search-settings.test.ts) 另核对等待审批时切换开关不会改变本 Run 的工具分项。`packages/agent/src/engine/compaction.test.ts` 验证普通完整列表中已移除工具的旧定义不触发压缩、正 usage 后新增定义触发阈值且未变化定义不重复计数；[原生工具测试](../../tests/integration/sidecar-incremental-tools.test.ts) 通过真实 HTTP 同时验证普通/原生写法在正 usage 后加载大 schema 会触发压缩，以及移除后仍在原生历史中的 schema 继续计入用量与自动压缩，压缩折叠后不再重复计入。

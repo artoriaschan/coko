@@ -86,7 +86,7 @@ describe('headless', { timeout: 120_000 }, () => {
     ])
   })
 
-  it('提示词中的 @session:<id> 按 Session Reference 的规则展开：同一 Workspace 的另一次运行的文字记录附在这条消息上', async () => {
+  it('提示词中的 @session:<id> 按 Session Reference 的规则展开：无界面会话不属于任何 Project，另一次无界面运行的文字记录附在这条消息上', async () => {
     const h = await setup([])
     const requestLog = join(h.root, 'requests.jsonl')
     await writeFile(requestLog, '')

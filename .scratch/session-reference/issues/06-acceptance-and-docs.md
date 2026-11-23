@@ -21,7 +21,7 @@ Closed: true
 - [x] [文档导航](../../../docs/README.md) 中相关正文的摘要仍然准确，必要时更新
 - [x] `pnpm run check:docs` 通过
 - [x] 按 [测试约定](../../../docs/tech-stack/testing.md#测试执行与结果报告) 记录实际运行的检查与结果；写明未验证项：真实模型拿到会话记录后的使用效果、需要真实指针或原生层的交互
-- [x] 规格的 Spec status 更新为 delivered，并记下集成分支与验收依据
+- [ ] 规格的 Spec status 更新为 delivered，并记下集成分支与验收依据（2026-11-23 取消勾选：规格没有经过 approved，且含未确认的关键内容，按文档体系应为 draft；见评论“代码评审修复”的 C4）
 - [x] 规格 Out of Scope 中“另行验证”的 Worktree Session 候选搜索根问题没有被本次改动波及；若实施中顺带确认了现状，写进评论
 
 ## Comments
@@ -157,3 +157,48 @@ Closed: true
 **备注。** 时间线的会话 chip 与侧栏的会话行都带 `data-session-id`。现有 E2E 用 `[data-session-id]` 计数会话行的用例里时间线没有会话 chip，不受影响；以后在带会话引用的时间线上写这类断言时需要加 `[aria-current]` 或限定到侧栏。
 
 **文档影响。** `docs/subsystems/context.md`（轮次指示器的预览、验证清单两处）、`docs/subsystems/commands.md` 与 `plugins.md`（验证清单）；规格的 Spec status、Story 58 与两处条文的就地注明、Further Notes 新增四个小节。术语表、导航摘要与包 README 没有改。
+
+### 2026-11-23 代码评审修复（分支 `session-reference/07-review-fixes`）
+
+对象是 `feat/session-reference`（`ce8bd6c6`）相对 `main` 的代码评审发现。本次没有单独的票，记录在这里；票保持 `Closed: true`。
+
+**逐项处理。**
+
+| 项 | 处理 | 证据 |
+| --- | --- | --- |
+| A1 自动审查的信任边界 | 审查输入把会话引用块缩为一行 `[session reference attached: <标题>]`（与压缩摘要请求相同的一行），被引用会话的记录不进入 `user_authorization`；不看块的位置，以该开标签开头的文本块一律缩掉。File Reference 块不变。基础提示的宿主块清单加上 `<session_reference>`，与 `<file_reference>` 并列 | `packages/agent/src/policy/review.test.ts` 新增 1 例，修复前失败（记录原样进入 `user_messages`）、修复后通过；`tests/integration/sidecar-auto-review.test.ts` 新增 1 例（真实 Sidecar），修复前失败（审查请求含被引用会话的助手正文）、修复后通过；`packages/agent/src/engine/system-message-rebuild.test.ts` 新增清单的字面断言 |
+| A2 宿主通知以 `[User]:` 进入记录 | 后台任务完成通知、后台子代理结束通知、团队消息与 Hook 上下文不进入记录；定时任务提示词与 Goal Round 继续提示保留。过滤清单取自新的 `HOST_BLOCK_TAGS`（`packages/agent/src/entries/host-input.ts`），基础提示的清单由同一个数组生成，没有第二份。字符串形态的 user message 同样过滤（此前只过滤数组形态） | `packages/agent/src/context/references/session.test.ts` 新增 1 例，修复前失败（四种标记文本都在记录里）、修复后通过 |
+| A3 Secret 替换顺序 | `expandFileReferences` 增加 `redact` 选项，在转义与截断之前作用：路径与标题在转义前，文件内容在按行与字节截断前，会话记录逐条在截断前，目录列表整体。Sidecar 传入 `redactSecretValues`；成品上原有的 `redactSecretsDeep` 保留为兜底 | `packages/agent/src/context/references/expand.test.ts` 新增 3 例（带 `& < >` 的标题与路径、截断切在明文中间的会话记录、被行数上限切开的跨行明文），修复前 3 例失败、修复后通过；`tests/integration/secrets-gate-session-references.test.ts` 新增 1 例（真实 Sidecar，登记值带 `&`，出现在被引用会话的标题与文件名里），修复前开标签为 `title="p&amp;ss…"` 与 `path="p&amp;ss…"`、修复后为 `[REDACTED:secret]` |
+| A4 `session:` 开头的文件路径 | `formatFileReferenceToken` 加引号。评审指的是这一处，但 `@` 菜单实际用的是 `packages/ui` 的 `formatFileReference`（ui 不依赖 protocol，独立一份），两处都改了 | `packages/protocol/src/reference-tokens.test.ts` 与 `packages/ui/src/composer/file-reference-node.browser.test.tsx` 各新增 1 例，修复前失败、修复后通过 |
+| A5 单条消息超限保留开头 | 改为保留结尾：说话方标记之后一行 `[Earlier part of this message omitted to fit the session reference limit]`，再接结尾；多字节字符不切半。改动约十行。摘要自身超限仍保留开头 | `session.test.ts` 的原用例改写，修复前失败、修复后通过；`expand.test.ts` 与 `tests/integration/sidecar-session-references.test.ts` 中断言原说明文本的两处同步更新 |
+| B1 块的形状与 token 规则 | 放进 `@coko/protocol`，与 `fileReferencePath` 并列，没有动 entries 的纯模块清单、架构文档与导入守卫：`packages/protocol/src/files.ts` 新增 `formatSessionReferenceOpen` / `sessionReference`；`parse.ts` 及其测试移到 `packages/protocol/src/reference-tokens.ts`（`@coko/agent` 照常再导出，调用方不变），新增 `withSessionReferenceTitles`。展开、记录、回退（`rewind.ts`）、压缩摘要请求、审查输入与 renderer 的 `timeline.ts` 都用这一份识别；`timeline.ts` 自己的 token 正则与块正则删除。顺手：`SESSION_REFERENCE_NOTES` 移到 `expand.ts` 并改用 `FILE_REFERENCE_MAX_COUNT` / `FILE_REFERENCE_MESSAGE_BYTES`（留在 `session.ts` 会与 `expand.ts` 循环导入）；`expand.ts` 与 `session.ts` 的两份 `escapeAttribute` 删除，改用 protocol 的开标签函数；两处 `withSessionTitles` 的替换逻辑合并为 `withSessionReferenceTitles`，各留一个取标题的薄封装（renderer 从块取，Sidecar 从存储取） | 类型检查通过；agent、protocol、server 的单元测试与下列集成、浏览器测试 |
+| C1 归档会话的 chip | `messages.browser.test.tsx` 新增 1 例：归档前可点、归档后停用且点击不切换会话 | 通过；把 `disabled={!listed}` 临时改为 `disabled={false}` 时该例失败，已还原 |
+| C2 无界面用例的标题 | 标题改为“无界面会话不属于任何 Project，另一次无界面运行的文字记录附在这条消息上”；`context.md` 的范围一节写明无界面会话按独立对话处理，可引用所有不属于任何 Project 的根 Session（不限于同一 Workspace） | `tests/integration/headless.test.ts` 通过 |
+| C3 术语表 | Session Reference 词条改为“指向另一个 Session……范围是同一 Project 内的其他 Session；不属于任何 Project 的 Session 之间可以互相引用”，其他词条没有动 | `pnpm run check:docs` |
+| C4 规格状态 | `Spec status` 改回 draft，写明实现所在分支、票 01–06 关闭与待用户确认的条目；本票“Spec status 更新为 delivered”取消勾选 | 读回规格头部 |
+| C5 文档与规格回写 | `docs/subsystems/context.md`（模块表、加引号、替换顺序、记录取舍、单条消息截断、无界面范围、自动审查输入、验证清单）、`docs/subsystems/permissions.md`（审查输入的 `user_authorization`、验证清单）、`docs/README.md` 与 `context.md` 的摘要；规格“实施中的改变”新增第 6–10 条，原文两处就地注明 | `pnpm run check:docs`：460 个文件 0 个问题 |
+
+**实际运行的检查。** 都在本 worktree；E2E 没有运行。
+
+- `pnpm run typecheck`：通过。`pnpm exec oxlint`：通过。`pnpm exec oxfmt --check`（本次改动的 26 个 ts / tsx 文件）：通过。`pnpm run check:docs`：0 个问题。
+- `pnpm exec vitest run --project agent --project protocol --project server`：143 个文件 2028 例，2021 通过、7 失败。其中 6 例与集成分支相同：暂存本次改动后在同一 worktree（`ce8bd6c6`）重跑这几个文件，同样的 6 例失败（`engine/host-stop.test.ts` 2、`policy/approvals.test.ts` 1、`policy/gate-hooks.test.ts` 1、`instructions/shared/shared.test.ts` 1、`packages/protocol/src/entries.test.ts` 1）。第 7 例是 `apps/server/src/adapters/pty.test.ts` 的 1 例等待超时，只在这次三个项目并行时出现；单独重跑 3 例通过，基线上也通过，本次没有改 pty。
+- `pnpm exec vitest run tests/integration/sidecar-session-references.test.ts tests/integration/headless.test.ts tests/integration/secrets-gate-session-references.test.ts tests/integration/secrets-gate-references.test.ts tests/integration/sidecar-compaction.test.ts tests/integration/sidecar-base-prompt.test.ts tests/integration/sidecar-auto-review.test.ts tests/integration/sidecar-rewind.test.ts tests/integration/sidecar-checkpoints.test.ts`：10 个文件 82 例全部通过（路径过滤同时选中了 `headless-auto-review.test.ts`）。之后新增自动审查的会话引用用例，`sidecar-auto-review.test.ts` 单独重跑 27 例通过。
+- `pnpm exec vitest run tests/integration/sidecar-references.test.ts tests/integration/sidecar-first-send.test.ts tests/integration/sidecar-titles.test.ts tests/integration/secrets-gate-auto-review.test.ts tests/integration/secrets-gate-compaction.test.ts tests/integration/sidecar-subagents-auto-review.test.ts`：6 个文件 31 例全部通过。
+- `pnpm exec vitest run apps/desktop/src/renderer/features/conversation packages/ui/src/composer`：57 个文件 438 例，429 通过、9 失败，都是上文基线对照中的既有失败（`file-tool-details` 5、`terminal-details` 4）。
+- 没有新增失败。
+
+**没做的项与原因。**
+
+- 清单“不要改”一节的事项都没有动。
+- `packages/ui` 的 `formatFileReference` 与 protocol 的 `formatFileReferenceToken` 仍是两份：ui 不依赖任何 `@coko/*` 包，为一个函数加依赖超出最小改动；A4 两份都改了。`formatFileReferenceToken` 目前没有产品代码调用，没有删。
+- `host-input.ts` 的 `escapeAttribute`（多转义 `'`）与 protocol `files.ts` 的那份转义集不同，没有合并；`timeline.ts` 的 `unescapeAttribute` 仍用于定时任务与团队消息的属性。
+- 回退的引用块清单没有加附件块（评审指出与记录的清单不一致）：附件块随回退文本返回是既有行为，规格 Further Notes 已写明不在范围。
+
+**与规格的偏离、需要用户确认的。**
+
+- A1 与 A2 收紧了规格的字面（“Reviewer 的输入沿用 File Reference 的做法”与补充决定第 5 条），见规格“实施中的改变”第 6、7 条。
+- A1 之后会话的标题仍以一行进入 `user_authorization`。标题来自用户输入或标题模型，不是被引用会话的助手正文，但它仍是另一个会话的内容；是否连标题也不给 Reviewer 没有定。
+- A2 按开头的标签识别宿主块，不核对前置条目：被引用会话里用户自己输入的、以宿主标签开头的文本，以及助手以这些标签开头的文字回复，都不进入记录。
+- 压缩摘要请求对会话引用块的识别改用共用的开标签识别，不再要求闭合标签；对宿主生成的块没有差别。
+
+**未验证。** Electron E2E 没有运行（本次没有改 E2E 覆盖的交互；`references-drafts.e2e` 的会话引用用例不断言被改动的文本）。真实模型与真实 Reviewer 拿到缩成一行的会话引用后的判断质量没有评估。A4 只验证了序列化函数与解析的往返，没有在真实 `@` 菜单里选中一个名为 `session:x` 的文件。

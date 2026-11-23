@@ -7,9 +7,12 @@ import { $applyNodeReplacement, TextNode, type EditorConfig, type LexicalNode, t
 const NEEDS_QUOTES = /[\s，。；：！？、）】」』》]/u
 const TRAILING = /[.,;:!?'")\]}>]$/u
 
-/** 路径 → 引用文本：含空白或全角标点、以引号开头或以会被当作结尾标点的字符结尾时加引号。 */
+/**
+ * 路径 → 引用文本：含空白或全角标点、以引号开头、以会被当作结尾标点的字符结尾，或以 `session:` 开头（未加引号的 `@session:x` 是
+ * Session Reference）时加引号。
+ */
 export function formatFileReference(path: string): string {
-  return NEEDS_QUOTES.test(path) || path.startsWith('"') || TRAILING.test(path) ? `@"${path}"` : `@${path}`
+  return NEEDS_QUOTES.test(path) || path.startsWith('"') || path.startsWith('session:') || TRAILING.test(path) ? `@"${path}"` : `@${path}`
 }
 
 export type SerializedFileReferenceNode = Spread<{ path: string }, SerializedTextNode>

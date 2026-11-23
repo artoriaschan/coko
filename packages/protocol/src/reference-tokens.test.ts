@@ -1,6 +1,6 @@
 // File Reference 的 token 解析：@path 与 @"path with space"，词首触发，结尾标点不算路径，邮箱等不误判。
 import { describe, expect, it } from 'vitest'
-import { formatFileReferenceToken, parseFileReferences, parseSessionReferences } from './index.ts'
+import { formatFileReferenceToken, parseFileReferences, parseSessionReferences } from './reference-tokens.ts'
 
 const paths = (text: string) => parseFileReferences(text).map((t) => t.path)
 
@@ -66,5 +66,12 @@ describe('parseFileReferences', () => {
     }
     expect(formatFileReferenceToken('src/a.ts')).toBe('@src/a.ts')
     expect(formatFileReferenceToken('a b.md')).toBe('@"a b.md"')
+  })
+
+  it('以 session: 开头的路径加引号：仍按路径解析，不会被当作会话引用', () => {
+    expect(formatFileReferenceToken('session:x')).toBe('@"session:x"')
+    const text = `看 ${formatFileReferenceToken('session:x')} 吧`
+    expect(paths(text)).toEqual(['session:x'])
+    expect(parseSessionReferences(text)).toEqual([])
   })
 })

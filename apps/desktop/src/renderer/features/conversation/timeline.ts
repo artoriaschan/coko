@@ -2,6 +2,8 @@ import { RUN_ERROR_INCREMENTAL_TOOLS_REJECTED, attachmentReferenceFromText, type
 import { originalMessageTime } from './fork-history.ts'
 import {
   fileReferencePath,
+  sessionReference,
+  withSessionReferenceTitles,
   type AgentNotificationPayload,
   type ApprovalDecisionPayload,
   type ApprovalRequestPayload,
@@ -19,6 +21,7 @@ import {
   type PlanPayload,
   type ScheduleFirePayload,
   type SessionEntry,
+  type SessionReference,
   type TeamMessagePayload,
   type TeamTaskPayload,
 } from '@coko/protocol'
@@ -36,25 +39,15 @@ import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
 const unescapeAttribute = (value: string) =>
   value.replace(/&(quot|lt|gt|apos|#39|amp);/g, (_, name: string) => ({ quot: '"', lt: '<', gt: '>', apos: "'", '#39': "'", amp: '&' })[name] ?? '')
 
-/** 用户消息附上的 Session Reference：title 是提交那一刻被引用会话的标题（docs/subsystems/context.md）。 */
-export interface SessionReference {
-  sessionId: string
-  title: string
-}
-const SESSION_REFERENCE = /^<session_reference id="([^"]*)" title="([^"]*)">/
-// 与 Sidecar 的解析（@coko/agent 的 parseSessionReferences）同一 token 规则：@ 在词首，id 在空白或中文标点处结束，不含结尾标点。
-const SESSION_TOKEN = /(?<!\S)@session:([^\s，。；：！？、）】」』》]+)/gu
-const TRAILING_PUNCTUATION = /[.,;:!?'")\]}>]+$/u
+export type { SessionReference }
 
-/** 气泡显示用的文本：`@session:<id>` 在消息带有对应的会话引用块时显示为 `@标题`，没有对应块时原样保留。复制与回退仍用原文。 */
+/**
+ * 气泡显示用的文本：`@session:<id>` 在消息带有对应的会话引用块时显示为 `@标题`，没有对应块时原样保留。复制与回退仍用原文。
+ * token 规则与块的识别都用 @coko/protocol 的那一份（与 Sidecar 相同）。
+ */
 export function withSessionTitles(text: string, references: readonly (string | SessionReference)[] | undefined, untitled: string): string {
   const titles = new Map(references?.flatMap((ref) => (typeof ref === 'string' ? [] : [[ref.sessionId, ref.title.trim() || untitled] as const])))
-  if (titles.size === 0) return text
-  return text.replace(SESSION_TOKEN, (token, raw: string) => {
-    const id = raw.replace(TRAILING_PUNCTUATION, '')
-    const title = titles.get(id)
-    return title === undefined ? token : `@${title}${raw.slice(id.length)}`
-  })
+  return titles.size === 0 ? text : withSessionReferenceTitles(text, (id) => titles.get(id))
 }
 
 /** <scheduled_task> 包装的 title 属性（属性值由宿主转义）；不是包装时 undefined。 */
@@ -473,9 +466,9 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
             attachments.push(attachment)
             return false
           }
-          const session = SESSION_REFERENCE.exec(b.text)
+          const session = sessionReference(b.text)
           if (session) {
-            references.push({ sessionId: unescapeAttribute(session[1]!), title: unescapeAttribute(session[2]!) })
+            references.push(session)
             return false
           }
           const path = fileReferencePath(b.text)

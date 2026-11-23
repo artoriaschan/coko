@@ -262,7 +262,7 @@ _Avoid_: reminder（Schedule 同样避免）、system prompt、attachment
 _Avoid_: attachment（泛指时）、mention
 
 **Session Reference**：
-用户消息中以 @ 指向同一 Project 内另一个 Session、提交时附上其文字记录的引用。界面称“会话引用”。
+用户消息中以 @ 指向另一个 Session、提交时附上其文字记录的引用。可引用的范围是同一 Project 内的其他 Session；不属于任何 Project 的 Session 之间可以互相引用。界面称“会话引用”。
 _Avoid_: mention
 
 **Compaction**：

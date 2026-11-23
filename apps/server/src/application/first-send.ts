@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, realpath, rm, rmdir } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { parseFileReferences, parseSessionReferences } from '@coko/agent'
-import type { FirstSendRequest, FirstSendResponse, ImageAttachment } from '@coko/protocol'
+import { withSessionReferenceTitles, type FirstSendRequest, type FirstSendResponse, type ImageAttachment } from '@coko/protocol'
 import type { SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 import type { SessionService } from './sessions.ts'
@@ -15,12 +15,12 @@ function sessionIdFor(draftId: string): string {
 }
 /** 文本中的 `@session:<id>` 以被引用会话的标题显示（`@标题`，与时间线相同）；会话不存在时保留原文。只用于标题，提交的文本不变。 */
 export async function withSessionTitles(text: string, sessions: Pick<SessionStore['sessions'], 'getSession'>): Promise<string> {
-  let shown = text
-  for (const reference of parseSessionReferences(text).toReversed()) {
-    const session = await sessions.getSession(reference.id)
-    if (session) shown = `${shown.slice(0, reference.start)}@${session.title}${shown.slice(reference.end)}`
+  const titles = new Map<string, string>()
+  for (const { id } of parseSessionReferences(text)) {
+    const session = titles.has(id) ? undefined : await sessions.getSession(id)
+    if (session) titles.set(id, session.title)
   }
-  return shown
+  return withSessionReferenceTitles(text, (id) => titles.get(id))
 }
 
 /** shown：`@session:<id>` 已换成会话标题的文本（withSessionTitles）；文件引用仍按原文解析。 */

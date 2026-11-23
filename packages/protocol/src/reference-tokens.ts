@@ -1,4 +1,4 @@
-// @path / @"path with space" 的 token 解析。@ 须在词首（开头或空白之后），因此 user@example.com、(@a) 不是引用；
+// @path / @"path with space" 与 @session:<id> 的 token 解析（Sidecar 的展开与 renderer 的显示共用这一份）。@ 须在词首（开头或空白之后），因此 user@example.com、(@a) 不是引用；
 // 未加引号的路径去掉结尾的标点（句号、逗号、括号与中文标点），加引号的原样保留。与 composer 的 File Reference 节点序列化互逆。
 
 export interface FileReferenceToken {
@@ -53,7 +53,17 @@ export function parseSessionReferences(text: string): SessionReferenceToken[] {
   return tokens
 }
 
-/** 路径 → token：含空白或全角标点、以引号开头或以会被当作结尾标点的字符结尾时加引号。 */
+/** 显示用的文本：`@session:<id>` 换成 `@标题`（结尾标点保留）；titleOf 返回 undefined 的引用保持原样。提交、复制与回退仍用原文。 */
+export function withSessionReferenceTitles(text: string, titleOf: (id: string) => string | undefined): string {
+  let shown = text
+  for (const reference of parseSessionReferences(text).toReversed()) {
+    const title = titleOf(reference.id)
+    if (title !== undefined) shown = `${shown.slice(0, reference.start)}@${title}${shown.slice(reference.end)}`
+  }
+  return shown
+}
+
+/** 路径 → token：含空白或全角标点、以引号开头、以会被当作结尾标点的字符结尾，或以 `session:` 开头（否则是会话引用）时加引号。 */
 export function formatFileReferenceToken(path: string): string {
-  return NEEDS_QUOTES.test(path) || path.startsWith('"') || TRAILING.test(path) ? `@"${path}"` : `@${path}`
+  return NEEDS_QUOTES.test(path) || path.startsWith('"') || path.startsWith(SESSION_PREFIX) || TRAILING.test(path) ? `@"${path}"` : `@${path}`
 }

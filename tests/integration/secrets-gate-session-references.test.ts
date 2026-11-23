@@ -65,4 +65,38 @@ describe('秘密不外泄总闸：Session Reference', () => {
     ]
     expect(leaksIn(channels, { 'registered secret': value })).toEqual([])
   })
+
+  it('标题与路径中带 & 的登记明文在转义之前替换：开标签里没有它转义后的形态', { timeout: 90_000 }, async () => {
+    const value = `p&ss${randomBytes(12).toString('hex')}`
+    const root = await tempDir()
+    const workspace = join(root, 'ws')
+    await mkdir(workspace)
+    await writeFile(join(workspace, `${value}.md`), 'A\n')
+    const script = await fauxScript(root, { responses: [{ content: 'seen' }] })
+    const sidecar = await startSidecar({ dirs: await sidecarDirs(), ipc: false, env: { COKO_FAUX_SCRIPT: script, COKO_SECRET_MY_PASSWORD: value } })
+    const cookie = await exchange(sidecar)
+    const api = recordingClient(sidecar, cookie, [])
+    const stream = await connect(sidecar, cookie)
+    const workspaceId = (await api.post(API_ROUTES.workspaces, { path: workspace })).body.id as string
+    const source = (await api.post(API_ROUTES.sessions, { workspaceId, title: `${value} 计划` })).body.id as string
+    const target = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
+    stream.send({ type: 'subscribe', sessionId: target, afterSeq: 0 })
+    await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === target)
+    expect((await api.post(apiPaths.sessionMessages(target), { text: `看 @session:${source} 和 @${value}.md` })).status).toBe(202)
+    await stream.waitFor(isRunEnd(target))
+
+    const user = stream.entries(target).find((e) => e.kind === 'message' && (e.payload as { role: string }).role === 'user')!
+    const texts = (user.payload as { content: { text: string }[] }).content.map((block) => block.text)
+    const blocks = texts.filter((text) => /^<(session|file)_reference /.test(text))
+    // 用户输入的文本按原样保留；附上的两个块在开标签里只有替换后的占位。
+    expect(texts).toContain(`看 @session:${source} 和 @${value}.md`)
+    expect(blocks.map((text) => text.split('\n')[0])).toEqual([
+      `<session_reference id="${source}" title="[REDACTED:secret] 计划">`,
+      '<file_reference path="[REDACTED:secret].md">',
+    ])
+    expect(blocks.join('\n')).not.toContain('p&amp;ss')
+
+    sidecar.child.kill('SIGTERM')
+    expect(await sidecar.exited).toEqual({ code: 0, signal: null })
+  })
 })

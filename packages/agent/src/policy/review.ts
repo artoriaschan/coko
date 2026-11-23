@@ -1,4 +1,5 @@
 // 自动审查的审查请求（ADR 0029）：固定提示、输入构建与输出解析。纯函数，不做 I/O；请求由宿主（apps/server 的 SessionReviews）发出。
+import { sessionReference } from '@coko/protocol'
 import { effectiveEntries } from '../entries/derive.ts'
 import { HOOK_CONTEXT_TAG, HOST_NOTIFICATION_KINDS, isHostNotificationText } from '../entries/host-input.ts'
 import { activePlanOf } from '../entries/plan-phase.ts'
@@ -69,7 +70,9 @@ function truncate(text: string, max: number): string {
 /**
  * user message 中不属于宿主的文本：去掉配对的 state_update 块；Hook 上下文只在输入之后、作为最后一块追加（withSubmitContext、子代理
  * 首条消息），所以只认这个位置，用户自己输入的同样开头的文本不会被当作宿主块丢弃。notice（前一条是宿主通知条目）时去掉通知块，
- * 与之一起送达的用户输入保留（与时间线相同）。图片记为占位。
+ * 与之一起送达的用户输入保留（与时间线相同）。图片记为占位。Session Reference 块缩为一行标题（与压缩摘要请求相同的一行）：被引用会话的
+ * 助手正文、宿主通知与压缩摘要不是用户在本会话中输入的，不进入授权分区；不看位置，以该开标签开头的文本块一律缩掉（宁可少给授权）。
+ * File Reference 块原样保留。
  */
 function messageText(content: unknown, paired: ReadonlySet<number>, notice: boolean): string {
   const blocks: Block[] = typeof content === 'string' ? [{ type: 'text', text: content }] : Array.isArray(content) ? content : []
@@ -79,6 +82,8 @@ function messageText(content: unknown, paired: ReadonlySet<number>, notice: bool
       if (block.type === 'image') return ['[image omitted]']
       if (block.type !== 'text' || !block.text) return []
       if (notice && isHostNotificationText(block.text)) return []
+      const session = sessionReference(block.text)
+      if (session) return [`[session reference attached: ${session.title}]`]
       return i > 0 && i === own.length - 1 && block.text.startsWith(HOOK_CONTEXT_TAG) ? [] : [block.text]
     })
     .join('\n')

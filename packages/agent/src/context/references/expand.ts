@@ -13,8 +13,8 @@ import type { PermissionRule } from '../../session-entries/index.ts'
 import { resolveToCwd } from '../../tools/paths.ts'
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead } from '../../tools/truncate.ts'
 import type { EntryLike } from '../../entries/index.ts'
-import { parseFileReferences, parseSessionReferences } from './parse.ts'
-import { NOTICE_RESERVE, SESSION_REFERENCE_MAX_BYTES, SESSION_REFERENCE_NOTES, sessionReferenceBlock, sessionTranscript } from './session.ts'
+import { formatFileReferenceOpen, parseFileReferences, parseSessionReferences } from '@coko/protocol'
+import { EMPTY_SESSION_NOTE, NOTICE_RESERVE, SESSION_REFERENCE_MAX_BYTES, sessionReferenceBlock, sessionTranscript } from './session.ts'
 
 export const FILE_REFERENCE_MAX_COUNT = 10
 export const FILE_REFERENCE_MESSAGE_BYTES = 200 * 1024
@@ -32,6 +32,15 @@ export const FILE_REFERENCE_NOTES = {
   unreadable: '[Not attached: the file could not be read.]',
   count: `[Not attached: at most ${FILE_REFERENCE_MAX_COUNT} file references per message.]`,
   budget: `[Not attached: file references in this message exceed ${FILE_REFERENCE_MESSAGE_BYTES / 1024}KB in total.]`,
+} as const
+
+/** 会话引用不附记录时块中的说明（英文，发给模型）；数量与合计额度与文件引用共用，说明文本各用各的。 */
+export const SESSION_REFERENCE_NOTES = {
+  empty: EMPTY_SESSION_NOTE,
+  outOfProject: '[Not attached: the session does not belong to the current project.]',
+  notReferable: '[Not attached: this session cannot be referenced.]',
+  count: `[Not attached: at most ${FILE_REFERENCE_MAX_COUNT} references per message.]`,
+  budget: `[Not attached: references in this message exceed ${FILE_REFERENCE_MESSAGE_BYTES / 1024}KB in total.]`,
 } as const
 
 export type FileReferenceStatus = 'file' | 'directory' | 'denied' | 'outside' | 'binary' | 'unreadable' | 'skipped'
@@ -67,6 +76,11 @@ export interface ExpandFileReferencesOptions {
   home?: string
   /** Session Reference 的解析入口（范围判定与条目读取在宿主）；省略时 `@session:<id>` 不产生块。 */
   resolveSession?: (id: string) => Promise<SessionReferenceResolution | undefined>
+  /**
+   * 登记明文的替换（ADR 0007，宿主给出）：作用于开标签中的路径与标题、文件内容、目录列表与会话记录，且在转义与截断之前——转义后的形态
+   * （`&` → `&amp;`）与截断留下的前缀都匹配不上登记值。省略时不替换。
+   */
+  redact?: (text: string) => string
 }
 
 export interface ExpandedFileReferences {
@@ -77,8 +91,7 @@ export interface ExpandedFileReferences {
   sessionReferences: ExpandedSessionReference[]
 }
 
-const escapeAttribute = (value: string) => value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-const block = (path: string, body: string) => `<file_reference path="${escapeAttribute(path)}">\n${body}\n</file_reference>`
+const block = (path: string, body: string) => `${formatFileReferenceOpen(path)}\n${body}\n</file_reference>`
 const toPosix = (path: string) => (sep === '/' ? path : path.split(sep).join('/'))
 
 async function readHead(path: string, size: number): Promise<Buffer> {
@@ -94,8 +107,13 @@ async function readHead(path: string, size: number): Promise<Buffer> {
 }
 
 /** 文件内容（按 read 截断，maxBytes 不超过剩余的合计预算）；预算不够放下第一行时 undefined。 */
-function fileBody(buffer: Buffer, size: number, maxBytes: number): { body: string; bytes: number; truncated: boolean } | undefined {
-  const text = buffer.toString('utf-8')
+function fileBody(
+  buffer: Buffer,
+  size: number,
+  maxBytes: number,
+  redact: (text: string) => string,
+): { body: string; bytes: number; truncated: boolean } | undefined {
+  const text = redact(buffer.toString('utf-8'))
   const truncation = truncateHead(text, { maxBytes })
   const partial = size > buffer.length
   if (truncation.firstLineExceedsLimit) {
@@ -144,6 +162,7 @@ async function directoryBody(dir: string, denied: (path: string) => boolean): Pr
 /** 解析 text 中的 @ 引用并生成文本块（按出现顺序）。 */
 export async function expandFileReferences(text: string, options: ExpandFileReferencesOptions): Promise<ExpandedFileReferences> {
   const home = options.home ?? homedir()
+  const redact = options.redact ?? ((value: string) => value)
   const tokens = [...parseFileReferences(text), ...parseSessionReferences(text)].sort((a, b) => a.start - b.start)
   const out: ExpandedFileReferences = { blocks: [], references: [], sessionReferences: [] }
   if (tokens.length === 0) return out
@@ -155,7 +174,7 @@ export async function expandFileReferences(text: string, options: ExpandFileRefe
   const seen = new Set<string>()
   let budget = FILE_REFERENCE_MESSAGE_BYTES
   const push = (path: string, status: FileReferenceStatus, body: string, truncated = false) => {
-    out.blocks.push({ type: 'text', text: block(path, body) })
+    out.blocks.push({ type: 'text', text: block(redact(path), body) })
     out.references.push({ path, status, truncated })
   }
 
@@ -166,7 +185,7 @@ export async function expandFileReferences(text: string, options: ExpandFileRefe
       if (!session) continue
       seen.add(key)
       const pushSession = (status: ExpandedSessionReference['status'], body: string, truncated = false) => {
-        out.blocks.push({ type: 'text', text: sessionReferenceBlock(token.id, session.title, body) })
+        out.blocks.push({ type: 'text', text: sessionReferenceBlock(token.id, redact(session.title), body) })
         out.sessionReferences.push({ status, truncated })
       }
       // 说明块计入数量上限，不计入字节额度。
@@ -175,7 +194,7 @@ export async function expandFileReferences(text: string, options: ExpandFileRefe
         pushSession(session.status, session.status === 'out-of-project' ? SESSION_REFERENCE_NOTES.outOfProject : SESSION_REFERENCE_NOTES.notReferable)
       else if (budget <= 0) pushSession('skipped', SESSION_REFERENCE_NOTES.budget)
       else {
-        const transcript = sessionTranscript(session.entries, { maxBytes: Math.min(SESSION_REFERENCE_MAX_BYTES, budget) })
+        const transcript = sessionTranscript(session.entries, { maxBytes: Math.min(SESSION_REFERENCE_MAX_BYTES, budget), redact })
         // 剩余额度放不下完整记录、也不够截断后留下任何消息内容：与额度用尽相同，只附说明（不附只有省略说明的块，合计不超额度）。
         if (transcript.truncated && budget < NOTICE_RESERVE) pushSession('skipped', SESSION_REFERENCE_NOTES.budget)
         else {
@@ -217,7 +236,8 @@ export async function expandFileReferences(text: string, options: ExpandFileRefe
     }
     try {
       if (info.isDirectory()) {
-        const { body, truncated } = await directoryBody(real, (path) => denied(path))
+        const { body: listing, truncated } = await directoryBody(real, (path) => denied(path))
+        const body = redact(listing)
         budget -= Buffer.byteLength(body, 'utf-8')
         push(shown, 'directory', body, truncated)
         continue
@@ -227,7 +247,7 @@ export async function expandFileReferences(text: string, options: ExpandFileRefe
         push(shown, 'binary', FILE_REFERENCE_NOTES.binary)
         continue
       }
-      const content = fileBody(buffer, info.size, Math.min(DEFAULT_MAX_BYTES, budget))
+      const content = fileBody(buffer, info.size, Math.min(DEFAULT_MAX_BYTES, budget), redact)
       if (!content) {
         push(shown, 'skipped', FILE_REFERENCE_NOTES.budget)
         continue
