@@ -1,5 +1,5 @@
-// @ 文件引用与草稿持久化：真实 Electron + 真实 Sidecar（faux 模型）。断言窗口中实际渲染的 @ 菜单与引用 chip、faux requestLog
-// 中的 <file_reference> 块，以及草稿在切换会话、重启应用后的保留、提交后的清除与损坏时的处理（localStorage 中实际的键）。
+// @ 文件引用、会话引用与草稿持久化：真实 Electron + 真实 Sidecar（faux 模型）。断言窗口中实际渲染的 @ 菜单与引用 chip、faux requestLog
+// 中的 <file_reference> 与 <session_reference> 块，以及草稿在切换会话、重启应用后的保留、提交后的清除与损坏时的处理（localStorage 中实际的键）。
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -38,7 +38,7 @@ async function addWorkspace(app: LaunchedApp, workspace: string) {
 }
 
 const composerOf = (page: Page) => page.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
-const filesMenu = (page: Page) => page.getByRole('listbox', { name: /^(Files|文件)$/ })
+const filesMenu = (page: Page) => page.getByRole('listbox', { name: /^(Files and sessions|文件与会话)$/ })
 const drafts = (page: Page) =>
   page.evaluate(() =>
     Object.fromEntries(
@@ -136,6 +136,65 @@ describe('@ 文件引用', () => {
     expect(sent).toContain('<file_reference path=\\"src/a.ts\\">\\nexport const a = 1')
     // 提交后草稿被清除。
     await expect.poll(() => drafts(page)).toEqual({})
+  })
+})
+
+describe('@ 会话引用', () => {
+  it('@ 菜单选择同一 Project 的另一个会话并提交：模型收到那次会话的文字记录，时间线显示会话 chip，点击回到那次会话', async () => {
+    const { root, workspace, requestLog } = await prepare([{ content: 'PLAN-REPLY' }, { content: 'seen' }])
+    const app = await start(root)
+    await addWorkspace(app, workspace)
+    const page = app.window
+    await sendAndWait(page, 'plan PLAN-USER', 1)
+    const current = page.locator('[data-session-id][aria-current="page"]')
+    const first = (await current.getAttribute('data-session-id'))!
+
+    // 同一 Project 的新对话（还没有 Session）：@ 菜单文件组在前、会话组在后。
+    await page.getByRole('button', { name: 'Example project', exact: true }).hover()
+    await page.getByRole('button', { name: /^(New session in Example project|在 Example project 中新建会话)$/ }).click()
+    await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
+    const composer = composerOf(page)
+    await composer.click()
+    await page.keyboard.type('continue @')
+    const menu = filesMenu(page)
+    await menu.waitFor()
+    const groups = () => menu.getByRole('group').evaluateAll((items) => items.map((g) => g.getAttribute('data-group')))
+    await expect.poll(groups).toEqual(['files', 'sessions'])
+    // 继续打字按标题过滤：没有匹配的文件，只剩会话组里的那一个。
+    await page.keyboard.type('plan')
+    await expect.poll(groups).toEqual(['sessions'])
+    expect(await menu.getByRole('option').allTextContents()).toEqual([expect.stringMatching(/^plan PLAN-USER/)])
+    await page.keyboard.press('Enter')
+    await menu.waitFor({ state: 'detached' })
+    // 编辑区内是显示标题的 chip，焦点留在编辑区。
+    expect(await composer.locator(`[data-session-reference="${first}"]`).textContent()).toBe('@plan PLAN-USER')
+    expect(await composer.evaluate((el) => el === document.activeElement)).toBe(true)
+    await page.keyboard.type('now')
+    await page.keyboard.press('Enter')
+    await expect.poll(() => page.getByRole('article', { name: 'Coko' }).count(), { timeout: 15_000 }).toBe(1)
+
+    // 模型收到的是 @session:<id> 原文与那次会话的文字记录。
+    const sent = await readFile(requestLog, 'utf8')
+    expect(sent).toContain(`continue @session:${first} now`)
+    expect(sent).toContain(`<session_reference id=\\"${first}\\" title=\\"plan PLAN-USER\\">`)
+    expect(sent).toContain('[User]: plan PLAN-USER')
+    expect(sent).toContain('[Assistant]: PLAN-REPLY')
+
+    // 时间线：气泡显示 @标题，记录不进入气泡；侧栏的占位标题（截到 20 个字符）以标题显示引用，不含 id。
+    const bubble = page.getByRole('article', { name: /^(You|你)$/ }).locator('[data-user-content]')
+    expect(await bubble.first().textContent()).toBe('continue @plan PLAN-USER now')
+    const second = (await current.getAttribute('data-session-id'))!
+    expect(second).not.toBe(first)
+    const row = await page.locator(`[data-session-id="${second}"]`).textContent()
+    expect(row).toContain('continue @plan')
+    expect(row).not.toContain('session:')
+    const chip = page.locator(`[data-slot="session-reference-chip"][data-session-id="${first}"]`)
+    expect(await chip.textContent()).toBe('plan PLAN-USER')
+
+    // 点击 chip 回到被引用的会话。
+    await chip.click()
+    await expect.poll(() => current.getAttribute('data-session-id')).toBe(first)
+    await expect.poll(() => bubble.first().textContent()).toBe('plan PLAN-USER')
   })
 })
 

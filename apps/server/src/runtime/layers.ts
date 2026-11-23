@@ -401,6 +401,7 @@ const AssemblyLive = Layer.effect(
       cokoHome: sidecar.cokoHome,
       mcp,
       memories: store,
+      sessions: store.sessions,
       // 无界面运行只读记忆（只注册 memory_list）。
       ...(headless ? { memoryReadOnly: true } : {}),
       jobs,

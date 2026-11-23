@@ -8,6 +8,12 @@ import { createFixtureDir, electronPath, placeholderSidecarEntry, processExists,
 const desktopRoot = fileURLToPath(new URL('..', import.meta.url))
 /** 与 electron-forge start 一致：以包目录启动，package.json 的 main 指向 dist/electron/main.cjs。 */
 export const mainEntry = desktopRoot
+/**
+ * Chromium 开关：不使用系统代理。E2E 只访问本机（Sidecar、faux、测试更新源），不应依赖宿主的系统代理状态：系统 PAC 无响应时
+ * Chromium 把 renderer 到本机 Sidecar 的 WebSocket 一并排队，连接超时，全部用例失败。
+ */
+export const NO_SYSTEM_PROXY = '--no-proxy-server'
+const launchArgs = [mainEntry, NO_SYSTEM_PROXY]
 /** globalSetup 构建的真实 Sidecar（apps/server）产物。 */
 export const realSidecarEntry = join(desktopRoot, 'dist', 'sidecar', 'index.mjs')
 
@@ -83,7 +89,7 @@ export async function launchApp(extra: Record<string, string> = {}, options: Lau
   const fixture =
     options.dir === undefined ? await createFixtureDir() : { dir: options.dir, eventsPath: join(options.dir, 'events.jsonl'), dispose: async () => {} }
   const env = testEnv(extra, fixture.dir, fixture.eventsPath, sidecar)
-  const app = await _electron.launch({ executablePath: electronPath, args: [mainEntry], env })
+  const app = await _electron.launch({ executablePath: electronPath, args: launchArgs, env })
   // 应用关闭后 process() 不再可用，启动时记录。
   const electronPid = app.process().pid
   const seen = new Set<number>()
@@ -153,7 +159,7 @@ export async function waitFor(condition: () => boolean | Promise<boolean>, timeo
 /** 以相同环境再启动一个 Electron 进程（单实例锁测试），返回其退出码。 */
 export function launchSecondInstance(env: Record<string, string>): Promise<number | null> {
   return new Promise((resolve, reject) => {
-    const child = spawn(electronPath, [mainEntry], { env, stdio: 'ignore' })
+    const child = spawn(electronPath, launchArgs, { env, stdio: 'ignore' })
     const timer = setTimeout(() => {
       child.kill('SIGKILL')
       reject(new Error('Second instance did not exit'))

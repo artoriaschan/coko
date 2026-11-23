@@ -3,7 +3,7 @@ import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import { MarkdownRenderer } from '@coko/ui/markdown'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
-import type { TimelineItem } from './timeline.ts'
+import { withSessionTitles, type TimelineItem } from './timeline.ts'
 import './turn-navigator.css'
 
 export interface NavigationTurn {
@@ -14,8 +14,11 @@ export interface NavigationTurn {
   response: string
 }
 
-/** Only visible, top-level items with recorded Run ownership contribute a mark. */
-export function navigationTurns(items: readonly TimelineItem[]): NavigationTurn[] {
+/**
+ * Only visible, top-level items with recorded Run ownership contribute a mark. 提示词预览与气泡相同：消息带有对应的会话引用块时
+ * `@session:<id>` 显示为 `@标题`（untitled 为没有标题时的占位）。
+ */
+export function navigationTurns(items: readonly TimelineItem[], untitled: string): NavigationTurn[] {
   const turns = new Map<string, NavigationTurn>()
   for (const item of items) {
     const id = item.origin?.runId
@@ -26,7 +29,7 @@ export function navigationTurns(items: readonly TimelineItem[]): NavigationTurn[
       turns.set(id, turn)
     }
     if (item.kind === 'user' && turn.prompt === '') {
-      turn.prompt = item.invocation ?? item.text
+      turn.prompt = withSessionTitles(item.invocation ?? item.text, item.references, untitled)
       turn.anchorKey = item.key
     }
     if (item.kind === 'text') turn.response = item.text
@@ -47,7 +50,8 @@ export function TurnNavigator({
   theme: Theme
 }) {
   const { t, dictionary } = useI18n()
-  const turns = React.useMemo(() => navigationTurns(items), [items])
+  const untitled = t('sidebar.untitled')
+  const turns = React.useMemo(() => navigationTurns(items, untitled), [items, untitled])
   const [active, setActive] = React.useState<string | null>(null)
   const [preview, setPreview] = React.useState<string | null>(null)
   const [focused, setFocused] = React.useState<string | null>(null)

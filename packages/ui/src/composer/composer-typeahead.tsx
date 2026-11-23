@@ -24,6 +24,7 @@ import { createPortal } from 'react-dom'
 import { menuSurface } from '../components/dropdown-menu.tsx'
 import { cn } from '../lib/utils.ts'
 import { $createFileReferenceNode } from './file-reference-node.ts'
+import { $createSessionReferenceNode } from './session-reference-node.ts'
 
 export interface ComposerTypeaheadItem {
   /** 稳定身份（同一列表内唯一）。 */
@@ -33,6 +34,8 @@ export interface ComposerTypeaheadItem {
   /** 次要文本，紧接主文本（例如 argument-hint）。 */
   hint?: string
   description?: string
+  /** 行尾的次要文本（例如最近活动时间）：始终完整显示，主文本放不下时截断。 */
+  trailing?: string
   /** 所属分组的 id（groups 中的 id）。 */
   group: string
 }
@@ -46,8 +49,8 @@ export interface ComposerTypeaheadGroup {
 /** 候选是怎样被选中的：Enter、Tab 或指针。 */
 export type ComposerTypeaheadSelection = 'enter' | 'tab' | 'pointer'
 
-/** 替换 token 的内容：文本（例如 '/review '），或一个 File Reference 节点（其后跟一个空格）。 */
-export type ComposerTypeaheadReplacement = string | { fileReference: string }
+/** 替换 token 的内容：文本（例如 '/review '），或一个 File Reference / Session Reference 节点（其后跟一个空格）。 */
+export type ComposerTypeaheadReplacement = string | { fileReference: string } | { sessionReference: { id: string; title: string } }
 
 export interface ComposerTypeaheadProps {
   /** 触发字符，例如 '/' 或 '@'。 */
@@ -151,7 +154,10 @@ function $replaceToken(node: TextNode | null, trigger: string, position: Compose
     inserted.select()
     return
   }
-  const reference = $createFileReferenceNode(replacement.fileReference)
+  const reference =
+    'fileReference' in replacement
+      ? $createFileReferenceNode(replacement.fileReference)
+      : $createSessionReferenceNode(replacement.sessionReference.id, replacement.sessionReference.title)
   const space = $createTextNode(' ')
   if (start === 0) end.replace(reference)
   else {
@@ -415,8 +421,9 @@ function TypeaheadMenu({
                   >
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span className="flex min-w-0 items-baseline gap-2">
-                        <span className="shrink-0 font-medium">{option.item.label}</span>
+                        <span className={cn('font-medium', option.item.trailing ? 'min-w-0 truncate' : 'shrink-0')}>{option.item.label}</span>
                         {option.item.hint && <span className="truncate text-ui-small text-muted-foreground">{option.item.hint}</span>}
+                        {option.item.trailing && <span className="ml-auto shrink-0 text-ui-small text-muted-foreground">{option.item.trailing}</span>}
                       </span>
                       {option.item.description && <span className="truncate text-ui-small text-muted-foreground">{option.item.description}</span>}
                     </span>

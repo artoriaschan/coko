@@ -1,7 +1,8 @@
 // 回退（ADR 0006）：rewind 条目把 [targetSeq, 本条目) 区间移出有效上下文；原条目保留。多次回退叠加：
 // 目标只能是当时有效的用户消息，各区间要么嵌套、要么不相交，被任一区间覆盖的条目都不在有效上下文中。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import { effectiveEntries, modelContext, pairedStateUpdates } from '../entries/index.ts'
+import { fileReferencePath, sessionReference } from '@coko/protocol'
+import { effectiveEntries, modelContext, pairedStateUpdates, type EntryLike } from '../entries/index.ts'
 import { isProtectedPath, pathContains } from '../policy/decide.ts'
 import { realLocation } from '../policy/paths.ts'
 import type { RewindFiles } from '../ports/checkpoints.ts'
@@ -61,13 +62,22 @@ export interface RewindPlanOptions {
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
-/** 用户消息的文本（字符串或 text 块，块之间换行）。 */
+/** 随消息附上的 File Reference 与 Session Reference 块（docs/subsystems/context.md）：追加在用户输入的文本之后，不是用户输入的文本。 */
+const isReferenceBlock = (text: string) => fileReferencePath(text) !== undefined || sessionReference(text) !== undefined
+
+/**
+ * 用户消息的文本（字符串或 text 块，块之间换行）。第一个文本块之后的引用块不返回：回到输入区的 `@path` 与 `@session:<id>` 再次提交时
+ * 重新展开。
+ */
 export function userMessageText(payload: unknown): string | undefined {
   if (!isRecord(payload) || payload.role !== 'user') return undefined
   const content = payload.content
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
-  return content.flatMap((block: unknown) => (isRecord(block) && block.type === 'text' && typeof block.text === 'string' ? [block.text] : [])).join('\n')
+  return content
+    .flatMap((block: unknown) => (isRecord(block) && block.type === 'text' && typeof block.text === 'string' ? [block.text] : []))
+    .filter((text, index) => index === 0 || !isReferenceBlock(text))
+    .join('\n')
 }
 
 /** 有效上下文中的用户消息（Checkpoint 锚点）；不是时抛 RewindTargetError。 */
@@ -86,14 +96,20 @@ export function rewindTarget(entries: readonly CheckpointEntry[], targetSeq: num
   }
   const text = entry?.kind === 'message' ? userMessageText(payload) : undefined
   if (!entry || text === undefined) throw new RewindTargetError(targetSeq)
-  // The command entry records the invocation; the user message records its expanded model input.
-  // Only an adjacent command with the same proven Run belongs to this checkpoint.
+  return { entry, text: commandInvocation(effective, index) ?? text }
+}
+
+/**
+ * 有效条目（只应用回退）中第 index 条用户消息由命令展开而来时的原始调用 `/name 参数`，否则 undefined。
+ * The command entry records the invocation; the user message records its expanded model input.
+ * Only an adjacent command with the same proven Run belongs to this message.
+ */
+export function commandInvocation(effective: readonly EntryLike[], index: number): string | undefined {
+  const entry = effective[index]
   const command = effective[index - 1]
-  if (entry.runId && command?.kind === 'command' && command.runId === entry.runId && isRecord(command.payload)) {
-    const { name, args } = command.payload
-    if (typeof name === 'string' && typeof args === 'string') return { entry, text: args === '' ? `/${name}` : `/${name} ${args}` }
-  }
-  return { entry, text }
+  if (!entry?.runId || command?.kind !== 'command' || command.runId !== entry.runId || !isRecord(command.payload)) return undefined
+  const { name, args } = command.payload
+  return typeof name === 'string' && typeof args === 'string' ? (args === '' ? `/${name}` : `/${name} ${args}`) : undefined
 }
 
 /** 每个追踪过的路径最后一次记录的状态（全部条目，含被回退区间内的：文件改动并未随对话回退）。 */

@@ -40,6 +40,12 @@ function harness(options: Partial<Omit<AgentRuntimeOptions, 'models' | 'model'>>
 }
 const leadingOf = (context: Context) => context.messages[0] as SystemMessage
 
+it('基础提示逐个列出宿主块的标签（模型可见契约；清单来自 HOST_BLOCK_TAGS，含 File Reference 与 Session Reference）', () => {
+  expect(DEFAULT_SYSTEM_PROMPT).toContain(
+    'Coko supplies context in <instructions>, <file_reference>, <session_reference>, <instruction_file>, <job-notification>, <agent-notification>, <team-message>, <hook-context>, <scheduled_task>, <goal_round>, and <state_update> blocks. The latest',
+  )
+})
+
 describe('runtime rebuild system prompt', () => {
   it.each([
     { name: '没有开头 system', prefix: [], expected: DEFAULT_SYSTEM_PROMPT + '\n\nCurrent instructions' },

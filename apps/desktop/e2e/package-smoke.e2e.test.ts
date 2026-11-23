@@ -17,7 +17,7 @@ import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium, type Browser, type Page } from 'playwright'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { BACKGROUND_ENV, processExists, waitFor } from './harness.ts'
+import { BACKGROUND_ENV, NO_SYSTEM_PROXY, processExists, waitFor } from './harness.ts'
 import { readLogRecords, TOKEN_SHAPED } from './logs.ts'
 
 const desktopRoot = fileURLToPath(new URL('..', import.meta.url))
@@ -54,7 +54,7 @@ async function launchPackaged(env: Record<string, string>): Promise<Packaged> {
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined && !STRIPPED.test(key)) base[key] = value
   // 测试构建的产物同样以后台模式运行；COKO_E2E_VISIBLE=1 时保留，便于本地观察窗口。
   const visible = process.env.COKO_E2E_VISIBLE === '1' ? { COKO_E2E_VISIBLE: '1' } : {}
-  const child = spawn(executable, ['--remote-debugging-port=0'], {
+  const child = spawn(executable, ['--remote-debugging-port=0', NO_SYSTEM_PROXY], {
     env: { ...base, ...BACKGROUND_ENV, ...visible, ...env },
     stdio: ['ignore', 'ignore', 'pipe'],
   })

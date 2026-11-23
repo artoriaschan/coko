@@ -251,6 +251,23 @@ describe('摘要提示', () => {
     expect(request.prompt).toContain('[Tool result]: ok\n[instruction file attached: /w/pkg/AGENTS.md]')
   })
 
+  it('Session Reference 块缩为一行，写明被引用会话的标题；记录正文不进入摘要请求', () => {
+    const request = summaryRequest({
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: '按 @session:s1 的结论继续' },
+            { type: 'text', text: '<session_reference id="s1" title="方案 &quot;讨论&quot;">\n[User]: ' + 'T'.repeat(50_000) + '\n</session_reference>' },
+          ],
+          timestamp: 1,
+        },
+      ] as never,
+    })
+    expect(request.prompt).toContain('[User]: 按 @session:s1 的结论继续\n[session reference attached: 方案 "讨论"]\n</conversation>')
+    expect(request.prompt).not.toContain('TTTT')
+  })
+
   it('输入超过上限时先省略最早的工具结果，再省略最早的消息，并注明省略了多少条；最近的部分保留', () => {
     const messages = [
       { role: 'user', content: [{ type: 'text', text: 'FIRST ' + 'u'.repeat(3_000) }], timestamp: 1 },

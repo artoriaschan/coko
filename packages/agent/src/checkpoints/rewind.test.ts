@@ -149,6 +149,21 @@ describe('planRewind', () => {
     expect(both.files.map((f) => [f.path, f.restore])).toEqual([[A, { kind: 'content', blob: H('2') }]])
   })
 
+  it('目标文本不含随消息附上的 File Reference 与 Session Reference 块；用户自己输入的同样开头的文本保留', () => {
+    const file = '<file_reference path="a.ts">\nFILE\n</file_reference>'
+    const session = '<session_reference id="s1" title="方案">\n[User]: hi\n</session_reference>'
+    const message = (...blocks: string[]): Row => ({
+      kind: 'message',
+      runId: 'r',
+      payload: { role: 'user', content: blocks.map((text) => ({ type: 'text', text })) },
+    })
+    const entries = seqd([message('看 @a.ts 与 @session:s1', file, session), message(file)])
+    expect(planRewind(entries, 1, 'conversation').text).toBe('看 @a.ts 与 @session:s1')
+    expect(forkEntries(entries, 'source', 1).text).toBe('看 @a.ts 与 @session:s1')
+    // 第一个文本块是用户输入的文本：即使以引用块的开标签开头也原样返回。
+    expect(planRewind(entries, 2, 'conversation').text).toBe(file)
+  })
+
   it('目标必须是有效的用户消息：不存在、不是用户消息或已被回退时 RewindTargetError', () => {
     expect(() => planRewind(history, 99, 'code')).toThrow(RewindTargetError)
     expect(() => planRewind(history, 3, 'conversation')).toThrow(RewindTargetError)

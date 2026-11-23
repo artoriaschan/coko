@@ -1,6 +1,6 @@
-// File Reference 与嵌套指令：不是独立的条目 kind，而是同一条 user message / toolResult 中以固定开标签开头的文本块
-// （docs/subsystems/context.md）。Sidecar 用 format* 生成开标签，renderer 用 *Path 识别并显示为 chip。
-// path 按 XML 属性转义（& " < >）。另有 @ 菜单的文件候选接口。
+// File Reference、Session Reference 与嵌套指令：不是独立的条目 kind，而是同一条 user message / toolResult 中以固定开标签开头的文本块
+// （docs/subsystems/context.md）。Sidecar 用 format* 生成开标签，Sidecar 与 renderer 用 fileReferencePath / sessionReference /
+// nestedInstructionPath 识别（唯一的识别实现）。属性按 XML 属性转义（& " < >）。另有 @ 菜单的文件候选接口。
 import { Type, type Static } from 'typebox'
 
 const escapeAttribute = (value: string) => value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -16,13 +16,31 @@ export function formatNestedInstructionOpen(path: string): string {
   return `<instruction_file path="${escapeAttribute(path)}" scope="nested">`
 }
 
+/** 用户消息附上的 Session Reference：title 是展开那一刻被引用会话的标题。 */
+export interface SessionReference {
+  sessionId: string
+  title: string
+}
+
+/** Session Reference 文本块的开标签。 */
+export function formatSessionReferenceOpen(sessionId: string, title: string): string {
+  return `<session_reference id="${escapeAttribute(sessionId)}" title="${escapeAttribute(title)}">`
+}
+
 const FILE_REFERENCE = /^<file_reference path="([^"]*)">/
+const SESSION_REFERENCE = /^<session_reference id="([^"]*)" title="([^"]*)">/
 const NESTED_INSTRUCTION = /^<instruction_file path="([^"]*)" scope="nested">/
 
 /** 文本块以 File Reference 开标签开头时返回其 path，否则 undefined。 */
 export function fileReferencePath(text: string): string | undefined {
   const match = FILE_REFERENCE.exec(text)
   return match ? unescapeAttribute(match[1]!) : undefined
+}
+
+/** 文本块以 Session Reference 开标签开头时返回被引用会话的 id 与标题，否则 undefined。 */
+export function sessionReference(text: string): SessionReference | undefined {
+  const match = SESSION_REFERENCE.exec(text)
+  return match ? { sessionId: unescapeAttribute(match[1]!), title: unescapeAttribute(match[2]!) } : undefined
 }
 
 /** 文本块以嵌套指令开标签开头时返回其 path，否则 undefined。 */

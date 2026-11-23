@@ -41,6 +41,8 @@ export interface ContextScope {
    * 不属于项目时省略，此时只有用户级记忆。
    */
   memoryWorkspaceId?: string
+  /** 根 Session（草稿为所选项目）当前所属的 Project；不属于项目时省略。Session Reference 据此判定范围。 */
+  projectId?: string
   /** Additional Project folders, inherited from the root Session by child Sessions. */
   additionalFolders?: readonly string[]
   /** 草稿（还没有 Session）时省略。 */
@@ -236,6 +238,8 @@ export interface ContextContributionOptions {
   goals?: import('../goals.ts').GoalService
   /** 定时任务（application/schedules.ts）；省略时 schedules 贡献只有规则工具名。 */
   schedules?: import('../schedules.ts').ScheduleService
+  /** Session Reference 读取被引用的会话及其已提交条目；省略时 `@session:<id>` 不展开。 */
+  sessions?: Pick<SessionStore['sessions'], 'getSession' | 'listEntries'>
   /** Session 条目的读取与提交（领域自己的条目，例如 todo_list）；省略时这些领域为空贡献。 */
   entries?: SessionEntryAccess
   /** 外部 Hook（application/hooks.ts）；省略时 hooks 贡献为空。 */

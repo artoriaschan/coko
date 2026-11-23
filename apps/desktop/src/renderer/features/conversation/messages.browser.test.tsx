@@ -8,7 +8,7 @@ import { createAppearanceStore } from '../../app/appearance-store.ts'
 import { createConnectionStore } from '../../app/connection-store.ts'
 import { createPreferences } from '../../app/preferences.ts'
 import { createSettingsPageStore } from '../../app/settings-page-store.ts'
-import { createFixtureChat } from '../../testing/fixture-chat.ts'
+import { createFixtureChat, fixtureSessions } from '../../testing/fixture-chat.ts'
 
 afterEach(async () => {
   vi.restoreAllMocks()
@@ -359,4 +359,119 @@ it('history shows copied attachments by name and opens the retained copy', async
   } finally {
     vi.unstubAllGlobals()
   }
+})
+
+const sessionBlock = (id: string, title: string, body = '[User]: earlier question\n\n[Assistant]: earlier answer') =>
+  `<session_reference id="${id}" title="${title}">\n${body}\n</session_reference>`
+
+it('a session reference shows the submitted title in the bubble and a chip below it that opens the session', async () => {
+  const fixture = await open([
+    record(1, {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Continue @session:s-2.' },
+        { type: 'text', text: sessionBlock('s-2', 'Startup &amp; &quot;handshake&quot; notes') },
+      ],
+      timestamp: 1,
+    }),
+  ])
+  // 标题取自块（提交时的标题），不是会话列表中的当前标题；附上的记录不进入气泡。
+  await expect.poll(() => document.querySelector('[data-slot="user-bubble"]')?.textContent).toBe('Continue @Startup & "handshake" notes.')
+  expect(document.querySelector('[data-slot="user-message"]')?.textContent).not.toContain('earlier answer')
+  const write = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+  await userEvent.click(page.getByRole('article', { name: 'You', exact: true }).getByRole('button', { name: 'Copy message' }))
+  expect(write).toHaveBeenLastCalledWith('Continue @session:s-2.')
+  const chip = page.getByRole('button', { name: 'Referenced session Startup & "handshake" notes', exact: true })
+  await expect.element(chip).toBeVisible()
+  expect(chip.element().textContent).toBe('Startup & "handshake" notes')
+  // 键盘：从消息 Tab 到 chip，Enter 打开被引用的会话。
+  document.querySelector<HTMLElement>('[data-slot="user-message"]')!.focus()
+  await userEvent.keyboard('{Tab}')
+  expect(document.activeElement).toBe(chip.element())
+  await userEvent.keyboard('{Enter}')
+  await expect.poll(() => fixture.chat.getState().activeSessionId).toBe('s-2')
+  await expect.element(page.getByRole('heading', { level: 1, name: 'Sidecar startup handshake' })).toBeVisible()
+})
+
+it.each([
+  ['en', 'References', 'Referenced session '],
+  ['zh', '引用', '引用的会话 '],
+] as const)('%s: file and session chips keep the reference order; a session missing from the list cannot be opened', async (locale, list, label) => {
+  const fixture = await open(
+    [
+      record(1, {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Compare @session:s-gone, @src/a.ts and @session:s-3 but not @session:s-unknown or me@session:s-3' },
+          { type: 'text', text: sessionBlock('s-gone', 'Deleted plan') },
+          { type: 'text', text: '<file_reference path="src/a.ts">\nexport const a = 1\n</file_reference>' },
+          // 未附上的说明块同样显示 chip。
+          { type: 'text', text: sessionBlock('s-3', 'Lease notes', '[Not attached: the session does not belong to the current project.]') },
+        ],
+        timestamp: 1,
+      }),
+      // 没有对应的会话引用块：原样显示，没有 chip。
+      record(2, { role: 'user', content: 'See @session:s-2', timestamp: 2 }),
+      record(3, { name: 'review', args: '@session:s-4', source: 'project' }, 'command'),
+      record(4, {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Review the notes in @session:s-4' },
+          { type: 'text', text: sessionBlock('s-4', 'Contract tests') },
+        ],
+        timestamp: 4,
+      }),
+    ],
+    'light',
+    locale,
+  )
+  await expect.poll(() => document.querySelectorAll('[data-slot="user-message"]').length).toBe(3)
+  const [mixed, bare, command] = [...document.querySelectorAll<HTMLElement>('[data-slot="user-message"]')] as [HTMLElement, HTMLElement, HTMLElement]
+  expect(mixed.querySelector('[data-slot="user-bubble"]')?.textContent).toBe(
+    'Compare @Deleted plan, @src/a.ts and @Lease notes but not @session:s-unknown or me@session:s-3',
+  )
+  expect(mixed.textContent).not.toContain('Not attached')
+  const chips = [...mixed.querySelectorAll<HTMLElement>(`ul[aria-label="${list}"] > li`)]
+  expect(chips.map((chip) => chip.textContent)).toEqual(['Deleted plan', 'src/a.ts', 'Lease notes'])
+  // 同一行列：三个 chip 的外框尺寸相同；会话图标与文件图标不同。
+  const boxes = chips.map((chip) => (chip.querySelector('button') ?? chip).getBoundingClientRect())
+  expect(boxes.map((box) => [box.width, box.height])).toEqual([
+    [240, 64],
+    [240, 64],
+    [240, 64],
+  ])
+  expect(chips[0]!.querySelector('svg')!.innerHTML).not.toBe(chips[1]!.querySelector('svg')!.innerHTML)
+  expect(bare.querySelector('[data-slot="user-bubble"]')?.textContent).toBe('See @session:s-2')
+  expect(bare.querySelector('[data-slot="session-reference-chip"]')).toBeNull()
+  expect(command.querySelector('summary')?.textContent).toBe('/review@Contract tests')
+  const gone = page.getByRole('button', { name: `${label}Deleted plan`, exact: true })
+  await expect.element(gone).toBeDisabled()
+  // 不经 userEvent：它会一直等待被停用的按钮变为可操作。
+  mixed.querySelector<HTMLElement>('[data-session-id="s-gone"]')!.click()
+  expect(fixture.chat.getState().activeSessionId).toBe('s-1')
+  await userEvent.click(page.getByRole('button', { name: `${label}Lease notes`, exact: true }))
+  await expect.poll(() => fixture.chat.getState().activeSessionId).toBe('s-3')
+  await expect.element(page.getByRole('heading', { level: 1, name: 'SQLite 迁移与租约' })).toBeVisible()
+})
+
+it('a chip for an archived session cannot be opened: archived sessions leave the session list', async () => {
+  const fixture = await open([
+    record(1, {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Continue @session:s-3' },
+        { type: 'text', text: sessionBlock('s-3', 'Lease notes') },
+      ],
+      timestamp: 1,
+    }),
+  ])
+  const chip = page.getByRole('button', { name: 'Referenced session Lease notes', exact: true })
+  await expect.element(chip).toBeEnabled()
+  const archived = fixtureSessions.find((session) => session.id === 's-3')!
+  fixture.chat.lists.getState().setArchiveState({ ...archived, archivedAt: 5 })
+  await expect.element(chip).toBeDisabled()
+  // 标题仍是提交时的快照；不经 userEvent（它会一直等待被停用的按钮变为可操作）。
+  expect(chip.element().textContent).toBe('Lease notes')
+  document.querySelector<HTMLElement>('[data-session-id="s-3"]')!.click()
+  expect(fixture.chat.getState().activeSessionId).toBe('s-1')
 })

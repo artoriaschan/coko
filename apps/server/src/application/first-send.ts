@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
 import { mkdir, realpath, rm, rmdir } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import { parseFileReferences } from '@coko/agent'
-import type { FirstSendRequest, FirstSendResponse, ImageAttachment } from '@coko/protocol'
+import { parseFileReferences, parseSessionReferences } from '@coko/agent'
+import { withSessionReferenceTitles, type FirstSendRequest, type FirstSendResponse, type ImageAttachment } from '@coko/protocol'
 import type { SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 import type { SessionService } from './sessions.ts'
@@ -13,7 +13,18 @@ import type { WorktreeService } from './worktrees.ts'
 function sessionIdFor(draftId: string): string {
   return `chat-${createHash('sha256').update(draftId).digest('hex')}`
 }
-export function firstMessageTitle(text: string, images: Pick<ImageAttachment, 'name'>[] = []): string {
+/** 文本中的 `@session:<id>` 以被引用会话的标题显示（`@标题`，与时间线相同）；会话不存在时保留原文。只用于标题，提交的文本不变。 */
+export async function withSessionTitles(text: string, sessions: Pick<SessionStore['sessions'], 'getSession'>): Promise<string> {
+  const titles = new Map<string, string>()
+  for (const { id } of parseSessionReferences(text)) {
+    const session = titles.has(id) ? undefined : await sessions.getSession(id)
+    if (session) titles.set(id, session.title)
+  }
+  return withSessionReferenceTitles(text, (id) => titles.get(id))
+}
+
+/** shown：`@session:<id>` 已换成会话标题的文本（withSessionTitles）；文件引用仍按原文解析。 */
+export function firstMessageTitle(text: string, images: Pick<ImageAttachment, 'name'>[] = [], shown = text): string {
   if (!text.trim() && images.length)
     return Array.from(`附件：${images.map((image) => image.name).join('、')}`)
       .slice(0, 20)
@@ -25,7 +36,7 @@ export function firstMessageTitle(text: string, images: Pick<ImageAttachment, 'n
     return Array.from(`附件：${[...references.map((reference) => basename(reference.path)), ...images.map((image) => image.name)].join('、')}`)
       .slice(0, 20)
       .join('')
-  return Array.from((text.trim().split(/\r?\n/, 1)[0] ?? '').trim())
+  return Array.from((shown.trim().split(/\r?\n/, 1)[0] ?? '').trim())
     .slice(0, 20)
     .join('')
 }
@@ -114,13 +125,15 @@ export class FirstSendService {
         workspaceId = (await store.sessions.registerWorkspace({ path: folder, name: `独立对话 · ${date}` })).id
       }
       if (input.newWorktree) worktreeId = (await this.#options.worktrees.create(workspaceId, input.baseBranch ? { baseBranch: input.baseBranch } : {})).id
+      const attachments = [...(input.images ?? []), ...(input.files ?? [])]
+      const shown = await withSessionTitles(input.text, store.sessions)
       const session = await sessions.create({
         id,
         workspaceId,
         ...(folder ? { directory: folder, cwd: join(folder, 'work') } : {}),
         ...(worktreeId ? { worktreeId } : {}),
         projectId: project?.id ?? null,
-        title: firstMessageTitle(input.text, [...(input.images ?? []), ...(input.files ?? [])]),
+        title: firstMessageTitle(input.text, attachments, shown),
         ...(input.model ? { model: input.model } : {}),
         ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
         ...(input.permissionMode ? { permissionMode: input.permissionMode } : {}),
@@ -128,10 +141,7 @@ export class FirstSendService {
       const result = await sessions.submitFirst(session.id, input.text, input.images, input.files)
       if (!('runId' in result)) throw new AppError('bad-request', 'A message is required')
       accepted = true
-      this.#options.titles?.start(id, firstMessageTitle(input.text, [...(input.images ?? []), ...(input.files ?? [])]), input.text, [
-        ...(input.images ?? []),
-        ...(input.files ?? []),
-      ])
+      this.#options.titles?.start(id, firstMessageTitle(input.text, attachments, shown), input.text, attachments, shown)
       return { session: await sessions.toDto((await store.sessions.getSession(id))!), runId: result.runId }
     } catch (error) {
       if (accepted) throw error

@@ -86,6 +86,41 @@ describe('headless', { timeout: 120_000 }, () => {
     ])
   })
 
+  it('提示词中的 @session:<id> 按 Session Reference 的规则展开：无界面会话不属于任何 Project，另一次无界面运行的文字记录附在这条消息上', async () => {
+    const h = await setup([])
+    const requestLog = join(h.root, 'requests.jsonl')
+    await writeFile(requestLog, '')
+    const script = await fauxScript(await tempDir(), {
+      requestLog,
+      responses: [
+        { match: 'SECOND_REQUEST_MARKER', content: 'second answer' },
+        { match: 'FIRST_REQUEST_MARKER', content: 'first answer' },
+      ],
+    })
+    const env = { COKO_FAUX_SCRIPT: script }
+    const first = await runHeadless(h.dirs, baseArgs(h.dirs, '--workspace', h.root, '--prompt', 'FIRST_REQUEST_MARKER'), env)
+    expect([first.code, first.stdout]).toEqual([0, 'first answer\n'])
+    const source = dbRows(h.dirs, 'SELECT id FROM sessions')[0]!.id as string
+    const prompt = `SECOND_REQUEST_MARKER 接着 @session:${source}`
+    const second = await runHeadless(h.dirs, baseArgs(h.dirs, '--workspace', h.root, '--prompt', prompt, '--output', 'json'), env)
+    expect(second).toMatchObject({ code: 0 })
+    const { sessionId } = lines(second.stdout)[0] as { sessionId: string }
+    expect(sessionId).not.toBe(source)
+    const reference = new RegExp(
+      `^<session_reference id="${source}" title="[^"]*">\\n\\[User\\]: FIRST_REQUEST_MARKER\\n\\n\\[Assistant\\]: first answer\\n</session_reference>$`,
+    )
+    const blocks = (content: unknown) => (content as { text?: string }[]).map((b) => b.text ?? '').filter((text) => !text.startsWith('<state_update'))
+    const user = dbEntries(h.dirs, sessionId).find((e) => e.kind === 'message' && e.payload.role === 'user')!
+    expect(blocks(user.payload.content)).toEqual([prompt, expect.stringMatching(reference)])
+    // 实际发给模型的最后一条 user message 相同。
+    const sent = (await readFile(requestLog, 'utf8'))
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as { role: string; content: unknown }[])
+      .at(-1)!
+    expect(blocks(sent.filter((m) => m.role === 'user').at(-1)!.content)).toEqual([prompt, expect.stringMatching(reference)])
+  })
+
   it.each([
     ['缺 --data-dir', ['--workspace', '/tmp', '--prompt', 'x']],
     ['未知参数', ['--bogus']],
