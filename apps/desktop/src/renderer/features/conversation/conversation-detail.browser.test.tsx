@@ -164,6 +164,29 @@ it.each(['light', 'dark'] as const)('actual App: %s turn previews render Markdow
   await expect.element(page.getByRole('textbox', { name: 'Give Coko a task' })).toHaveFocus()
 })
 
+it('actual App: turn previews show a referenced session as @title when the message carries its block, and the raw token otherwise', async () => {
+  await page.viewport(1600, 1000)
+  const entries = history(2)
+  const [bare, referenced] = entries.filter((entry) => entry.kind === 'message' && (entry.payload as { role: string }).role === 'user')
+  bare!.payload = { role: 'user', content: 'See @session:s-2', timestamp: 0 }
+  referenced!.payload = {
+    role: 'user',
+    content: [
+      { type: 'text', text: 'Continue @session:s-2, then @session:s-untitled.' },
+      { type: 'text', text: '<session_reference id="s-2" title="Startup &amp; handshake">\n[User]: earlier question\n</session_reference>' },
+      { type: 'text', text: '<session_reference id="s-untitled" title="">\n[No messages in this session.]\n</session_reference>' },
+    ],
+    timestamp: 0,
+  }
+  await open('light', 2, entries)
+  const preview = () => document.querySelector('[role="tooltip"] .conversation-turn-prompt')?.textContent
+  await page.getByRole('button', { name: 'Jump to turn 2', exact: true }).hover()
+  await expect.poll(preview).toBe('Continue @Startup & handshake, then @Untitled.')
+  // 没有对应的会话引用块：与气泡相同，原样显示。
+  await page.getByRole('button', { name: 'Jump to turn 1', exact: true }).hover()
+  await expect.poll(preview).toBe('See @session:s-2')
+})
+
 it('actual App: default content width opens wide without dragging or a saved preference', async () => {
   localStorage.removeItem('coko.conversation.contentWidth')
   await page.viewport(1600, 1000)

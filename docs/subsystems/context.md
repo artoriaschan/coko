@@ -188,7 +188,7 @@ File Reference 与 Session Reference 的块在以下位置同样对待：
 - **File Reference 节点**：token 模式的文本节点，以小号链接色 chip 显示，作为整体选中与删除，不能在其中输入。文本即序列化形式 `@path`（含空白、全角标点或会被当作结尾标点的字符时为 `@"path"`），因此提交的文本就是 Sidecar 解析的语法。
 - **Session Reference 节点**：行内的原子节点（Lexical DecoratorNode，不可编辑），以与 File Reference 相同的 chip 显示 `@会话标题`，作为整体选中与删除，不能在其中输入，不可点击，方向键直接越过。标题是选中那一刻的快照，载入草稿后不随会话改名刷新。节点的文本内容为 `@session:<id>`：提交的文本、读出的纯文本与复制出的文本都是这个形式，粘贴回输入区得到的是这段文本而不是 chip。一条消息里可以同时有文件节点与多个会话节点。
 - **引用 chip**：时间线中，用户消息的 `<file_reference>` 与 `<session_reference>` 块不进入气泡文本，按出现顺序显示为气泡下方同一列表中的文件、目录或会话 chip（会话用对话图标）；文件内容与会话记录只发给模型，未附上的会话说明块同样显示 chip。
-- **会话 chip 与 `@标题`**：会话 chip 显示块中的标题，即提交那一刻的标题，被引用的会话后来改名或删除都不变；标题为空时显示“未命名”。chip 是按钮，可用键盘聚焦与激活，点击打开该会话；会话不在界面的会话列表中（已删除；归档的会话也不在该列表中）时不可点击。气泡文本、命令消息的参数与展开全文中的 `@session:<id>` 在该消息带有对应的会话引用块时显示为 `@标题`（与 Sidecar 用同一份 token 解析），没有对应块时原样显示；复制消息得到的仍是原文。[轮次指示器](workbench.md#对话消息与思考) 的提示词预览不做这个替换，显示原文 `@session:<id>`。
+- **会话 chip 与 `@标题`**：会话 chip 显示块中的标题，即提交那一刻的标题，被引用的会话后来改名或删除都不变；标题为空时显示“未命名”。chip 是按钮，可用键盘聚焦与激活，点击打开该会话；会话不在界面的会话列表中（已删除；归档的会话也不在该列表中）时不可点击。气泡文本、命令消息的参数与展开全文中的 `@session:<id>` 在该消息带有对应的会话引用块时显示为 `@标题`（与 Sidecar 用同一份 token 解析），没有对应块时原样显示；复制消息得到的仍是原文。[轮次指示器](workbench.md#对话消息与思考) 的提示词预览做同样的替换。
 
 ## 草稿
 
@@ -341,7 +341,7 @@ teammate 的子 Session 在 `<subagent>` 之后另有静态 `<team name="…">`�
 - `packages/ui/src/composer/session-reference-node.browser.test.tsx`：Session Reference 节点的 chip 文本、读出与复制的 `@session:<id>`、整体删除、与文件节点并存、EditorState JSON 往返与缺少 id 或标题时的拒绝。
 - `apps/desktop/src/renderer/features/conversation/file-menu.browser.test.tsx`、`session-reference.browser.test.tsx`：@ 菜单两组的顺序、空查询的 5 个、标题过滤与 20 个上限、范围过滤（另一个 Project、独立对话、归档、当前会话）、只有一组有匹配时的显示、有查询时会话组等这次查询的文件结果（未返回、失败、无匹配）、中英文文案；应用内会话与新对话草稿的候选、提交的文本、带 chip 的草稿在切换会话与重新挂载后恢复及损坏时丢弃。
 - `apps/desktop/src/renderer/stores/draft-store.test.ts`、`features/conversation/timeline.test.ts`：草稿的键、防抖与损坏处理；引用 chip 的派生。
-- `apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx`：时间线的会话引用（气泡中的 `@标题`、会话 chip 的键盘与指针打开、不在列表中的会话与归档后的会话不可点击、没有对应块时原样显示、与文件 chip 混排的顺序、中英文名称）。
+- `apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx`：时间线的会话引用（气泡中的 `@标题`、会话 chip 的键盘与指针打开、不在列表中的会话与归档后的会话不可点击、没有对应块时原样显示、与文件 chip 混排的顺序、中英文名称）；`conversation-detail.browser.test.tsx`：轮次指示器的提示词预览把带对应块的 `@session:<id>` 显示为 `@标题`，没有对应块时原样显示。
 - `apps/desktop/e2e/references-drafts.e2e.test.ts`：Electron 中的 @ 菜单与 chip、草稿在切换会话与重启后保留、提交后清除、损坏的草稿；会话引用的一条：新对话草稿的 @ 菜单两组的顺序与标题过滤、选中后的草稿 chip、faux requestLog 中的 `@session:<id>` 原文与 `<session_reference>` 块、气泡的 `@标题`、侧栏占位标题不含 id、点击会话 chip 回到被引用的会话。
 - `packages/agent/src/context/usage/usage.test.ts`：128k、400k、1M 窗口的阈值与预警、估算（有 / 无 usage、跳过出错与中止的回复）、时间裁剪（59 分钟不裁、61 分钟裁、保留最近 5 个、2KB 以下保留、输入不变、后续请求前缀稳定）。`apps/server/src/application/context/usage.test.ts`：注入时钟与 `context.trimOldToolResults` 开关。
 - `tests/integration/sidecar-tool-accounting.test.ts`：本地模型 HTTP 服务记录根会话与受限子会话的实际工具定义，用量接口与请求一致，普通列表的历史声明不重复计数；[设置集成](../../tests/integration/sidecar-tool-search-settings.test.ts) 另核对等待审批时切换开关不会改变本 Run 的工具分项。`packages/agent/src/engine/compaction.test.ts` 验证普通完整列表中已移除工具的旧定义不触发压缩、正 usage 后新增定义触发阈值且未变化定义不重复计数；[原生工具测试](../../tests/integration/sidecar-incremental-tools.test.ts) 通过真实 HTTP 同时验证普通/原生写法在正 usage 后加载大 schema 会触发压缩，以及移除后仍在原生历史中的 schema 继续计入用量与自动压缩，压缩折叠后不再重复计入。
