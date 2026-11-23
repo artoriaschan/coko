@@ -21,7 +21,7 @@ Closed: true
 - [x] [文档导航](../../../docs/README.md) 中相关正文的摘要仍然准确，必要时更新
 - [x] `pnpm run check:docs` 通过
 - [x] 按 [测试约定](../../../docs/tech-stack/testing.md#测试执行与结果报告) 记录实际运行的检查与结果；写明未验证项：真实模型拿到会话记录后的使用效果、需要真实指针或原生层的交互
-- [ ] 规格的 Spec status 更新为 delivered，并记下集成分支与验收依据（2026-11-23 取消勾选：规格没有经过 approved，且含未确认的关键内容，按文档体系应为 draft；见评论“代码评审修复”的 C4）
+- [x] 规格的 Spec status 更新为 delivered，并记下集成分支与验收依据（2026-11-23 先取消勾选：当时规格没有经过 approved；同日用户逐项确认后重新勾选，见评论“用户确认后的后续改动与规格收口”）
 - [x] 规格 Out of Scope 中“另行验证”的 Worktree Session 候选搜索根问题没有被本次改动波及；若实施中顺带确认了现状，写进评论
 
 ## Comments
@@ -215,3 +215,50 @@ Closed: true
 - 没有做同一时刻的基线构建对照（`ce8bd6c6` 重新打包后在同样的代理状态下运行）；结论依据的是上面三条。
 - 没有改的：E2E harness 是否固定带 `--no-proxy-server`（E2E 只访问本机，依赖宿主的系统代理状态是隔离上的缺口），以及产品是否应让到本机 Sidecar 的连接不经系统代理（按同样的机制，系统 PAC 无响应时正式构建的应用也应当连不上自己的 Sidecar；没有在正式构建上验证）。两者都超出本次修复清单，留给用户决定。
 - 结束时没有遗留的 Electron 或 Sidecar 进程（`ps` 核对）。
+
+### 2026-11-23 用户确认后的后续改动与规格收口（分支 `session-reference/08-followups`）
+
+用户对评审后的各项决定的确认由协调会话转达，本节与规格按转达的内容记录。基于 `feat/session-reference`（`0b043fba`）。
+
+**三个改动。**
+
+| 改动 | 处理 | 证据 |
+| --- | --- | --- |
+| 1 `@` 菜单的竞态（`bb1c7ce1`） | 竞态确实存在：带查询时菜单会在文件结果返回前只以会话组打开。改为有查询时，会话组在这次查询的文件请求结束（成功、失败或无匹配）之后才显示；文件组先以上一次的结果显示出条目时会话组同时显示（文件在前，Enter 仍选文件，连续输入时会话组不闪）。空查询与没有 Workspace 时不变；“查询匹配会话标题时 Enter 选中会话”保留。只改了 `file-menu.tsx` | `file-menu.browser.test.tsx` 新增 1 例（受控的文件请求：未返回、返回、失败、无匹配四段）。修复前在第一段失败（菜单里已有会话项），修复后连续 5 次通过 |
+| 2 E2E 不使用系统代理（`fb25bd91`） | `apps/desktop/e2e/harness.ts` 的 `launchApp` 与 `launchSecondInstance` 共用启动参数，带 `--no-proxy-server`；`package-smoke.e2e.test.ts` 的 `launchPackaged` 同样带上。`docs/tech-stack/testing.md` 讲桌面 E2E 启动方式的一段补了一句。产品代码没有动 | 见下文 E2E。本 worktree 没有复现出红：改动前跑 `commands.e2e.test.ts` 是 2 例通过，这台机器的代理状态与上午不同（上午同一份 harness 在 `c5c2b94c` 上 11 例全部失败，记录在上一节）。所以这项只有“加开关后照常通过”的证据 |
+| 3 轮次指示器预览显示 `@标题`（`e771041f`） | `navigationTurns` 复用时间线的 `withSessionTitles`（基于 `withSessionReferenceTitles`），消息带对应会话引用块时预览显示 `@标题`，没有对应块时原样；没有标题时显示“未命名”。`docs/subsystems/context.md` 的那句同步改了 | `conversation-detail.browser.test.tsx` 新增 1 例，修复前失败（预览是 `@session:s-2`）、修复后通过 |
+
+**其他启动 Electron 的位置（改动 2 的核对）。**
+
+- `launchSecondInstance`：第二个实例拿不到单实例锁就退出，不开窗口也不联网，本身不受系统代理影响；与 `launchApp` 共用同一组参数，单实例用例照常通过。
+- `package-smoke.e2e.test.ts` 的 `launchPackaged`：打包产物的 renderer 同样连本机 Sidecar，已带上开关；同文件里以 `ELECTRON_RUN_AS_NODE=1` 运行 `headless.mjs` 的那一处不经 Chromium，没有动。
+- `desktop-shell.e2e.test.ts` 里以 `ELECTRON_RUN_AS_NODE=1` 运行脚本的一处、`tests/integration` 的两个 harness：不经 Chromium，没有动。
+- 发布构建的产物 E2E（`apps/desktop/e2e-release/release.e2e.test.ts`，`open -g -n … --args --remote-debugging-port=0`）：按同样的机制会受系统代理影响，但没有改。它需要再打一次发布包才能验证，本次没有运行；`testing.md` 写明了它没有带这个开关。
+
+**实际运行的检查。** 都在本 worktree。
+
+- `pnpm run typecheck`、`pnpm exec oxlint`、`pnpm exec oxfmt --check`（改动的文件）、`pnpm run check:docs`（460 个文件 0 个问题）：通过。
+- `pnpm exec vitest run apps/desktop/src/renderer/features/conversation packages/ui/src/composer`：57 个文件 440 例，跑了两次。第二次 431 通过、9 失败，都是基线对照中的既有失败（`file-tool-details` 5、`terminal-details` 4）。第一次另有 `reading-position.browser.test.tsx` 的 1 例失败（“reversing a manual fold continues from the displayed height…”）；该文件单独重跑 3 次都是 19 例通过，第二次整批运行也通过，没有查明原因，本次改动没有碰阅读位置。
+- E2E（后台模式，带开关）：`pnpm exec vitest run --project desktop-e2e apps/desktop/e2e/references-drafts.e2e.test.ts apps/desktop/e2e/plugins.e2e.test.ts apps/desktop/e2e/commands.e2e.test.ts apps/desktop/e2e/rewind.e2e.test.ts apps/desktop/e2e/first-send.e2e.test.ts apps/desktop/e2e/titles.e2e.test.ts apps/desktop/e2e/compaction.e2e.test.ts apps/desktop/e2e/handoff.e2e.test.ts`：8 个文件 16 例，14 通过、2 失败。
+
+  | 文件 | 结果 |
+  | --- | --- |
+  | `references-drafts` | 4 例 3 通过；失败的是既有的“主输入框的系统附件选择插入 Workspace 引用”（等待 `[data-file-reference="src/a.ts"]`） |
+  | `plugins` | 1 例通过 |
+  | `commands` | 2 例通过 |
+  | `rewind` | 4 例通过 |
+  | `first-send` | 2 例通过 |
+  | `titles` | 1 例通过 |
+  | `compaction` | 1 例失败，既有：期望 `first reply`，实际 `first replyUsage unavailable<时间>`，与上文第二批 E2E 记录的断言相同 |
+  | `handoff` | 1 例通过 |
+
+- `pnpm exec vitest run --project desktop-e2e apps/desktop/e2e/package-smoke.e2e.test.ts`：6 例通过（带开关的打包产物）。`commands.e2e.test.ts` 与 `desktop-shell.e2e.test.ts` 的单实例用例另单独跑过一次：3 例通过。
+- 没有新增失败。结束时没有遗留的 Electron 或 Sidecar 进程（`ps` 核对）。
+
+**规格收口。** `Spec status` 记为 delivered，写明 approved 的依据（用户 2026-11-23 的确认）、交付依据与仍未验证的项。Story 58 改为只对分叉成立，保留了原文与变更原因；“已知的局限”加上归档会话的 chip 不可点击；“实施中的改变”第 5 条按修掉竞态后的行为重写，新增第 11 条（轮次指示器预览）、第 12 条（压缩识别不要求闭合标签）与“评审建议中不做的”一条；原先标“待用户确认”的各处改为已确认。本票的“Spec status 更新为 delivered”重新勾选。
+
+**未验证与观察。**
+
+- 上文“未验证”一节列的各项仍然成立；发布构建的产物 E2E 没有运行。
+- 改动 1 的 Electron 表现没有专门的 E2E：`references-drafts.e2e` 的会话引用用例经 `@` 菜单选择会话，照常通过，但它不构造“文件请求慢于输入”的情形，这一点只有 Browser Mode 用例。
+- 观察，没有核实也没有改：写改动 1 的用例时，“最后一次按键让菜单变空、其后没有再渲染”的情形下，按 `[role="listbox"]:not([aria-hidden="true"])` 仍能找到一个没有选项的容器（用容器不存在作断言时，3 次运行里 2 次因此失败）。推测是 typeahead 的空容器没有及时写回 `aria-hidden`；用例因此断言“没有可选项”而不是容器不存在。是否是辅助技术可见的缺陷没有确认。
