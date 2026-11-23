@@ -184,7 +184,7 @@ File Reference 与 Session Reference 的块在以下位置同样对待：
 
 - **@ 菜单**：在词首（开头或空白之后）输入 `@` 时打开，查询为 `@` 之后、光标之前的非空白文本。一个列表两组，文件组在前、会话组在后，同一段查询同时过滤两组；没有匹配的组不显示，两组都没有匹配时菜单不出现。键盘、Esc、输入法与定位规则与 / 命令菜单相同（见 [命令](commands.md#界面)）。
   - **文件组**：每次查询变化向 Sidecar 请求候选，新结果到达前先显示上一次结果中按子序列匹配的项。Enter 或指针选择插入 File Reference 节点并跟一个空格；目录上按 Tab 把 token 替换为 `@目录/` 并继续列出其中的项。没有 Workspace（未选 Project 的新对话草稿）时没有文件组。
-  - **会话组**：候选取自界面已持有的会话列表，不请求 Sidecar。范围与当前会话相同：项目内的会话只列同一 Project 的会话（含 Worktree Session），独立对话只列其他独立对话，新对话草稿按草稿所选的 Project；当前会话与已归档的会话不出现，会话列表本身不含子 Session。按最近更新时间从新到旧：空查询显示 5 个；有查询时按标题匹配（不区分大小写，前缀在前、包含在后），最多 20 个；没有标题的会话以“未命名”显示并参与匹配。条目显示标题与最近活动时间（与侧栏相同的相对时间），标题放不下时截断、时间保持完整。Enter、Tab 或指针选择插入 Session Reference 节点并跟一个空格。会话候选不等待文件候选：文件结果到达前菜单可以先以会话组打开。
+  - **会话组**：候选取自界面已持有的会话列表，不请求 Sidecar。范围与当前会话相同：项目内的会话只列同一 Project 的会话（含 Worktree Session），独立对话只列其他独立对话，新对话草稿按草稿所选的 Project；当前会话与已归档的会话不出现，会话列表本身不含子 Session。按最近更新时间从新到旧：空查询显示 5 个；有查询时按标题匹配（不区分大小写，前缀在前、包含在后），最多 20 个；没有标题的会话以“未命名”显示并参与匹配。条目显示标题与最近活动时间（与侧栏相同的相对时间），标题放不下时截断、时间保持完整。Enter、Tab 或指针选择插入 Session Reference 节点并跟一个空格。会话候选是同步的、文件候选是异步的：有查询时，会话组在这次查询的文件请求结束（成功、失败或无匹配）之后才显示，文件组先以上一次的结果显示出条目时同时显示，所以菜单不会在文件结果未知时只以会话组打开；空查询与没有 Workspace 时会话组立即显示。文件请求失败或没有匹配时菜单只有会话组，此时 Enter 选中匹配标题的会话。
 - **File Reference 节点**：token 模式的文本节点，以小号链接色 chip 显示，作为整体选中与删除，不能在其中输入。文本即序列化形式 `@path`（含空白、全角标点或会被当作结尾标点的字符时为 `@"path"`），因此提交的文本就是 Sidecar 解析的语法。
 - **Session Reference 节点**：行内的原子节点（Lexical DecoratorNode，不可编辑），以与 File Reference 相同的 chip 显示 `@会话标题`，作为整体选中与删除，不能在其中输入，不可点击，方向键直接越过。标题是选中那一刻的快照，载入草稿后不随会话改名刷新。节点的文本内容为 `@session:<id>`：提交的文本、读出的纯文本与复制出的文本都是这个形式，粘贴回输入区得到的是这段文本而不是 chip。一条消息里可以同时有文件节点与多个会话节点。
 - **引用 chip**：时间线中，用户消息的 `<file_reference>` 与 `<session_reference>` 块不进入气泡文本，按出现顺序显示为气泡下方同一列表中的文件、目录或会话 chip（会话用对话图标）；文件内容与会话记录只发给模型，未附上的会话说明块同样显示 chip。
@@ -339,7 +339,7 @@ teammate 的子 Session 在 `<subagent>` 之后另有静态 `<team name="…">`�
 - `tests/integration/sidecar-session-references.test.ts`：Session Reference 的记录取舍、范围与单个上限；文件与会话混合超过 10 个、合计超过 200KB；首次发送（范围与标题）、追加指令、被引用会话运行中、Worktree Session 作为引用方（首次发送带 `newWorktree`）与被引用方；回退与分叉返回的文本、分叉保留已附上的块；带会话引用的消息进入压缩时的摘要请求。无界面运行的提示词见 `tests/integration/headless.test.ts`。
 - `packages/ui/src/composer/file-reference-node.browser.test.tsx`：节点的插入与整体删除、序列化、EditorState JSON 往返与拒绝、目录 Tab、onDraftChange。
 - `packages/ui/src/composer/session-reference-node.browser.test.tsx`：Session Reference 节点的 chip 文本、读出与复制的 `@session:<id>`、整体删除、与文件节点并存、EditorState JSON 往返与缺少 id 或标题时的拒绝。
-- `apps/desktop/src/renderer/features/conversation/file-menu.browser.test.tsx`、`session-reference.browser.test.tsx`：@ 菜单两组的顺序、空查询的 5 个、标题过滤与 20 个上限、范围过滤（另一个 Project、独立对话、归档、当前会话）、只有一组有匹配时的显示、中英文文案；应用内会话与新对话草稿的候选、提交的文本、带 chip 的草稿在切换会话与重新挂载后恢复及损坏时丢弃。
+- `apps/desktop/src/renderer/features/conversation/file-menu.browser.test.tsx`、`session-reference.browser.test.tsx`：@ 菜单两组的顺序、空查询的 5 个、标题过滤与 20 个上限、范围过滤（另一个 Project、独立对话、归档、当前会话）、只有一组有匹配时的显示、有查询时会话组等这次查询的文件结果（未返回、失败、无匹配）、中英文文案；应用内会话与新对话草稿的候选、提交的文本、带 chip 的草稿在切换会话与重新挂载后恢复及损坏时丢弃。
 - `apps/desktop/src/renderer/stores/draft-store.test.ts`、`features/conversation/timeline.test.ts`：草稿的键、防抖与损坏处理；引用 chip 的派生。
 - `apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx`：时间线的会话引用（气泡中的 `@标题`、会话 chip 的键盘与指针打开、不在列表中的会话与归档后的会话不可点击、没有对应块时原样显示、与文件 chip 混排的顺序、中英文名称）。
 - `apps/desktop/e2e/references-drafts.e2e.test.ts`：Electron 中的 @ 菜单与 chip、草稿在切换会话与重启后保留、提交后清除、损坏的草稿；会话引用的一条：新对话草稿的 @ 菜单两组的顺序与标题过滤、选中后的草稿 chip、faux requestLog 中的 `@session:<id>` 原文与 `<session_reference>` 块、气泡的 `@标题`、侧栏占位标题不含 id、点击会话 chip 回到被引用的会话。

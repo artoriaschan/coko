@@ -125,6 +125,47 @@ describe('@ 菜单的会话组', () => {
     await expect.poll(() => onSubmit.mock.calls).toEqual([['@zzz']])
   })
 
+  it('有查询时会话组不抢在文件结果之前：这次查询的文件结果返回前菜单不以会话组单独打开，返回后文件在前、Enter 选中文件；请求失败或无匹配时只显示会话组', async () => {
+    const pending: { query: string; resolve: (files: WorkspaceFileEntry[]) => void; reject: (error: Error) => void }[] = []
+    const deferred: FetchWorkspaceFiles = (_workspaceId, query) => new Promise((resolve, reject) => pending.push({ query, resolve, reject }))
+    const requested = async (query: string) => {
+      await expect.poll(() => pending.at(-1)?.query).toBe(query)
+    }
+    await setup({ rows: [['s-src', 'src cleanup', 5]], fetchFiles: deferred })
+
+    // 输入快于文件请求：标题含 src 的会话已经匹配，但文件结果未知，菜单里没有任何可选项（Enter 选不到会话）。
+    // 断言选项而不是 listbox 容器：最后一次按键让菜单变空、其后没有再渲染时，空容器的 aria-hidden 可能还没有写回。
+    await userEvent.keyboard('@src')
+    await requested('src')
+    await expect.poll(options).toEqual([])
+    pending.at(-1)!.resolve([
+      { path: 'src/', kind: 'directory' },
+      { path: 'src/plan.ts', kind: 'file' },
+    ])
+    await expect.poll(groups).toEqual([
+      { heading: 'Files and folders', options: ['src/', 'src/plan.ts'] },
+      { heading: 'Sessions', options: ['src cleanup5m ago'] },
+    ])
+    await userEvent.keyboard('{Enter}')
+    await expect.poll(() => root().querySelector('[data-file-reference]')?.textContent).toBe('@src/')
+    expect(chips()).toEqual([])
+
+    // 请求失败：上一次的文件结果过滤后没有匹配，失败后只显示会话组。
+    await userEvent.keyboard('@cle')
+    await requested('cle')
+    await expect.poll(options).toEqual([])
+    pending.at(-1)!.reject(new Error('offline'))
+    await expect.poll(groups).toEqual([{ heading: 'Sessions', options: ['src cleanup5m ago'] }])
+
+    // 这次查询没有文件匹配：同样只显示会话组。
+    await userEvent.keyboard('{Backspace}{Backspace}{Backspace}ean')
+    await requested('ean')
+    await expect.poll(options).toEqual([])
+    pending.at(-1)!.resolve([])
+    await expect.poll(groups).toEqual([{ heading: 'Sessions', options: ['src cleanup5m ago'] }])
+    await userEvent.keyboard('{Escape}')
+  })
+
   it('独立对话只列其他独立对话；没有 Workspace 时不请求文件，只有会话组', async () => {
     const fetch = vi.fn<FetchWorkspaceFiles>(fetchFiles)
     await setup({ workspaceId: undefined, projectId: null, sessionId: undefined, fetchFiles: fetch })
