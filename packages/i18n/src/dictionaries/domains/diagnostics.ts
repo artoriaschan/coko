@@ -3,6 +3,7 @@ import { defineDomain } from './define.ts'
 export const diagnostics = defineDomain(
   {
     title: '会话数据诊断',
+    startDescription: '查看当前会话的原始数据与对话分组',
     liveProgress: '实时进度',
     pick: '瞄准',
     pickHelp: '用上下方向键预览当前可见的时间线记录，按 Enter 选取，按 Esc 取消。',
@@ -56,6 +57,7 @@ export const diagnostics = defineDomain(
   },
   {
     title: 'Session diagnostics',
+    startDescription: "Inspect this session's raw data and conversation grouping",
     liveProgress: 'Live progress',
     pick: 'Pick from timeline',
     pickHelp: 'Use Up and Down to preview visible timeline records, Enter to select, or Esc to cancel.',

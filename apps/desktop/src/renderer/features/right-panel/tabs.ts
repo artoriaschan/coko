@@ -1,10 +1,21 @@
 import { ArtifactsTab } from './artifacts-tab.tsx'
 import type { MessageKey } from '@coko/i18n'
 import type * as React from 'react'
-import { IconActivity, IconFolderUp, IconBraces, IconRobot, IconCalendarClock, IconChecklist, IconSitemap, type TablerIcon } from '@tabler/icons-react'
+import {
+  IconActivity,
+  IconFolderUp,
+  IconBraces,
+  IconRobot,
+  IconCalendarClock,
+  IconChecklist,
+  IconSitemap,
+  IconWorld,
+  type TablerIcon,
+} from '@tabler/icons-react'
 import type { RightPanelTabId } from './layout-store.ts'
 export type { RightPanelTabId } from './layout-store.ts'
 import { AgentsTab } from './agents-tab.tsx'
+import { BrowserTab } from './browser-tab.tsx'
 import { JobsTab } from './jobs-tab.tsx'
 import { PlanTab } from './plan-tab.tsx'
 import { SchedulesTab } from './schedules-tab.tsx'
@@ -23,16 +34,26 @@ export interface RightPanelTabDefinition {
   Component: React.ComponentType<RightPanelTabProps>
   /** false：功能尚未交付，不显示。交付该 tab 的票只把自己的一行改为 true，并把 Component 换成自己的组件。 */
   available: boolean
+  /** 开始页入口卡片上的一行说明；有它的页面才在开始页列出，其余页面只从标题栏状态入口等处打开。 */
+  startDescription?: MessageKey
 }
 
 export const RIGHT_PANEL_TABS: readonly RightPanelTabDefinition[] = [
-  { id: 'artifacts', icon: IconFolderUp, label: 'artifacts.tab', Component: ArtifactsTab, available: true },
+  { id: 'artifacts', icon: IconFolderUp, label: 'artifacts.tab', Component: ArtifactsTab, available: true, startDescription: 'artifacts.startDescription' },
   { id: 'plan', icon: IconChecklist, label: 'plan.tab', Component: PlanTab, available: true },
   { id: 'jobs', icon: IconActivity, label: 'jobs.tab', Component: JobsTab, available: true },
   { id: 'agents', icon: IconRobot, label: 'agents.tab', Component: AgentsTab, available: true },
   { id: 'schedules', icon: IconCalendarClock, label: 'schedules.tab', Component: SchedulesTab, available: true },
   { id: 'team', icon: IconSitemap, label: 'teams.tab', Component: TeamTab, available: true },
-  { id: 'diagnostics', icon: IconBraces, label: 'diagnostics.title', Component: SessionDiagnostics, available: true },
+  { id: 'browser', icon: IconWorld, label: 'browser.tab', Component: BrowserTab, available: true, startDescription: 'browser.description' },
+  {
+    id: 'diagnostics',
+    icon: IconBraces,
+    label: 'diagnostics.title',
+    Component: SessionDiagnostics,
+    available: true,
+    startDescription: 'diagnostics.startDescription',
+  },
 ]
 
 export const visibleRightPanelTabs = (tabs: readonly RightPanelTabDefinition[] = RIGHT_PANEL_TABS, sessionDiagnostics = false, artifacts = false) =>

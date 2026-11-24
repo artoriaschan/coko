@@ -88,10 +88,15 @@ describe('定时任务界面', { timeout: 180_000 }, () => {
     await send(app, 'hello')
     await expect.poll(() => lastReply(app), { timeout: 30_000 }).toBe('Ready.')
 
-    // 没有任务时标题栏没有"定时任务"按钮：从右栏的 Schedules tab 新建。
+    // 没有任务时标题栏没有"定时任务"按钮，开始页也不列出定时任务：经保存的右栏布局恢复 Schedules tab，在其中新建。
     expect(await window.locator('[data-action="open-schedules"]').count()).toBe(0)
-    await window.getByRole('button', { name: /^(Open sidebar|打开侧边栏)$/ }).click()
-    await window.getByRole('button', { name: /^(Schedules|定时任务)$/, exact: true }).click()
+    const sessionId = await sessionIdByTitle(window, 'hello')
+    await window.evaluate(
+      (id) => localStorage.setItem(`coko.right-panel.v1.${id}`, JSON.stringify({ tabs: ['schedules'], active: 'schedules', expanded: true, mode: 'normal' })),
+      sessionId,
+    )
+    await window.reload()
+    await waitConnected(window)
     await expect.poll(() => window.locator('[role="tab"][data-tab="schedules"]').getAttribute('aria-selected')).toBe('true')
     await window.locator('[data-action="new-schedule"]').click()
     const form = window.locator('[data-slot="schedule-form-dialog"]')
@@ -117,7 +122,6 @@ describe('定时任务界面', { timeout: 180_000 }, () => {
       .toMatch(/^(Next Nov 2, 2026, 9:00 AM \(UTC\)|下次 2026年11月2日 09:00（UTC）)$/)
     expect(await item.locator('[data-slot="schedule-rule"]').textContent()).toMatch(/0 9 \* \* \*/)
     expect(await window.locator('[data-slot="schedules-badge"]').textContent()).toBe('1')
-    const sessionId = await sessionIdByTitle(window, 'hello')
 
     // 到期：Run 开始并回复，时间线出现 schedule_fire 行，投递历史增加一条，最近结果为已开始。
     await advanceClock(window, 30 * MINUTE + 1000)

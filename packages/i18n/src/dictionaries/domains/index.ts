@@ -1,6 +1,7 @@
 import { diagnostics } from './diagnostics.ts'
 // 分域字典的组合：键为顶层命名空间（例如 skills.title）。新增领域在此登记一次；文案写在各自的领域文件中。
 import { agents } from './agents.ts'
+import { browser } from './browser.ts'
 import { commands } from './commands.ts'
 import { config } from './config.ts'
 import { context } from './context.ts'
@@ -26,6 +27,7 @@ import { worktrees } from './worktrees.ts'
 
 const DOMAINS = {
   diagnostics,
+  browser,
   commands,
   config,
   context,

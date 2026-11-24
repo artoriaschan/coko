@@ -67,6 +67,6 @@ it('Electron Artifacts shows live standalone deliveries and invokes native file 
   )
   await page.reload()
   await waitConnected(page)
-  await panel.getByRole('button', { name: /^(计划|Plan)$/ }).waitFor()
+  await panel.getByRole('button', { name: /^(浏览器|Browser)$/ }).waitFor()
   expect(await panel.getByRole('button', { name: 'Artifacts', exact: true }).count()).toBe(0)
 })

@@ -12,7 +12,7 @@ import { createSettingsPageStore } from './settings-page-store.ts'
 import { catalogModel, customProvider } from '../testing/fake-settings.ts'
 import { createFixtureChat } from '../testing/fixture-chat.ts'
 import { setReducedMotion } from '../testing/browser-commands.ts'
-import { openPage } from '../features/right-panel/layout-store.ts'
+import { openPage, type RightPanelTabId } from '../features/right-panel/layout-store.ts'
 import { settingsRegion } from '../testing/settings-page.ts'
 
 it('pinning and unpinning the open conversation preserve its content and editor DOM', async () => {
@@ -188,6 +188,9 @@ function renderApp(locale: Locale = 'zh', options: { providers?: boolean; theme?
     ),
   }
 }
+
+/** 计划、任务等页面不在开始页列出：经布局动作打开，与标题栏状态入口走同一路径（替换引导页，否则追加）。 */
+const openSidebarPage = (kind: RightPanelTabId, sessionId = 's-1') => void openPage(sessionId, kind)
 
 async function openSettings(name: RegExp | string) {
   await page.getByRole('button', { name }).first().click()
@@ -743,15 +746,23 @@ it('opens Start on demand, replaces it with a singleton page and collapses after
   expect(panel.getByRole('tab').all().length).toBe(1)
   expect(panel.getByRole('button', { name: 'New tab', exact: true }).query()).toBeNull()
   expect(panel.getByRole('button', { name: 'Close Start', exact: true }).query()).toBeNull()
-  for (const name of ['Plan', 'Tasks', 'Agents', 'Schedules', 'Team']) {
-    await expect.element(panel.getByRole('button', { name, exact: true })).toBeVisible()
-  }
+  // 开始页只列浏览器（诊断随开发者开关、Artifacts 随独立会话）；计划、任务等页面改由标题栏状态入口打开。
+  const entry = panel.getByRole('button', { name: 'Browser', exact: true })
+  await expect.element(entry).toBeVisible()
+  await expect.element(entry).toHaveAccessibleDescription('Browse web pages')
+  expect(panel.getByRole('tabpanel').getByRole('button').all().length).toBe(1)
   await page.screenshot({ element: panel.element(), path: '../../../../../.vitest/sidebar-start-desktop.png' })
-  await panel.getByRole('button', { name: 'Tasks', exact: true }).click()
-  await expect.element(panel.getByRole('tab', { name: 'Tasks', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await entry.click()
+  await expect.element(panel.getByRole('tab', { name: 'Browser', exact: true })).toHaveAttribute('aria-selected', 'true')
   expect(panel.getByRole('tab').all().length).toBe(1)
+  await expect.element(panel.getByText('The browser is not available yet')).toBeVisible()
+  await page.screenshot({ element: panel.element(), path: '../../../../../.vitest/sidebar-browser-desktop.png' })
+  for (const name of ['Back', 'Forward', 'Reload', 'Open in system browser']) {
+    await expect.element(panel.getByRole('button', { name, exact: true })).toBeDisabled()
+  }
+  await expect.element(panel.getByRole('textbox', { name: 'Enter an HTTP(S) address', exact: true })).toBeDisabled()
   await expect.element(panel.getByRole('button', { name: 'New tab', exact: true })).toBeVisible()
-  await panel.getByRole('button', { name: 'Close Tasks', exact: true }).click()
+  await panel.getByRole('button', { name: 'Close Browser', exact: true }).click()
   await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).toHaveFocus()
   await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
   await expect.element(panel.getByRole('tab', { name: 'Start', exact: true })).toBeVisible()
@@ -762,13 +773,14 @@ it('retains separate sidebar pages per Session and hides the container on non-se
   await renderApp('en').screen
   await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
   const panel = () => page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
-  await panel().getByRole('button', { name: 'Tasks', exact: true }).click()
-  await panel().getByRole('button', { name: 'New tab', exact: true }).click()
-  await panel().getByRole('button', { name: 'Plan', exact: true }).click()
+  openSidebarPage('jobs')
+  openSidebarPage('plan')
+  await expect.element(panel().getByRole('tab', { name: 'Plan', exact: true })).toHaveAttribute('aria-selected', 'true')
   await page.getByRole('button', { name: /^Sidecar startup handshake/ }).click()
   await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
-  await panel().getByRole('button', { name: 'Team', exact: true }).click()
+  openSidebarPage('team', 's-2')
+  await expect.element(panel().getByRole('tab', { name: 'Team', exact: true })).toHaveAttribute('aria-selected', 'true')
   await page.getByRole('button', { name: '设计 token 与三栏骨架', exact: true }).click()
   expect(
     panel()
@@ -788,7 +800,7 @@ it('keeps the right page mounted through fullscreen and collapses narrow fullscr
   await page.viewport(1440, 900)
   await renderApp('en').screen
   await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
-  await page.getByRole('button', { name: 'Tasks', exact: true }).click()
+  await page.getByRole('button', { name: 'Browser', exact: true }).click()
   const panel = document.querySelector<HTMLElement>('[data-slot="app-frame-right"]')!
   const pageNode = document.querySelector('#right-panel-tabpanel')!
   const center = document.querySelector('[data-slot="app-frame-main"]')!
@@ -838,8 +850,8 @@ it('resizes the sidebar panel through its separator and remembers fit collapse a
 })
 
 it.each([
-  ['en', 'light', 'Open sidebar', 'Start', 'Team'],
-  ['zh', 'dark', '打开侧边栏', '开始', '团队'],
+  ['en', 'light', 'Open sidebar', 'Start', 'Browser'],
+  ['zh', 'dark', '打开侧边栏', '开始', '浏览器'],
 ] as const)('%s %s: Start and its page entry remain reachable at 390 CSS px', async (locale, theme, open, start, lastPage) => {
   await page.viewport(390, 400)
   await renderApp(locale, { theme }).screen
@@ -849,9 +861,10 @@ it.each([
   const bounds = card.element().getBoundingClientRect()
   expect(bounds.left).toBeGreaterThanOrEqual(0)
   expect(bounds.right).toBeLessThanOrEqual(390)
-  const first = page.getByRole('button', { name: locale === 'zh' ? '计划' : 'Plan', exact: true })
-  ;(first.element() as HTMLElement).focus()
-  for (let index = 0; index < 4; index++) await userEvent.keyboard('{Tab}')
+  // 说明行在窄卡片内换行，不撑出卡片。
+  const description = card.element().querySelector<HTMLElement>('[data-slot="panel-start-description"]')!
+  expect(description.getBoundingClientRect().right).toBeLessThanOrEqual(bounds.right)
+  ;(card.element() as HTMLElement).focus()
   await expect.element(card).toHaveFocus()
   const focusedBounds = card.element().getBoundingClientRect()
   expect(focusedBounds.top).toBeGreaterThanOrEqual(0)
@@ -867,11 +880,11 @@ it('sidebar tabs use manual keyboard activation and modifier arrows reorder the 
   await renderApp('en').screen
   await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
   const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
-  await panel.getByRole('button', { name: 'Tasks', exact: true }).click()
-  await panel.getByRole('button', { name: 'New tab', exact: true }).click()
-  await panel.getByRole('button', { name: 'Plan', exact: true }).click()
+  openSidebarPage('jobs')
+  openSidebarPage('plan')
   const plan = panel.getByRole('tab', { name: 'Plan', exact: true })
   const trace = panel.getByRole('tab', { name: 'Tasks', exact: true })
+  await expect.element(plan).toHaveAttribute('aria-selected', 'true')
   ;(plan.element() as HTMLElement).focus()
   await userEvent.keyboard('{ArrowLeft}')
   await expect.element(trace).toHaveFocus()
@@ -903,26 +916,24 @@ it('sidebar supports middle-click and context closing while its sole Start tab s
   await renderApp('en').screen
   await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
   const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
-  const open = async (name: string) => {
-    if (!panel.getByRole('tab', { name: 'Start', exact: true }).query()) await panel.getByRole('button', { name: 'New tab', exact: true }).click()
-    await panel.getByRole('button', { name, exact: true }).click()
-  }
   const order = () =>
     panel
       .getByRole('tab')
       .all()
       .map((tab) => tab.element().textContent)
-  await open('Tasks')
-  await open('Plan')
-  await open('Team')
+  openSidebarPage('jobs')
+  openSidebarPage('plan')
+  openSidebarPage('team')
+  await expect.poll(order).toEqual(['Tasks', 'Plan', 'Team'])
   await panel.getByRole('tab', { name: 'Plan', exact: true }).click({ button: 'middle' })
   expect(order()).toEqual(['Tasks', 'Team'])
   await panel.getByRole('tab', { name: 'Tasks', exact: true }).click({ button: 'right' })
   await page.getByRole('menuitem', { name: 'Close tabs to the right', exact: true }).click()
   await expect.element(page.getByRole('menu')).not.toBeInTheDocument()
   expect(order()).toEqual(['Tasks'])
-  await open('Plan')
-  await open('Team')
+  openSidebarPage('plan')
+  openSidebarPage('team')
+  await expect.poll(order).toEqual(['Tasks', 'Plan', 'Team'])
   await panel.getByRole('tab', { name: 'Plan', exact: true }).click({ button: 'right' })
   await page.getByRole('menuitem', { name: 'Close other tabs', exact: true }).click()
   await expect.element(page.getByRole('menu')).not.toBeInTheDocument()
@@ -943,10 +954,11 @@ it('sidebar tabs reorder through pointer dragging without changing the selected 
   await renderApp('en').screen
   await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
   const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
-  await panel.getByRole('button', { name: 'Tasks', exact: true }).click()
-  await panel.getByRole('button', { name: 'New tab', exact: true }).click()
-  await panel.getByRole('button', { name: 'Plan', exact: true }).click()
-  const source = panel.getByRole('tab', { name: 'Tasks', exact: true }).element()
+  // 先真实点击开始页入口，把指针移离 tab 条：停在刚出现的右栏控件上的指针会打断下面的合成拖动。
+  await panel.getByRole('button', { name: 'Browser', exact: true }).click()
+  openSidebarPage('plan')
+  await expect.element(panel.getByRole('tab', { name: 'Plan', exact: true })).toHaveAttribute('aria-selected', 'true')
+  const source = panel.getByRole('tab', { name: 'Browser', exact: true }).element()
   const target = panel.getByRole('tab', { name: 'Plan', exact: true }).element()
   const center = (element: Element) => {
     const rect = element.getBoundingClientRect()
@@ -981,7 +993,7 @@ it('sidebar tabs reorder through pointer dragging without changing the selected 
         .all()
         .map((tab) => tab.element().textContent),
     )
-    .toEqual(['Plan', 'Tasks'])
+    .toEqual(['Plan', 'Browser'])
   await expect.element(panel.getByRole('tab', { name: 'Plan', exact: true })).toHaveAttribute('aria-selected', 'true')
 })
 
@@ -994,10 +1006,8 @@ it.each([
   await screen
   await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
   const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
-  for (const name of ['Plan', 'Tasks', 'Agents', 'Schedules', 'Team']) {
-    if (!panel.getByRole('tab', { name: 'Start', exact: true }).query()) await panel.getByRole('button', { name: 'New tab', exact: true }).click()
-    await panel.getByRole('button', { name, exact: true }).click()
-  }
+  for (const kind of ['plan', 'jobs', 'agents', 'schedules', 'team'] as const) openSidebarPage(kind)
+  await expect.poll(() => panel.getByRole('tab').all().length).toBe(5)
   store.setLocale(locale)
   const list = panel.getByRole('tablist').element() as HTMLElement
   expect(list.scrollWidth).toBeGreaterThan(list.clientWidth)
@@ -1042,8 +1052,8 @@ it.each([false, true])('opening an already displayed sidebar page glows for 600m
   animation.finish()
   await expect.poll(() => document.querySelector('[data-slot="panel-attention"]')).toBeNull()
   const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
-  await panel.getByRole('button', { name: 'New tab', exact: true }).click()
-  await panel.getByRole('button', { name: 'Plan', exact: true }).click()
+  openSidebarPage('plan')
+  await expect.element(page.getByRole('tab', { name: 'Plan', exact: true })).toHaveAttribute('aria-selected', 'true')
   openTasks()
   await expect.element(page.getByRole('tab', { name: 'Tasks', exact: true })).toHaveAttribute('aria-selected', 'true')
   expect(document.querySelector('[data-slot="panel-attention"]')).toBeNull()

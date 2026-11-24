@@ -30,9 +30,9 @@ async function renderApp(locale: 'en' | 'zh' = 'en') {
 }
 
 it.each([
-  ['en', 'Fullscreen', 'Exit fullscreen', 'Plan', 'Close Plan'],
-  ['zh', '全屏', '退出全屏', '计划', '关闭计划'],
-] as const)('%s: fullscreen and tab-close tooltips contain only the action label', async (locale, fullscreen, exit, plan, close) => {
+  ['en', 'Fullscreen', 'Exit fullscreen', 'Browser', 'Close Browser'],
+  ['zh', '全屏', '退出全屏', '浏览器', '关闭浏览器'],
+] as const)('%s: fullscreen and tab-close tooltips contain only the action label', async (locale, fullscreen, exit, entry, close) => {
   await renderApp(locale)
   await userEvent.keyboard('{Control>}{Alt>}b{/Alt}{/Control}')
   const maximize = page.getByRole('button', { name: fullscreen, exact: true })
@@ -46,7 +46,7 @@ it.each([
   await restore.click()
   await page
     .getByRole('region', { name: locale === 'en' ? 'Sidebar' : '侧边栏', exact: true })
-    .getByRole('button', { name: plan, exact: true })
+    .getByRole('button', { name: entry, exact: true })
     .click()
   const closeTab = page.getByRole('button', { name: close, exact: true })
   await userEvent.hover(closeTab)
