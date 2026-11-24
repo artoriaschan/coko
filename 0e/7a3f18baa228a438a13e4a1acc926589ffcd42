@@ -1,0 +1,81 @@
+apps/desktop/src/renderer/features/conversation/dock/dock.browser.test.tsx
+  s_66d3609eb23ffa::t_c9b5f13a580d3a 43,48,74-75
+  s_66d3609eb23ffa::t_773e63297e7667 76-77
+  s_66d3609eb23ffa::t_fd3abd73d74e55 117-118
+apps/desktop/src/renderer/features/right-panel/browser-tab.tsx
+  s_66d3609eb23ffa::t_42102731eb8782 14
+  s_66d3609eb23ffa::t_3412695dd4d917 1-13,15-38
+docs/subsystems/workbench.md
+  s_66d3609eb23ffa::t_90cf489bc868ff 49,53
+packages/i18n/src/dictionaries/domains/diagnostics.ts
+  s_66d3609eb23ffa::t_16d5146f6dcfaa 60
+  s_66d3609eb23ffa::t_e3636cfc694ac9 6
+apps/desktop/src/renderer/features/right-panel/layout-persistence.ts
+  s_66d3609eb23ffa::t_e3636cfc694ac9 7
+apps/desktop/src/renderer/features/right-panel/tabs.ts
+  s_66d3609eb23ffa::t_42102731eb8782 18,37-38,42,48-56
+  s_66d3609eb23ffa::t_773e63297e7667 4-14
+apps/desktop/src/renderer/features/right-panel/layout-persistence.browser.test.tsx
+  s_66d3609eb23ffa::t_773e63297e7667 85-90
+  s_66d3609eb23ffa::t_3114b7016680bc 12
+  s_66d3609eb23ffa::t_fd3abd73d74e55 82-83,92,149-150
+apps/desktop/src/renderer/features/right-panel/layout-store.ts
+  s_66d3609eb23ffa::t_e3636cfc694ac9 6
+apps/desktop/src/renderer/features/trajectory/trajectory-view.browser.test.tsx
+  s_66d3609eb23ffa::t_fd3abd73d74e55 478
+apps/desktop/src/renderer/features/session-diagnostics/live-progress.browser.test.tsx
+  s_66d3609eb23ffa::t_3114b7016680bc 124
+docs/subsystems/schedules.md
+  s_66d3609eb23ffa::t_89bcaa2097cefa 99
+apps/desktop/e2e/artifacts.e2e.test.ts
+  s_66d3609eb23ffa::t_080817172e9607 70
+packages/i18n/src/dictionaries/en.ts
+  s_66d3609eb23ffa::t_e3636cfc694ac9 7
+packages/i18n/src/dictionaries/domains/index.ts
+  s_66d3609eb23ffa::t_e3636cfc694ac9 4,30
+apps/desktop/src/renderer/app/right-panel-shortcuts.browser.test.tsx
+  s_66d3609eb23ffa::t_3d68db8330b711 33-35,49
+docs/tech-stack/ui-design-system.md
+  s_66d3609eb23ffa::t_90cf489bc868ff 217-219
+packages/i18n/src/dictionaries/domains/browser.ts
+  s_66d3609eb23ffa::t_c24f851dbe4a2b 1-25
+apps/desktop/e2e/right-panel-menu.e2e.test.ts
+  s_66d3609eb23ffa::t_d78a8cfe3a8adf 36-37,39,47,54,59
+apps/desktop/src/renderer/features/right-panel/right-panel.tsx
+  s_66d3609eb23ffa::t_42102731eb8782 35-39
+packages/ui/src/components/panel-tabs.tsx
+  s_66d3609eb23ffa::t_5309f432221c47 342,348-358,360-378
+  s_66d3609eb23ffa::t_42102731eb8782 331-333,339,343,359
+packages/i18n/src/dictionaries/zh.ts
+  s_66d3609eb23ffa::t_e3636cfc694ac9 5
+apps/desktop/e2e/schedules.e2e.test.ts
+  s_66d3609eb23ffa::t_f8f1ec07050b4e 91,93-99
+apps/desktop/src/renderer/app/app.browser.test.tsx
+  s_66d3609eb23ffa::t_c9b5f13a580d3a 887
+  s_66d3609eb23ffa::t_7a4b37794bbdc2 759
+  s_66d3609eb23ffa::t_fd3abd73d74e55 15,192-194,749-753,755-756,758,760-763,765,776-778,782-783,803,853-854,864-866,883-884,924-927,934-936,959-960,1009-1010,1055-1056
+  s_66d3609eb23ffa::t_3114b7016680bc 867
+  s_66d3609eb23ffa::t_8325bb80f0019d 957
+  s_66d3609eb23ffa::t_e0e37129de0644 958,961,996
+packages/ui/src/components/panel-tabs.browser.test.tsx
+  s_66d3609eb23ffa::t_1421c7ed898bb5 5,43-64,68-72
+  s_66d3609eb23ffa::t_773e63297e7667 65-67
+apps/desktop/e2e/right-panel-persistence.e2e.test.ts
+  s_66d3609eb23ffa::t_d78a8cfe3a8adf 32-33,35,38-39,50-51,55,62,67-68,110-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "0e7a3f18baa228a438a13e4a1acc926589ffcd42",
+  "prompts": {},
+  "sessions": {
+    "s_66d3609eb23ffa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "529e05f4-fa62-497e-8065-3036979146c6",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
