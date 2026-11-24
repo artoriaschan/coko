@@ -9,6 +9,7 @@ import { createPreferences } from '../../app/preferences.ts'
 import { createSettingsPageStore } from '../../app/settings-page-store.ts'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
 import { settingsRegion } from '../../testing/settings-page.ts'
+import { openPage } from './layout-store.ts'
 
 async function renderApp() {
   const fixture = createFixtureChat()
@@ -78,13 +79,17 @@ it('saves page changes and manual fullscreen in this Session key while keeping o
   await renderApp()
   await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
   const panel = page.getByRole('region', { name: 'Sidebar', exact: true })
-  await panel.getByRole('button', { name: 'Plan', exact: true }).click()
-  await panel.getByRole('button', { name: 'New tab', exact: true }).click()
-  await panel.getByRole('button', { name: 'Tasks', exact: true }).click()
+  await panel.getByRole('button', { name: 'Browser', exact: true }).click()
+  openPage('s-1', 'jobs')
   await panel.getByRole('button', { name: 'Fullscreen', exact: true }).click()
-  expect(JSON.parse(localStorage.getItem('coko.right-panel.v1.s-1')!)).toEqual({ tabs: ['plan', 'jobs'], active: 'jobs', expanded: true, mode: 'fullscreen' })
+  expect(JSON.parse(localStorage.getItem('coko.right-panel.v1.s-1')!)).toEqual({
+    tabs: ['browser', 'jobs'],
+    active: 'jobs',
+    expanded: true,
+    mode: 'fullscreen',
+  })
   expect(localStorage.getItem('coko.right-panel.v1.s-3')).toBe(other)
-  await panel.getByRole('button', { name: 'Close Plan', exact: true }).click()
+  await panel.getByRole('button', { name: 'Close Browser', exact: true }).click()
   expect(JSON.parse(localStorage.getItem('coko.right-panel.v1.s-1')!)).toEqual({ tabs: ['jobs'], active: 'jobs', expanded: true, mode: 'fullscreen' })
 })
 
@@ -141,7 +146,7 @@ it('keeps the current layout usable when real browser storage is full', async ()
   await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
   const panel = page.getByRole('region', { name: 'Sidebar', exact: true })
   await expect.element(panel.getByRole('tab', { name: 'Start', exact: true })).toBeVisible()
-  await panel.getByRole('button', { name: 'Plan', exact: true }).click()
-  await expect.element(panel.getByRole('tab', { name: 'Plan', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await panel.getByRole('button', { name: 'Browser', exact: true }).click()
+  await expect.element(panel.getByRole('tab', { name: 'Browser', exact: true })).toHaveAttribute('aria-selected', 'true')
   expect(localStorage.getItem('coko.right-panel.v1.s-1')).toBeNull()
 })

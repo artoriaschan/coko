@@ -121,7 +121,7 @@ it('actual App replays Run progress through real stores, transfers blocks and to
   progress({ type: 'retry', attempt: 1, maxRetries: 2, delayMs: 1, errorMessage: 'transient' })
   await expect.element(table.getByRole('button', { name: 'retry', exact: true })).toBeVisible()
   await panel.getByRole('button', { name: 'New tab', exact: true }).click()
-  await panel.getByRole('button', { name: 'Plan', exact: true }).click()
+  await panel.getByRole('button', { name: 'Browser', exact: true }).click()
   progress({ type: 'context_usage', tokens: 7, contextWindow: 100 })
   await panel.getByRole('tab', { name: 'Session diagnostics', exact: true }).click()
   await expect.element(table.getByRole('button', { name: 'context_usage', exact: true })).toBeVisible()

@@ -29,14 +29,14 @@ it('Electron: restores per-Session tabs and fullscreen after restart and isolate
   await page.getByRole('button', { name: 'Saved layout', exact: true }).click()
   await page.getByRole('button', { name: /^(打开侧边栏|Open sidebar)$/ }).click()
   let panel = page.getByRole('region', { name: /^(侧边栏|Sidebar)$/ })
-  await panel.getByRole('button', { name: /^(计划|Plan)$/ }).click()
+  // 开始页只有浏览器入口：浏览器页与重新打开的开始页组成两页，再把开始页移到前面。
+  await panel.getByRole('button', { name: /^(浏览器|Browser)$/ }).click()
   await panel.getByRole('button', { name: /^(新标签页|New tab)$/ }).click()
-  await panel.getByRole('button', { name: /^(追踪|Trace)$/ }).click()
-  await panel.getByRole('tab', { name: /^(追踪|Trace)$/ }).press('ControlOrMeta+Shift+ArrowLeft')
+  await panel.getByRole('tab', { name: /^(开始|Start)$/ }).press('ControlOrMeta+Shift+ArrowLeft')
   await panel.getByRole('button', { name: /^(全屏|Fullscreen)$/ }).click()
   expect(await page.evaluate((id) => JSON.parse(localStorage.getItem(`coko.right-panel.v1.${id}`)!), ids[0])).toEqual({
-    tabs: ['trace', 'plan'],
-    active: 'trace',
+    tabs: ['start', 'browser'],
+    active: 'start',
     expanded: true,
     mode: 'fullscreen',
   })
@@ -47,25 +47,25 @@ it('Electron: restores per-Session tabs and fullscreen after restart and isolate
   await waitConnected(page)
   panel = page.getByRole('region', { name: /^(侧边栏|Sidebar)$/ })
   await panel.getByRole('button', { name: /^(退出全屏|Exit fullscreen)$/ }).waitFor()
-  expect(await panel.getByRole('tab').allTextContents()).toEqual([expect.stringMatching(/^(追踪|Trace)$/), expect.stringMatching(/^(计划|Plan)$/)])
-  expect(await panel.getByRole('tab', { name: /^(追踪|Trace)$/ }).getAttribute('aria-selected')).toBe('true')
+  expect(await panel.getByRole('tab').allTextContents()).toEqual([expect.stringMatching(/^(开始|Start)$/), expect.stringMatching(/^(浏览器|Browser)$/)])
+  expect(await panel.getByRole('tab', { name: /^(开始|Start)$/ }).getAttribute('aria-selected')).toBe('true')
   await panel.getByRole('button', { name: /^(退出全屏|Exit fullscreen)$/ }).click()
   await page.getByRole('button', { name: 'Other layout', exact: true }).click()
   await page.getByRole('button', { name: /^(打开侧边栏|Open sidebar)$/ }).click()
-  await panel.getByRole('button', { name: /^(后台任务|Tasks)$/ }).click()
+  await panel.getByRole('button', { name: /^(浏览器|Browser)$/ }).click()
   await page.evaluate((id) => localStorage.setItem(`coko.right-panel.v1.${id}`, '{invalid'), ids[0])
   await app.dispose()
   app = await launchApp({}, { dir: root })
   page = app.window
   await waitConnected(page)
   panel = page.getByRole('region', { name: /^(侧边栏|Sidebar)$/ })
-  await panel.getByRole('tab', { name: /^(后台任务|Tasks)$/ }).waitFor()
+  await panel.getByRole('tab', { name: /^(浏览器|Browser)$/ }).waitFor()
   await page.getByRole('button', { name: 'Saved layout', exact: true }).click()
   await page.getByRole('button', { name: /^(打开侧边栏|Open sidebar)$/ }).waitFor()
   expect(await page.evaluate((id) => localStorage.getItem(`coko.right-panel.v1.${id}`), ids[0])).toBeNull()
   expect(await page.evaluate((id) => JSON.parse(localStorage.getItem(`coko.right-panel.v1.${id}`)!), ids[1])).toEqual({
-    tabs: ['jobs'],
-    active: 'jobs',
+    tabs: ['browser'],
+    active: 'browser',
     expanded: true,
     mode: 'normal',
   })
@@ -107,8 +107,8 @@ it('Electron: a full localStorage keeps page operations usable and writes one di
   })
   await page.getByRole('button', { name: /^(打开侧边栏|Open sidebar)$/ }).click()
   const panel = page.getByRole('region', { name: /^(侧边栏|Sidebar)$/ })
-  await panel.getByRole('button', { name: /^(计划|Plan)$/ }).click()
-  await panel.getByRole('tab', { name: /^(计划|Plan)$/ }).waitFor()
+  await panel.getByRole('button', { name: /^(浏览器|Browser)$/ }).click()
+  await panel.getByRole('tab', { name: /^(浏览器|Browser)$/ }).waitFor()
   await app.dispose()
   const records = (await readFile(desktopLogPath(root), 'utf8'))
     .split('\n')

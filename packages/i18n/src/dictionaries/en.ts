@@ -4,6 +4,7 @@ import type { zh } from './zh.ts'
 export const en: typeof zh = {
   artifacts: {
     tab: 'Artifacts',
+    startDescription: 'Browse delivery files in outputs/',
     folder: 'outputs/',
     refresh: 'Refresh artifacts',
     loading: 'Loading artifacts',

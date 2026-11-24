@@ -328,31 +328,54 @@ export function PanelAttention() {
   return finished ? null : <div ref={element} aria-hidden data-slot="panel-attention" className="panel-attention pointer-events-none absolute inset-0 z-20" />
 }
 
+/** 入口超过此数时不显示说明，保持开始页轻量。 */
+const MAX_DESCRIBED_PAGES = 4
+
 /** 开始页按登记顺序居中呈现入口，文案由宿主本地化。 */
 export function PanelStart<Kind extends string>({
   pages,
   onOpen,
 }: {
-  pages: readonly { id: Kind; title: string; icon: React.ReactNode }[]
+  pages: readonly { id: Kind; title: string; description?: string; icon: React.ReactNode }[]
   onOpen: (id: Kind) => void
 }) {
+  const id = React.useId()
+  const described = pages.length <= MAX_DESCRIBED_PAGES
   return (
     <div className="min-h-0 flex-1 overflow-y-auto" data-slot="panel-start" data-scroll-stable>
       <div className="panel-start-content">
         <IconCompass aria-hidden stroke={1.5} className="mb-4 size-14 shrink-0 text-foreground opacity-10 [&_path:first-of-type]:fill-current" />
-        {pages.map((page) => (
-          <button
-            key={page.id}
-            type="button"
-            onClick={() => onOpen(page.id)}
-            className="flex min-h-14 w-[380px] max-w-full min-w-0 shrink-0 items-center gap-3.5 rounded-xl border-hairline border-border bg-card px-5 py-3.5 text-start text-ui-body-lg text-foreground focus-ring hover:bg-accent"
-          >
-            <span aria-hidden className="flex size-[26px] shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-[22px]">
-              {page.icon}
-            </span>
-            <span className="min-w-0 flex-1">{page.title}</span>
-          </button>
-        ))}
+        {pages.map((page) => {
+          const description = described ? page.description : undefined
+          return (
+            // 可访问名称只取标题；说明经 aria-describedby 提供。
+            <button
+              key={page.id}
+              type="button"
+              aria-labelledby={`${id}-${page.id}-title`}
+              aria-describedby={description === undefined ? undefined : `${id}-${page.id}-description`}
+              onClick={() => onOpen(page.id)}
+              className="flex min-h-14 w-[380px] max-w-full min-w-0 shrink-0 items-center gap-3.5 rounded-xl border-hairline border-border bg-card px-5 py-3.5 text-start text-ui-body-lg text-foreground focus-ring hover:bg-accent"
+            >
+              {/* 图标随卡片高度：单行标题旁 22px，带说明的两行旁 26px。 */}
+              <span
+                aria-hidden
+                data-described={description !== undefined || undefined}
+                className="flex size-[26px] shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-[22px] data-[described]:[&_svg]:size-[26px]"
+              >
+                {page.icon}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
+                <span id={`${id}-${page.id}-title`}>{page.title}</span>
+                {description !== undefined && (
+                  <span id={`${id}-${page.id}-description`} data-slot="panel-start-description" className="text-ui-caption text-muted-foreground">
+                    {description}
+                  </span>
+                )}
+              </span>
+            </button>
+          )
+        })}
       </div>
     </div>
   )

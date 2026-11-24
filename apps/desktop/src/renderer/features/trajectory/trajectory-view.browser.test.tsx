@@ -475,7 +475,7 @@ it('places trajectory in the main header, removes its sidebar entry and preserve
   await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
   const sidebar = page.getByRole('region', { name: 'Sidebar', exact: true })
   await expect.element(sidebar.getByRole('button', { name: 'Trajectory', exact: true })).not.toBeInTheDocument()
-  await sidebar.getByRole('button', { name: 'Plan', exact: true }).click()
+  await sidebar.getByRole('button', { name: 'Browser', exact: true }).click()
   const layout = getRightPanelLayout('s-1')
   await tabs.getByRole('tab', { name: 'Trajectory', exact: true }).click()
   const search = page.getByRole('searchbox', { name: 'Search trajectory' })

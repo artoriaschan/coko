@@ -2,6 +2,7 @@
 export const zh = {
   artifacts: {
     tab: 'Artifacts',
+    startDescription: '浏览 outputs/ 中的交付文件',
     folder: 'outputs/',
     refresh: '刷新交付文件',
     loading: '正在读取交付文件',

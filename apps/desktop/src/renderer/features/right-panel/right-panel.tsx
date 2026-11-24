@@ -32,7 +32,11 @@ export function RightPanel({
   const pageKinds: typeof kinds = kinds.length ? kinds : ['start']
   const layout = { ...storedLayout, tabs: pageKinds, active: pageKinds.find((kind) => kind === storedLayout.active) ?? pageKinds[0]! }
   const current = visible.find((tab) => tab.id === layout.active)
-  const pages = visible.map((tab) => ({ id: tab.id, title: t(tab.label), icon: <tab.icon aria-hidden className="size-5 shrink-0" /> }))
+  const pages = visible.flatMap((tab) =>
+    tab.startDescription === undefined
+      ? []
+      : [{ id: tab.id, title: t(tab.label), description: t(tab.startDescription), icon: <tab.icon aria-hidden stroke={1.5} className="shrink-0" /> }],
+  )
   const panelTabs = layout.tabs.flatMap((kind) => {
     const definition = visible.find((tab) => tab.id === kind)
     if (kind !== 'start' && !definition) return []
